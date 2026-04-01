@@ -195,6 +195,27 @@
   filter: brightness(1.08);
 }
 
+.backupBannerOk,
+.backupBannerErr {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.backupBannerOk {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #86efac;
+}
+
+.backupBannerErr {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
 .dangerBtn {
   font: inherit;
   padding: 0.55rem 1rem;

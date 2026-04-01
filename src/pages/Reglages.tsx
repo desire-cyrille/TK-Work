@@ -1,8 +1,13 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { PageFrame } from "../components/PageFrame";
 import { useBiens } from "../context/BiensContext";
 import { useFinance } from "../context/FinanceContext";
 import { useThemeSettings } from "../context/ThemeSettingsContext";
+import {
+  applyTkGestionBackupV1,
+  downloadTkGestionBackup,
+  parseTkGestionBackupJson,
+} from "../lib/appDataBackup";
 import { nomCompletLocataire } from "../lib/locataireUi";
 import {
   DEFAULT_EMETTEUR_DOCUMENTS_PDF,
@@ -12,7 +17,7 @@ import {
 } from "../context/themeSettingsStorage";
 import styles from "./Reglages.module.css";
 
-type TabId = "parametres" | "finances" | "profil";
+type TabId = "parametres" | "finances" | "profil" | "sauvegarde";
 
 export function Reglages() {
   const { settings, setSettings, updateSettings, resetSettings } =
@@ -21,6 +26,11 @@ export function Reglages() {
   const { locataires } = useBiens();
   const [tab, setTab] = useState<TabId>("parametres");
   const [draft, setDraft] = useState<ThemeSettings>(() => ({ ...settings }));
+  const [backupMsg, setBackupMsg] = useState<{
+    type: "ok" | "err";
+    text: string;
+  } | null>(null);
+  const backupFileRef = useRef<HTMLInputElement>(null);
 
   function syncDraftFromContext() {
     setDraft({ ...settings });
@@ -78,6 +88,18 @@ export function Reglages() {
             onClick={() => setTab("profil")}
           >
             Profil société
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "sauvegarde"}
+            className={`${styles.tab} ${tab === "sauvegarde" ? styles.tabActive : ""}`}
+            onClick={() => {
+              setBackupMsg(null);
+              setTab("sauvegarde");
+            }}
+          >
+            Sauvegarde
           </button>
         </div>
 
@@ -496,6 +518,110 @@ export function Reglages() {
                   ))}
                 </select>
               </label>
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "sauvegarde" ? (
+          <div className={styles.form}>
+            {backupMsg ? (
+              <p
+                className={
+                  backupMsg.type === "err"
+                    ? styles.backupBannerErr
+                    : styles.backupBannerOk
+                }
+                role="status"
+              >
+                {backupMsg.text}
+              </p>
+            ) : null}
+
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>Télécharger une sauvegarde</h2>
+              <p className={styles.hint}>
+                Enregistre dans un fichier JSON tout ce qui est stocké dans ce
+                navigateur pour TK Gestion : biens, baux, locataires, finances,
+                Airbnb, rapports d’activité, projets, thème et session /
+                profil. Utile pour copier vos données vers un autre ordinateur
+                ou vers la <strong>version en ligne</strong> (navigateur ouvert
+                sur votre déploiement), ou pour archiver.
+              </p>
+              <p className={styles.hint}>
+                <strong>Confidentialité</strong> : le fichier peut contenir des
+                données personnelles et le mot de passe du profil de connexion
+                (stocké localement). Conservez-le dans un endroit sûr.
+              </p>
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={() => {
+                  setBackupMsg(null);
+                  const n = downloadTkGestionBackup();
+                  setBackupMsg({
+                    type: "ok",
+                    text: `Fichier téléchargé (${n} bloc(s) de données exportés).`,
+                  });
+                }}
+              >
+                Télécharger le fichier de sauvegarde
+              </button>
+            </section>
+
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>Restaurer une sauvegarde</h2>
+              <p className={styles.hint}>
+                Remplace <strong>toutes</strong> les données TK Gestion
+                stockées dans ce navigateur par le contenu du fichier. Les pages
+                ouvertes ne verront le changement qu’après rechargement : la
+                restauration redémarrera l’application automatiquement.
+              </p>
+              <input
+                ref={backupFileRef}
+                type="file"
+                accept="application/json,.json"
+                className={styles.fileInputHidden}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  setBackupMsg(null);
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const text = String(reader.result ?? "");
+                    const parsed = parseTkGestionBackupJson(text);
+                    if (!parsed.ok) {
+                      setBackupMsg({ type: "err", text: parsed.error });
+                      return;
+                    }
+                    const n = Object.keys(parsed.data.entries).length;
+                    const msg = `Fichier du ${new Date(parsed.data.exportedAt).toLocaleString("fr-FR")} — ${n} bloc(s) à restaurer.`;
+                    if (
+                      !window.confirm(
+                        `${msg}\n\nConfirmer la restauration ? Les données actuelles sur ce navigateur pour TK Gestion seront effacées.`,
+                      )
+                    ) {
+                      return;
+                    }
+                    applyTkGestionBackupV1(parsed.data);
+                    window.location.reload();
+                  };
+                  reader.onerror = () => {
+                    setBackupMsg({
+                      type: "err",
+                      text: "Impossible de lire le fichier.",
+                    });
+                  };
+                  reader.readAsText(file, "UTF-8");
+                }}
+              />
+              <button
+                type="button"
+                className={styles.dangerBtn}
+                onClick={() => backupFileRef.current?.click()}
+              >
+                Choisir un fichier à restaurer…
+              </button>
             </section>
           </div>
         ) : null}
