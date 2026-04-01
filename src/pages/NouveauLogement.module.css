@@ -1,0 +1,256 @@
+.pageWide {
+  width: 100%;
+  max-width: min(56rem, 100%);
+  box-sizing: border-box;
+}
+
+.introText {
+  margin: 0 0 1.25rem;
+  color: var(--workspace-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.hint {
+  margin: 0 0 1.25rem;
+  color: var(--workspace-muted);
+  line-height: 1.55;
+}
+
+.emptyActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.req {
+  color: var(--brand-orange);
+  font-weight: 600;
+}
+
+.hintField {
+  font-size: 0.78rem;
+  color: var(--workspace-muted);
+  line-height: 1.4;
+}
+
+.hintFieldTight {
+  margin-top: 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-on-light);
+  border-radius: 16px;
+  padding: 1.35rem 1.5rem 1.5rem;
+  box-shadow: var(--shadow-card-light);
+}
+
+.fieldset {
+  margin: 0;
+  padding: 1.1rem 0 1.15rem;
+  border: none;
+  border-bottom: 1px solid var(--border-on-light);
+}
+
+.fieldset:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0.25rem;
+}
+
+.legend {
+  padding: 0;
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--workspace-text);
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 620px) {
+  .grid2,
+  .grid3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.field + .field {
+  margin-top: 0.85rem;
+}
+
+.grid2 .field,
+.grid3 .field {
+  margin-top: 0;
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--workspace-muted);
+}
+
+.input,
+.select,
+.textarea {
+  font: inherit;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-on-light);
+  border-radius: 12px;
+  background: var(--surface-elevated);
+  color: var(--workspace-text);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: #6b6b78;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 5rem;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+select option {
+  background: var(--surface);
+  color: var(--workspace-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 0.5rem;
+}
+
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.35rem;
+  background: var(--gradient-brand);
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: var(--shadow-cta);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.primaryBtn:hover {
+  filter: brightness(1.06);
+}
+
+.primaryBtn:active {
+  transform: scale(0.98);
+}
+
+.cancel {
+  font-size: 0.9rem;
+  color: var(--workspace-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cancel:hover {
+  color: var(--workspace-text);
+}
+
+.secondaryLink {
+  font-size: 0.9rem;
+  color: var(--workspace-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.secondaryLink:hover {
+  color: var(--workspace-text);
+}
+
+.locataireBiensList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 0.5rem;
+}
+
+.locataireBienRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  background: var(--surface-elevated, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-on-light);
+}
+
+.locataireBienCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--workspace-text);
+  cursor: pointer;
+}
+
+.locataireBienCheck input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.locataireBienMeta {
+  color: var(--workspace-muted);
+  font-weight: 500;
+  font-size: 0.82rem;
+}
+
+.locataireBienRow .select {
+  flex: 0 1 14rem;
+  max-width: 100%;
+}

@@ -1,0 +1,114 @@
+.page {
+  max-width: 1100px;
+}
+
+.subtitle {
+  margin: 0 0 1.75rem;
+  color: var(--workspace-muted);
+  font-size: 0.95rem;
+  font-weight: 400;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 900px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border-on-light);
+  border-radius: 14px;
+  padding: 1.25rem 1.35rem;
+  box-shadow: var(--shadow-card-light);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gradient-brand);
+}
+
+.cardLabel {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--workspace-muted);
+  margin-bottom: 0.6rem;
+  font-weight: 500;
+}
+
+.cardValue {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tableSection {
+  background: var(--surface);
+  border: 1px solid var(--border-on-light);
+  border-radius: 14px;
+  padding: 1.35rem 1.5rem 1.25rem;
+  box-shadow: var(--shadow-card-light);
+}
+
+.sectionTitle {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--workspace-text);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  font-size: 0.9rem;
+  color: var(--workspace-text);
+}
+
+.table th,
+.table td {
+  padding: 0.75rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-on-light);
+}
+
+.table th {
+  font-weight: 600;
+  color: var(--workspace-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.benefice {
+  font-weight: 600;
+  color: #5eead4;
+}

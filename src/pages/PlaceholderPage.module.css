@@ -1,0 +1,9 @@
+.body {
+  max-width: 720px;
+}
+
+.text {
+  margin: 0;
+  color: var(--workspace-muted);
+  line-height: 1.6;
+}

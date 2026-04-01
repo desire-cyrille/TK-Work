@@ -1,0 +1,142 @@
+.pageInner {
+  width: 100%;
+  max-width: min(40rem, 100%);
+  box-sizing: border-box;
+}
+
+.intro {
+  margin: 0 0 1.35rem;
+  font-size: 0.92rem;
+  color: var(--workspace-muted);
+  line-height: 1.55;
+}
+
+.empty {
+  margin: 0;
+  color: var(--workspace-muted);
+  line-height: 1.6;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 1rem 1.15rem;
+  background: var(--surface);
+  border: 1px solid var(--border-on-light);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card-light);
+}
+
+.cardMain {
+  min-width: 0;
+  flex: 1;
+}
+
+.cardTitle {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--workspace-text);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.65rem;
+}
+
+.badgeSousLoc {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(139, 92, 246, 0.18);
+  color: #ddd6fe;
+  border: 1px solid rgba(139, 92, 246, 0.45);
+}
+
+.cardLibelle {
+  margin: 0.15rem 0 0;
+  font-size: 0.84rem;
+  color: var(--workspace-muted);
+  line-height: 1.4;
+}
+
+.cardLibelle strong {
+  color: var(--workspace-text);
+  font-weight: 600;
+}
+
+.cardMeta {
+  margin: 0.2rem 0 0;
+  font-size: 0.86rem;
+  color: var(--workspace-muted);
+  line-height: 1.45;
+}
+
+.cardMeta strong {
+  color: var(--workspace-text);
+  font-weight: 600;
+}
+
+.cardRef {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  color: var(--workspace-muted);
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btnEdit {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.45rem 0.75rem;
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btnEdit:hover {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(56, 189, 248, 0.55);
+}
+
+.btnDelete {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.45rem 0.75rem;
+  color: #f87171;
+  background: transparent;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 10px;
+  cursor: pointer;
+  align-self: center;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btnDelete:hover {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.55);
+}

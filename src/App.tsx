@@ -1,0 +1,122 @@
+import { Navigate, Route, Routes } from "react-router-dom";
+import { GateLayout } from "./components/GateLayout";
+import {
+  LegacyLocataireModifierRedirect,
+  LegacyLogementModifierRedirect,
+} from "./components/LegacyPathRedirects";
+import { Layout } from "./components/Layout";
+import { ModuleShell } from "./components/ModuleShell";
+import { RedirectIfAuthed } from "./components/RedirectIfAuthed";
+import { RequireAuth } from "./components/RequireAuth";
+import { Bailleurs } from "./pages/Bailleurs";
+import { Connexion } from "./pages/Connexion";
+import { Home } from "./pages/Home";
+import { Locataires } from "./pages/Locataires";
+import { Logements } from "./pages/Logements";
+import { NouveauLocataire } from "./pages/NouveauLocataire";
+import { EditionLogement } from "./pages/EditionLogement";
+import { NouveauLogement } from "./pages/NouveauLogement";
+import { Locations } from "./pages/Locations";
+import { Airbnb } from "./pages/Airbnb";
+import { Reglages } from "./pages/Reglages";
+import { Finance } from "./pages/Finance";
+import { RapportModuleLayout } from "./components/RapportModuleLayout";
+import { PageFonctions } from "./pages/PageFonctions";
+import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { RapportAccueil } from "./pages/RapportAccueil";
+import { RapportActivite } from "./pages/RapportActivite";
+import { RapportArchive } from "./pages/RapportArchive";
+import { RapportProjets } from "./pages/RapportProjets";
+import { RapportProjetListe } from "./pages/RapportProjetListe";
+
+export default function App() {
+  return (
+    <Routes>
+      <Route element={<RedirectIfAuthed />}>
+        <Route path="/connexion" element={<Connexion />} />
+      </Route>
+
+      <Route element={<RequireAuth />}>
+        <Route path="/logement" element={<Navigate to="/biens/logement" replace />} />
+        <Route
+          path="/logement/nouveau"
+          element={<Navigate to="/biens/logement/nouveau" replace />}
+        />
+        <Route
+          path="/logement/:id/modifier"
+          element={<LegacyLogementModifierRedirect />}
+        />
+        <Route path="/locataire" element={<Navigate to="/biens/locataire" replace />} />
+        <Route
+          path="/locataire/nouveau"
+          element={<Navigate to="/biens/locataire/nouveau" replace />}
+        />
+        <Route
+          path="/locataire/:id/modifier"
+          element={<LegacyLocataireModifierRedirect />}
+        />
+        <Route path="/bailleur" element={<Navigate to="/biens/bailleur" replace />} />
+        <Route path="/location" element={<Navigate to="/biens/location" replace />} />
+        <Route path="/airbnb" element={<Navigate to="/biens/airbnb" replace />} />
+        <Route path="/finance" element={<Navigate to="/biens/finance" replace />} />
+        <Route path="/reglages" element={<Navigate to="/biens/reglages" replace />} />
+        <Route
+          path="/proprietaire"
+          element={<Navigate to="/biens/bailleur" replace />}
+        />
+
+        <Route
+          path="/fonctions"
+          element={
+            <GateLayout>
+              <PageFonctions />
+            </GateLayout>
+          }
+        />
+
+        <Route path="/biens" element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="logement" element={<Logements />} />
+          <Route path="logement/nouveau" element={<NouveauLogement />} />
+          <Route path="logement/:id/modifier" element={<EditionLogement />} />
+          <Route path="locataire" element={<Locataires />} />
+          <Route path="locataire/nouveau" element={<NouveauLocataire />} />
+          <Route path="locataire/:id/modifier" element={<NouveauLocataire />} />
+          <Route path="bailleur" element={<Bailleurs />} />
+          <Route
+            path="proprietaire"
+            element={<Navigate to="/biens/bailleur" replace />}
+          />
+          <Route path="location" element={<Locations />} />
+          <Route path="airbnb" element={<Airbnb />} />
+          <Route path="finance" element={<Finance />} />
+          <Route path="reglages" element={<Reglages />} />
+          <Route path="*" element={<Navigate to="/biens" replace />} />
+        </Route>
+
+        <Route element={<ModuleShell />}>
+          <Route
+            path="devis"
+            element={
+              <PlaceholderPage
+                title="Gestion des devis"
+                description="Espace réservé à la création, au suivi et à l’archivage des devis. Les écrans et données seront ajoutés ici."
+              />
+            }
+          />
+          <Route path="rapport-activite" element={<RapportModuleLayout />}>
+            <Route index element={<Navigate to="accueil" replace />} />
+            <Route path="accueil" element={<RapportAccueil />} />
+            <Route path="projets" element={<RapportProjets />} />
+            <Route path="archive" element={<RapportArchive />} />
+            <Route path="projet/:projetId/rapports" element={<RapportProjetListe />} />
+            <Route path="edition/:projetId" element={<RapportActivite />} />
+          </Route>
+        </Route>
+
+        <Route index element={<Navigate to="/fonctions" replace />} />
+        <Route path="*" element={<Navigate to="/fonctions" replace />} />
+      </Route>
+    </Routes>
+  );
+}

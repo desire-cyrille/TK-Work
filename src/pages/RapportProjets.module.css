@@ -1,0 +1,137 @@
+.page {
+  max-width: min(44rem, 100%);
+}
+
+.intro {
+  margin: 0 0 1.35rem;
+  font-size: 0.92rem;
+  color: var(--workspace-muted);
+  line-height: 1.55;
+}
+
+.empty {
+  margin: 0;
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed var(--border-on-light);
+  color: var(--workspace-muted);
+  font-size: 0.9rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border-on-light);
+  border-radius: 14px;
+  padding: 1.15rem 1.2rem;
+  box-shadow: var(--shadow-card-light);
+}
+
+.cardTop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 0.65rem;
+}
+
+.field {
+  flex: 2 1 14rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.fieldSites {
+  flex: 0 1 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.fieldLabel {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--workspace-muted);
+}
+
+.input,
+.inputNum {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-on-light);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--workspace-text);
+}
+
+.inputNum {
+  max-width: 8rem;
+}
+
+.meta {
+  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  color: var(--workspace-muted);
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btnPrimary {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient-brand);
+  color: #fff;
+  box-shadow: var(--shadow-cta);
+}
+
+.btnPrimary:hover {
+  filter: brightness(1.05);
+}
+
+.btnSecondary {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  border: 1px solid var(--border-on-light);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--workspace-muted);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btnSecondary:hover {
+  color: var(--workspace-text);
+  border-color: rgba(255, 255, 255, 0.2);
+}

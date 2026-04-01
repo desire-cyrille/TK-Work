@@ -1,0 +1,249 @@
+.page {
+  max-width: 640px;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-on-light);
+  padding-bottom: 0.35rem;
+}
+
+.tab {
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: var(--workspace-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tab:hover {
+  color: var(--workspace-text);
+}
+
+.tabActive {
+  background: var(--surface);
+  color: var(--workspace-text);
+  box-shadow: 0 -1px 0 var(--surface);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border-on-light);
+  border-radius: 14px;
+  padding: 1.15rem 1.25rem 1.25rem;
+  box-shadow: var(--shadow-card-light);
+}
+
+.sectionTitle {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--workspace-text);
+}
+
+.hint {
+  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  color: var(--workspace-muted);
+  line-height: 1.45;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--workspace-muted);
+  min-width: 140px;
+}
+
+.textInput {
+  font: inherit;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-on-light);
+  border-radius: 10px;
+  background: var(--surface-elevated);
+  color: var(--workspace-text);
+  width: 100%;
+  max-width: 420px;
+}
+
+.textInput::placeholder {
+  color: #6b6b78;
+}
+
+.hexInput {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-on-light);
+  border-radius: 8px;
+  background: var(--surface-elevated);
+  color: var(--workspace-text);
+  width: 8.5rem;
+}
+
+.colorInput {
+  width: 42px;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid var(--border-on-light);
+  border-radius: 8px;
+  cursor: pointer;
+  background: transparent;
+}
+
+.linkBtn {
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--brand-pink);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.linkBtn:hover {
+  filter: brightness(1.1);
+}
+
+.radioSet {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--workspace-muted);
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.9rem;
+  color: var(--workspace-text);
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.primaryBtn {
+  font: inherit;
+  padding: 0.6rem 1.2rem;
+  background: var(--gradient-brand);
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-cta);
+  transition: filter 0.15s ease;
+}
+
+.primaryBtn:hover {
+  filter: brightness(1.06);
+}
+
+.secondaryBtn {
+  font: inherit;
+  padding: 0.55rem 1rem;
+  background: var(--surface-elevated);
+  color: var(--workspace-text);
+  border: 1px solid var(--border-on-light);
+  border-radius: 10px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.secondaryBtn:hover {
+  filter: brightness(1.08);
+}
+
+.dangerBtn {
+  font: inherit;
+  padding: 0.55rem 1rem;
+  background: transparent;
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  border-radius: 10px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dangerBtn:hover {
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.logoRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.logoPreview {
+  max-height: 56px;
+  max-width: 220px;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid var(--border-on-light);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.35rem;
+}
+
+.logoActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.filePickLabel {
+  position: relative;
+  cursor: pointer;
+  margin: 0;
+}
+
+.fileInputHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}

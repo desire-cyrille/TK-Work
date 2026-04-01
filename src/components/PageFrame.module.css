@@ -1,0 +1,94 @@
+.topBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: var(--topbar-bg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.topBarTitle {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.topBarActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.workspace {
+  flex: 1;
+  background-color: var(--app-workspace-bg, var(--workspace-bg));
+  background-image: var(--app-workspace-image, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: scroll;
+  padding: 1.5rem clamp(1.25rem, 3vw, 2rem);
+  min-height: 0;
+  color: var(--workspace-text);
+}
+
+/* Bouton d’action type « + Nouveau logement » dans le bandeau */
+.headerCta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.15rem;
+  background: var(--gradient-brand);
+  color: #ffffff;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  box-shadow: var(--shadow-cta);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.headerCta:hover {
+  filter: brightness(1.06);
+}
+
+.headerCta:active {
+  transform: scale(0.98);
+}
+
+.headerCtaPlus {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.headerCtaSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.15rem;
+  background: transparent;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.headerCtaSecondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.headerCtaSecondary:active {
+  transform: scale(0.98);
+}

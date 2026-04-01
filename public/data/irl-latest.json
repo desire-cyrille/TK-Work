@@ -1,0 +1,126 @@
+{
+  "observations": [
+    {
+      "year": 2025,
+      "quarter": 4,
+      "value": 145.78
+    },
+    {
+      "year": 2025,
+      "quarter": 3,
+      "value": 145.77
+    },
+    {
+      "year": 2025,
+      "quarter": 2,
+      "value": 146.68
+    },
+    {
+      "year": 2025,
+      "quarter": 1,
+      "value": 145.47
+    },
+    {
+      "year": 2024,
+      "quarter": 4,
+      "value": 144.64
+    },
+    {
+      "year": 2024,
+      "quarter": 3,
+      "value": 144.51
+    },
+    {
+      "year": 2024,
+      "quarter": 2,
+      "value": 145.17
+    },
+    {
+      "year": 2024,
+      "quarter": 1,
+      "value": 143.46
+    },
+    {
+      "year": 2023,
+      "quarter": 4,
+      "value": 142.06
+    },
+    {
+      "year": 2023,
+      "quarter": 3,
+      "value": 141.03
+    },
+    {
+      "year": 2023,
+      "quarter": 2,
+      "value": 140.59
+    },
+    {
+      "year": 2023,
+      "quarter": 1,
+      "value": 138.61
+    },
+    {
+      "year": 2022,
+      "quarter": 4,
+      "value": 137.26
+    },
+    {
+      "year": 2022,
+      "quarter": 3,
+      "value": 136.27
+    },
+    {
+      "year": 2022,
+      "quarter": 2,
+      "value": 135.84
+    },
+    {
+      "year": 2022,
+      "quarter": 1,
+      "value": 133.93
+    },
+    {
+      "year": 2021,
+      "quarter": 4,
+      "value": 132.62
+    },
+    {
+      "year": 2021,
+      "quarter": 3,
+      "value": 131.67
+    },
+    {
+      "year": 2021,
+      "quarter": 2,
+      "value": 131.12
+    },
+    {
+      "year": 2021,
+      "quarter": 1,
+      "value": 130.69
+    },
+    {
+      "year": 2020,
+      "quarter": 4,
+      "value": 130.52
+    },
+    {
+      "year": 2020,
+      "quarter": 3,
+      "value": 130.59
+    },
+    {
+      "year": 2020,
+      "quarter": 2,
+      "value": 130.57
+    },
+    {
+      "year": 2020,
+      "quarter": 1,
+      "value": 130.57
+    }
+  ],
+  "asOf": "2026-03-26",
+  "source": "INSEE série 001515333 (script update-irl)"
+}

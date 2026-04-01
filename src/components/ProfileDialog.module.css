@@ -1,0 +1,114 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.panel {
+  width: min(420px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-on-light);
+  border-radius: 14px;
+  padding: 1.35rem 1.35rem 1.25rem;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+.title {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--workspace-text);
+}
+
+.subtitle {
+  margin: 0 0 1.15rem;
+  font-size: 0.8rem;
+  color: var(--workspace-muted);
+  line-height: 1.5;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--workspace-muted);
+}
+
+.input {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-on-light);
+  background: var(--workspace-bg);
+  color: var(--workspace-text);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--brand-pink);
+  box-shadow: 0 0 0 2px rgba(255, 65, 108, 0.2);
+}
+
+.error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #fb7185;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+}
+
+.btnPrimary {
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0.55rem 1.15rem;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  color: #ffffff;
+  background: var(--gradient-brand);
+  box-shadow: var(--shadow-cta);
+}
+
+.btnPrimary:hover {
+  filter: brightness(1.06);
+}
+
+.btnSecondary {
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0.55rem 1.15rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  color: #ffffff;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.btnSecondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+}

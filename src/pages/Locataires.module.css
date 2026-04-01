@@ -1,0 +1,210 @@
+.pageInner {
+  width: 100%;
+  max-width: min(56rem, 100%);
+  box-sizing: border-box;
+}
+
+.intro {
+  margin: 0 0 1.5rem;
+  color: var(--workspace-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 42rem;
+}
+
+.section {
+  margin-bottom: 2rem;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 0.85rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--workspace-text);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--workspace-muted);
+}
+
+.emptySection {
+  margin: 0;
+  padding: 1rem 1.15rem;
+  border-radius: 12px;
+  border: 1px dashed var(--border-on-light);
+  color: var(--workspace-muted);
+  font-size: 0.9rem;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem 1rem;
+  align-items: start;
+  padding: 1rem 1.15rem;
+  background: var(--surface);
+  border: 1px solid var(--border-on-light);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card-light);
+}
+
+@media (max-width: 560px) {
+  .card {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cardMain {
+  min-width: 0;
+}
+
+.nameRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem 0.65rem;
+  margin-bottom: 0.35rem;
+}
+
+.name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--workspace-text);
+}
+
+.badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: lowercase;
+  padding: 0.22rem 0.55rem;
+  border-radius: 9999px;
+  background: rgba(255, 75, 43, 0.14);
+  color: #ff8a70;
+  border: 1px solid rgba(255, 75, 43, 0.35);
+}
+
+.badgeMixte {
+  background: rgba(168, 85, 247, 0.2);
+  color: #e9d5ff;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.badgeSous {
+  background: rgba(139, 92, 246, 0.14);
+  color: #c4b5fd;
+  border-color: rgba(139, 92, 246, 0.35);
+}
+
+.badgeSociete {
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.representantLine {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  color: var(--workspace-muted);
+  line-height: 1.4;
+}
+
+.meta {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--workspace-muted);
+  line-height: 1.45;
+}
+
+.logementLine {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: var(--workspace-muted);
+}
+
+.logementStrong {
+  color: var(--workspace-text);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: center;
+}
+
+.btnEdit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 10px;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btnEdit:hover {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(56, 189, 248, 0.55);
+}
+
+.btnDelete {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #f87171;
+  background: transparent;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.btnDelete:hover {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+.trashIcon {
+  flex-shrink: 0;
+}
+
+.pageEmpty {
+  margin: 0;
+  color: var(--workspace-muted);
+  line-height: 1.6;
+  max-width: 40rem;
+}
+
+.emptyCta {
+  margin-top: 1rem;
+}
