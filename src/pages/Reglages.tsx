@@ -6,6 +6,7 @@ import { useThemeSettings } from "../context/ThemeSettingsContext";
 import {
   applyTkGestionBackupV1,
   downloadTkGestionBackup,
+  estimateTkGestionBackupWriteBytes,
   parseTkGestionBackupJson,
 } from "../lib/appDataBackup";
 import { nomCompletLocataire } from "../lib/locataireUi";
@@ -575,7 +576,12 @@ export function Reglages() {
                 Remplace <strong>toutes</strong> les données TK Gestion
                 stockées dans ce navigateur par le contenu du fichier. Les pages
                 ouvertes ne verront le changement qu’après rechargement : la
-                restauration redémarrera l’application automatiquement.
+                restauration redémarrera l’application automatiquement. Si les{" "}
+                <strong>rapports</strong> ne réapparaissent pas, ouvrez le fichier{" "}
+                <code>.json</code> et vérifiez la présence de{" "}
+                <code>tk-gestion-rapports-projets-v1</code> et{" "}
+                <code>tk-gestion-rapports-chain-v1</code> sous « entries » — et
+                surveillez un message d’erreur de quota (photos trop lourdes).
               </p>
               <input
                 ref={backupFileRef}
@@ -596,7 +602,21 @@ export function Reglages() {
                       return;
                     }
                     const n = Object.keys(parsed.data.entries).length;
-                    const msg = `Fichier du ${new Date(parsed.data.exportedAt).toLocaleString("fr-FR")} — ${n} bloc(s) à restaurer.`;
+                    const bytes = estimateTkGestionBackupWriteBytes(parsed.data);
+                    const mb = bytes / (1024 * 1024);
+                    const hasRapportProjets =
+                      "tk-gestion-rapports-projets-v1" in parsed.data.entries;
+                    const hasRapportChain =
+                      "tk-gestion-rapports-chain-v1" in parsed.data.entries;
+                    const msg = [
+                      `Fichier du ${new Date(parsed.data.exportedAt).toLocaleString("fr-FR")} — ${n} bloc(s) à restaurer.`,
+                      `Rapports : projets ${hasRapportProjets ? "oui" : "non"}, chaîne ${hasRapportChain ? "oui" : "non"}.`,
+                      mb >= 3
+                        ? `Taille indicative ~${mb.toFixed(1)} Mo — risque de refus par le navigateur (quota).`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join("\n");
                     if (
                       !window.confirm(
                         `${msg}\n\nConfirmer la restauration ? Les données actuelles sur ce navigateur pour TK Gestion seront effacées.`,
@@ -604,7 +624,11 @@ export function Reglages() {
                     ) {
                       return;
                     }
-                    applyTkGestionBackupV1(parsed.data);
+                    const applied = applyTkGestionBackupV1(parsed.data);
+                    if (!applied.ok) {
+                      setBackupMsg({ type: "err", text: applied.error });
+                      return;
+                    }
                     window.location.reload();
                   };
                   reader.onerror = () => {

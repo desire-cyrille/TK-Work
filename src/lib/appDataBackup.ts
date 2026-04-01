@@ -146,13 +146,84 @@ function clearAllTkGestionStorageKeys(): void {
 }
 
 /**
- * Efface toutes les clés TK Gestion du navigateur puis réécrit celles présentes dans la sauvegarde.
- * Après appel, un rechargement de la page est nécessaire pour rafraîchir les contextes React.
+ * Ordre de restauration : métadonnées légères d’abord, puis projets rapports **avant** la chaîne
+ * (souvent très volumineuse à cause des photos), pour limiter l’état incohérent si le quota lâche en cours de route.
  */
-export function applyTkGestionBackupV1(data: TkGestionBackupV1): void {
+const RESTORE_KEY_PRIORITY: readonly string[] = [
+  "tk_gestion_profile",
+  "tk_gestion_session",
+  "tk-gestion-theme-v1",
+  "tk-gestion-biens-v1",
+  "tk-gestion-finance-v1",
+  "tk-gestion-airbnb-ventilation-v1",
+  "tk-gestion-rapports-projets-v1",
+  "tk-gestion-rapports-chain-v1",
+];
+
+export function sortRestoreKeys(keys: string[]): string[] {
+  const pri = new Map(RESTORE_KEY_PRIORITY.map((k, i) => [k, i]));
+  return [...keys].sort((a, b) => {
+    const ia = pri.get(a) ?? 10_000;
+    const ib = pri.get(b) ?? 10_000;
+    if (ia !== ib) return ia - ib;
+    return a.localeCompare(b);
+  });
+}
+
+/** Taille indicative des chaînes à écrire (limite navigateur souvent ~5 Mo / origine). */
+export function estimateTkGestionBackupWriteBytes(data: TkGestionBackupV1): number {
+  let n = 0;
+  for (const [k, v] of Object.entries(data.entries)) {
+    n += k.length + v.length;
+  }
+  return n;
+}
+
+export type ApplyTkGestionBackupResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+function rollbackTkGestionSnapshot(snapshot: Record<string, string>): void {
   clearAllTkGestionStorageKeys();
-  for (const [key, value] of Object.entries(data.entries)) {
-    if (!isTkGestionStorageKey(key)) continue;
-    localStorage.setItem(key, value);
+  for (const [k, v] of Object.entries(snapshot)) {
+    try {
+      localStorage.setItem(k, v);
+    } catch {
+      /* rollback partiel si quota ; évite de boucler */
+    }
+  }
+}
+
+/**
+ * Efface toutes les clés TK Gestion puis réécrit la sauvegarde.
+ * En cas d’erreur (ex. quota localStorage), l’état précédent est restauré autant que possible.
+ */
+export function applyTkGestionBackupV1(
+  data: TkGestionBackupV1,
+): ApplyTkGestionBackupResult {
+  const previousSnapshot = collectTkGestionEntriesFromLocalStorage();
+  try {
+    clearAllTkGestionStorageKeys();
+    const ordered = sortRestoreKeys(Object.keys(data.entries));
+    for (const key of ordered) {
+      if (!isTkGestionStorageKey(key)) continue;
+      const value = data.entries[key];
+      if (typeof value !== "string") continue;
+      localStorage.setItem(key, value);
+    }
+    return { ok: true };
+  } catch (e) {
+    rollbackTkGestionSnapshot(previousSnapshot);
+    if (e instanceof DOMException && e.name === "QuotaExceededError") {
+      return {
+        ok: false,
+        error:
+          "Stockage du navigateur plein (quota dépassé). Les rapports avec beaucoup de photos en dépassent souvent la limite (~5 Mo par site). Essayez avec Chrome sur ordinateur, ou allégez les images dans les rapports puis refaites une sauvegarde depuis le poste local.",
+      };
+    }
+    return {
+      ok: false,
+      error: `Échec de la restauration : ${e instanceof Error ? e.message : String(e)}`,
+    };
   }
 }
