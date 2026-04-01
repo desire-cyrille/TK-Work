@@ -442,6 +442,13 @@ export function supprimerProjetEntry(id: string): boolean {
   return true;
 }
 
+/** Insère un projet déjà complet (ex. import fichier), sans migration spécifique. */
+export function ajouterProjetImporte(p: RapportProjet): void {
+  const liste = chargerProjets();
+  liste.push(p);
+  enregistrerProjets(liste);
+}
+
 export function projetsActifs(): RapportProjet[] {
   return chargerProjets().filter((p) => !p.archived);
 }

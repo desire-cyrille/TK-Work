@@ -278,6 +278,14 @@ export function supprimerRapportEnregistre(id: string) {
   enregistrerListe(liste);
 }
 
+/** Ajoute des rapports en fin de stockage (import projet, sans déduplication). */
+export function ajouterRapportsEnFin(rapports: RapportEnregistre[]): void {
+  if (!rapports.length) return;
+  const liste = chargerRapportsEnregistres();
+  liste.push(...rapports);
+  enregistrerListe(liste);
+}
+
 export function supprimerRapportsPourProjet(projetId: string) {
   const liste = chargerRapportsEnregistres().filter((r) => r.projetId !== projetId);
   enregistrerListe(liste);
