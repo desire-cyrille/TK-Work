@@ -4,8 +4,16 @@ export const TK_GESTION_BACKUP_FORMAT = "tk-gestion-backup" as const;
 export const TK_GESTION_BACKUP_VERSION = 1 as const;
 
 /**
- * Liste des clés connues (biens, finance, Airbnb, rapports, thème, session).
- * Toute nouvelle persistance locale devrait être ajoutée ici pour être incluse dans les sauvegardes.
+ * Préfixes des clés appartenant à TK Gestion (biens, finance, Airbnb, rapports, thème, session…).
+ * L’export parcourt tout le localStorage et inclut chaque clé qui correspond, pour ne rien omettre
+ * (ex. rapports : `tk-gestion-rapports-projets-v1`, `tk-gestion-rapports-chain-v1`).
+ */
+export function isTkGestionStorageKey(key: string): boolean {
+  return key.startsWith("tk-gestion-") || key.startsWith("tk_gestion_");
+}
+
+/**
+ * Liste documentaire des modules connus (non exhaustive : l’export utilise {@link isTkGestionStorageKey}).
  */
 export const TK_GESTION_MANAGED_STORAGE_KEYS = [
   "tk-gestion-biens-v1",
@@ -25,24 +33,27 @@ export type TkGestionBackupV1 = {
   format: typeof TK_GESTION_BACKUP_FORMAT;
   version: typeof TK_GESTION_BACKUP_VERSION;
   exportedAt: string;
-  entries: Partial<Record<TkGestionManagedStorageKey, string>>;
+  /** Clés localStorage → valeurs brutes (toutes les entrées TK Gestion présentes au moment de l’export). */
+  entries: Record<string, string>;
 };
 
-function isManagedKey(k: string): k is TkGestionManagedStorageKey {
-  return (TK_GESTION_MANAGED_STORAGE_KEYS as readonly string[]).includes(k);
-}
-
-export function buildTkGestionBackupV1(): TkGestionBackupV1 {
-  const entries: Partial<Record<TkGestionManagedStorageKey, string>> = {};
-  for (const key of TK_GESTION_MANAGED_STORAGE_KEYS) {
+function collectTkGestionEntriesFromLocalStorage(): Record<string, string> {
+  const entries: Record<string, string> = {};
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key || !isTkGestionStorageKey(key)) continue;
     const v = localStorage.getItem(key);
     if (v !== null) entries[key] = v;
   }
+  return entries;
+}
+
+export function buildTkGestionBackupV1(): TkGestionBackupV1 {
   return {
     format: TK_GESTION_BACKUP_FORMAT,
     version: TK_GESTION_BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
-    entries,
+    entries: collectTkGestionEntriesFromLocalStorage(),
   };
 }
 
@@ -96,9 +107,14 @@ export function parseTkGestionBackupJson(
   if (!ent || typeof ent !== "object" || Array.isArray(ent)) {
     return { ok: false, error: "Sauvegarde incomplète (section « entries »)." };
   }
-  const entries: Partial<Record<TkGestionManagedStorageKey, string>> = {};
+  const entries: Record<string, string> = {};
   for (const [k, v] of Object.entries(ent)) {
-    if (!isManagedKey(k)) continue;
+    if (!isTkGestionStorageKey(k)) {
+      return {
+        ok: false,
+        error: `Clé non reconnue dans la sauvegarde : « ${k} ».`,
+      };
+    }
     if (typeof v !== "string") {
       return {
         ok: false,
@@ -118,16 +134,25 @@ export function parseTkGestionBackupJson(
   };
 }
 
+function clearAllTkGestionStorageKeys(): void {
+  const toRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key && isTkGestionStorageKey(key)) toRemove.push(key);
+  }
+  for (const key of toRemove) {
+    localStorage.removeItem(key);
+  }
+}
+
 /**
- * Efface toutes les clés gérées puis réécrit celles présentes dans la sauvegarde.
+ * Efface toutes les clés TK Gestion du navigateur puis réécrit celles présentes dans la sauvegarde.
  * Après appel, un rechargement de la page est nécessaire pour rafraîchir les contextes React.
  */
 export function applyTkGestionBackupV1(data: TkGestionBackupV1): void {
-  for (const key of TK_GESTION_MANAGED_STORAGE_KEYS) {
-    localStorage.removeItem(key);
-  }
-  for (const key of TK_GESTION_MANAGED_STORAGE_KEYS) {
-    const v = data.entries[key];
-    if (typeof v === "string") localStorage.setItem(key, v);
+  clearAllTkGestionStorageKeys();
+  for (const [key, value] of Object.entries(data.entries)) {
+    if (!isTkGestionStorageKey(key)) continue;
+    localStorage.setItem(key, value);
   }
 }

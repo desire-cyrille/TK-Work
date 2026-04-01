@@ -540,10 +540,11 @@ export function Reglages() {
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}>Télécharger une sauvegarde</h2>
               <p className={styles.hint}>
-                Enregistre dans un fichier JSON tout ce qui est stocké dans ce
-                navigateur pour TK Gestion : biens, baux, locataires, finances,
-                Airbnb, rapports d’activité, projets, thème et session /
-                profil. Utile pour copier vos données vers un autre ordinateur
+                Enregistre dans un fichier JSON <strong>toutes</strong> les clés
+                locales de l’application (préfixes <code>tk-gestion-</code> et{" "}
+                <code>tk_gestion_</code>) : biens, baux, locataires, finances,
+                Airbnb, <strong>rapports d’activité et projets associés</strong>,
+                thème, session / profil. Utile pour copier vos données vers un autre ordinateur
                 ou vers la <strong>version en ligne</strong> (navigateur ouvert
                 sur votre déploiement), ou pour archiver.
               </p>
