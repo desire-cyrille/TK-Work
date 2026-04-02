@@ -1058,7 +1058,41 @@
   background: rgba(31, 59, 102, 0.2);
   color: var(--workspace-text);
   font-weight: 600;
-  text-align: left;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.tableauThInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-height: 2.5rem;
+}
+
+.tableauThLabel {
+  line-height: 1.25;
+  text-align: center;
+}
+
+.tableauColDel {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(251, 113, 133, 0.5);
+  background: rgba(251, 113, 133, 0.12);
+  color: #fb7185;
+  cursor: pointer;
+}
+
+.tableauColDel:hover {
+  background: rgba(251, 113, 133, 0.22);
 }
 
 .tableauSuiviTable tbody tr:nth-child(even) td:not(.tableauSuiviTdAction) {

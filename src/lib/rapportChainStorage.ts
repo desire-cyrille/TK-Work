@@ -514,7 +514,10 @@ export function fusionnerContenuParSiteDepuisRapports(
       {
         siteId: "__legacy__",
         axes: axesContenuVidesPourDomaines(domaines),
-        tableauSuivi: { blocs: createDefaultTableauBlocs(domaines, colonnesTableau) },
+        tableauSuivi: {
+          blocs: createDefaultTableauBlocs(domaines, colonnesTableau),
+          domainesRetires: [],
+        },
       },
     ];
   }

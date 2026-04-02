@@ -72,6 +72,8 @@ export type TableauSuiviBloc = {
 
 export type TableauSuiviContenu = {
   blocs: TableauSuiviBloc[];
+  /** Domaines du projet volontairement retirés du tableau (ne pas réinjecter à l’alignement). */
+  domainesRetires?: string[];
 };
 
 /** Ancien format (une ligne = toutes les colonnes en cellules). */
@@ -164,6 +166,23 @@ export function normaliserValeurEtat(stocke: string): string {
 
 export function colonneEstEtat(colId: string): boolean {
   return colId === COL_ETAT_ID;
+}
+
+/** Domaine et Sujet sont obligatoires ; il doit rester au moins ces deux colonnes. */
+export function peutSupprimerColonneTableau(
+  colId: string,
+  colonnes: TableauSuiviColonne[],
+): boolean {
+  if (colId === COL_DOMAINE_ID || colId === COL_SUJET_ID) return false;
+  return colonnes.length > 2;
+}
+
+function filtrerDomainesRetiresValides(
+  retires: string[],
+  domaines: RapportDomaineDef[],
+): string[] {
+  const ids = new Set(domaines.map((d) => d.id));
+  return [...new Set(retires.filter((id) => ids.has(id)))];
 }
 
 export function appliquerNormalisationEtatAuxCellules(
@@ -299,11 +318,14 @@ export function alignerBlocsAvecDomainesRapport(
   blocs: TableauSuiviBloc[],
   domaines: RapportDomaineDef[],
   colonnes: TableauSuiviColonne[],
+  domainesRetires: readonly string[] = [],
 ): TableauSuiviBloc[] {
+  const retires = new Set(domainesRetires);
   const byId = new Map(blocs.map((b) => [b.domaineId, b]));
   const result: TableauSuiviBloc[] = [];
 
   for (const d of domaines) {
+    if (retires.has(d.id)) continue;
     const ex = byId.get(d.id);
     if (ex) {
       result.push({
@@ -354,7 +376,7 @@ export function alignerBlocsAvecDomainesRapport(
     });
   }
 
-  return result.length ? result : createDefaultTableauBlocs(domaines, colonnes);
+  return result;
 }
 
 export function normalizeTableauSuiviContenu(
@@ -362,10 +384,22 @@ export function normalizeTableauSuiviContenu(
   colonnes: TableauSuiviColonne[],
   domaines: RapportDomaineDef[],
 ): TableauSuiviContenu {
+  function lireRetires(source: Record<string, unknown>): string[] {
+    const dr = source.domainesRetires;
+    if (!Array.isArray(dr)) return [];
+    return filtrerDomainesRetiresValides(
+      dr
+        .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+        .map((x) => x.trim()),
+      domaines,
+    );
+  }
+
   if (!raw || typeof raw !== "object") {
-    return { blocs: createDefaultTableauBlocs(domaines, colonnes) };
+    return { blocs: createDefaultTableauBlocs(domaines, colonnes), domainesRetires: [] };
   }
   const o = raw as Record<string, unknown>;
+  const domainesRetires = lireRetires(o);
 
   const blocsRaw = o.blocs;
   if (Array.isArray(blocsRaw) && blocsRaw.length > 0) {
@@ -419,7 +453,13 @@ export function normalizeTableauSuiviContenu(
     }
     if (blocs.length) {
       return {
-        blocs: alignerBlocsAvecDomainesRapport(blocs, domaines, colonnes),
+        blocs: alignerBlocsAvecDomainesRapport(
+          blocs,
+          domaines,
+          colonnes,
+          domainesRetires,
+        ),
+        domainesRetires,
       };
     }
   }
@@ -447,11 +487,16 @@ export function normalizeTableauSuiviContenu(
         migrerLignesVersBlocs(lignes, colonnes, domaines),
         domaines,
         colonnes,
+        domainesRetires,
       ),
+      domainesRetires,
     };
   }
 
-  return { blocs: createDefaultTableauBlocs(domaines, colonnes) };
+  return {
+    blocs: createDefaultTableauBlocs(domaines, colonnes),
+    domainesRetires: [],
+  };
 }
 
 export function tableauSuiviBlocsNonVides(contenu: TableauSuiviContenu): boolean {
@@ -482,6 +527,18 @@ export function fusionnerTableauSuiviPourSite<
     sujets: Map<string, Record<string, string>>;
   };
   const domainMap = new Map<string, Pack>();
+
+  const retiresUnion = filtrerDomainesRetiresValides(
+    [
+      ...new Set(
+        rapports.flatMap((r) => {
+          const b = r.contenuParSite.find((c) => c.siteId === siteId);
+          return b?.tableauSuivi?.domainesRetires ?? [];
+        }),
+      ),
+    ],
+    domaines,
+  );
 
   for (const r of rapports) {
     const siteBloc = r.contenuParSite.find((c) => c.siteId === siteId);
@@ -521,7 +578,21 @@ export function fusionnerTableauSuiviPourSite<
   }
 
   if (domainMap.size === 0) {
-    return { blocs: createDefaultTableauBlocs(domaines, colonnes) };
+    if (retiresUnion.length === 0) {
+      return {
+        blocs: createDefaultTableauBlocs(domaines, colonnes),
+        domainesRetires: [],
+      };
+    }
+    return {
+      blocs: alignerBlocsAvecDomainesRapport(
+        [],
+        domaines,
+        colonnes,
+        retiresUnion,
+      ),
+      domainesRetires: retiresUnion,
+    };
   }
 
   const toSujetRows = (pack: Pack): TableauSuiviSujetRow[] =>
@@ -551,10 +622,31 @@ export function fusionnerTableauSuiviPourSite<
     });
   }
 
+  if (blocs.length === 0) {
+    if (retiresUnion.length === 0) {
+      return {
+        blocs: createDefaultTableauBlocs(domaines, colonnes),
+        domainesRetires: [],
+      };
+    }
+    return {
+      blocs: alignerBlocsAvecDomainesRapport(
+        [],
+        domaines,
+        colonnes,
+        retiresUnion,
+      ),
+      domainesRetires: retiresUnion,
+    };
+  }
+
   return {
-    blocs:
-      blocs.length > 0
-        ? alignerBlocsAvecDomainesRapport(blocs, domaines, colonnes)
-        : createDefaultTableauBlocs(domaines, colonnes),
+    blocs: alignerBlocsAvecDomainesRapport(
+      blocs,
+      domaines,
+      colonnes,
+      retiresUnion,
+    ),
+    domainesRetires: retiresUnion,
   };
 }

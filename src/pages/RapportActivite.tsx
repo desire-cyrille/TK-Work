@@ -59,6 +59,7 @@ import {
   emptyDataCellules,
   getColonnesTableauSuiviProjet,
   normaliserValeurEtat,
+  peutSupprimerColonneTableau,
   remapBlocsPourColonnes,
   type TableauSuiviColonne,
 } from "../lib/tableauSuivi";
@@ -108,9 +109,6 @@ function debutMissionDefaut(): string {
   return formatDateInput(d);
 }
 
-const RAPPEL_MODULES_INDEPENDANTS =
-  "Les fonctions « Gestion de biens », « Devis » et « Rapport » sont sans lien métier entre elles. Ce document ne reprend aucune donnée locative ni financière issues du module Biens.";
-
 const MAX_IMAGE_OCTETS = 2 * 1024 * 1024;
 
 function lireImageVersDataUrl(f: File):
@@ -146,7 +144,10 @@ function contenuVidePourProjetSites(
   return sites.map((s) => ({
     siteId: s.id,
     axes: { ...axes },
-    tableauSuivi: { blocs: createDefaultTableauBlocs(domaines, colonnesTableau) },
+    tableauSuivi: {
+      blocs: createDefaultTableauBlocs(domaines, colonnesTableau),
+      domainesRetires: [],
+    },
   }));
 }
 
@@ -731,7 +732,7 @@ export function RapportActivite() {
   }
 
   function majColonnesTableauEtContenu(next: TableauSuiviColonne[]) {
-    if (!projetCourant || next.length === 0) return;
+    if (!projetCourant || next.length < 2) return;
     const doms = getDomainesRapportProjet(projetCourant);
     mettreAJourProjetComplet(projetCourant.id, {
       tableauSuiviColonnes: next,
@@ -741,6 +742,7 @@ export function RapportActivite() {
       prev.map((b) => ({
         ...b,
         tableauSuivi: {
+          ...b.tableauSuivi,
           blocs: remapBlocsPourColonnes(
             b.tableauSuivi?.blocs ??
               createDefaultTableauBlocs(doms, next),
@@ -764,6 +766,7 @@ export function RapportActivite() {
           : {
               ...c,
               tableauSuivi: {
+                ...c.tableauSuivi,
                 blocs: (c.tableauSuivi?.blocs ?? []).map((bl) =>
                   bl.domaineId !== blocDomaineId
                     ? bl
@@ -796,6 +799,7 @@ export function RapportActivite() {
           : {
               ...c,
               tableauSuivi: {
+                ...c.tableauSuivi,
                 blocs: (c.tableauSuivi?.blocs ?? []).map((bl) =>
                   bl.domaineId !== blocDomaineId
                     ? bl
@@ -837,6 +841,7 @@ export function RapportActivite() {
           : {
               ...c,
               tableauSuivi: {
+                ...c.tableauSuivi,
                 blocs: (c.tableauSuivi?.blocs ?? []).map((bl) => {
                   if (bl.domaineId !== blocDomaineId) return bl;
                   if (!apresSujetId) {
@@ -868,6 +873,7 @@ export function RapportActivite() {
           : {
               ...c,
               tableauSuivi: {
+                ...c.tableauSuivi,
                 blocs: (c.tableauSuivi?.blocs ?? []).map((bl) => {
                   if (bl.domaineId !== blocDomaineId) return bl;
                   if (bl.sujets.length <= 1) {
@@ -908,6 +914,7 @@ export function RapportActivite() {
         return {
           ...c,
           tableauSuivi: {
+            ...c.tableauSuivi,
             blocs: [
               ...blocs,
               {
@@ -922,6 +929,9 @@ export function RapportActivite() {
                 ],
               },
             ],
+            domainesRetires: (c.tableauSuivi?.domainesRetires ?? []).filter(
+              (id) => id !== domaineId,
+            ),
           },
         };
       }),
@@ -939,6 +949,7 @@ export function RapportActivite() {
           : {
               ...c,
               tableauSuivi: {
+                ...c.tableauSuivi,
                 blocs: [
                   ...(c.tableauSuivi?.blocs ?? []),
                   {
@@ -960,20 +971,25 @@ export function RapportActivite() {
   }
 
   function supprimerBlocDomaineTableau(siteId: string, blocDomaineId: string) {
-    if (!blocDomaineId.startsWith("custom:")) return;
     setContenuParSite((prev) =>
-      prev.map((c) =>
-        c.siteId !== siteId
-          ? c
-          : {
-              ...c,
-              tableauSuivi: {
-                blocs: (c.tableauSuivi?.blocs ?? []).filter(
-                  (b) => b.domaineId !== blocDomaineId,
-                ),
-              },
-            },
-      ),
+      prev.map((c) => {
+        if (c.siteId !== siteId) return c;
+        const ts = c.tableauSuivi ?? { blocs: [] };
+        const prevRet = ts.domainesRetires ?? [];
+        const nextRetires = blocDomaineId.startsWith("custom:")
+          ? prevRet
+          : prevRet.includes(blocDomaineId)
+            ? prevRet
+            : [...prevRet, blocDomaineId];
+        return {
+          ...c,
+          tableauSuivi: {
+            ...ts,
+            blocs: (ts.blocs ?? []).filter((b) => b.domaineId !== blocDomaineId),
+            domainesRetires: nextRetires,
+          },
+        };
+      }),
     );
   }
 
@@ -1399,8 +1415,10 @@ export function RapportActivite() {
               Tableau de suivi — colonnes d’en-tête
             </h3>
             <p className={styles.paramDomainesIntro}>
-              Mêmes colonnes pour tous les sites. Valeurs par défaut modifiables ; au moins
-              une colonne. Les cellules du tableau se remplissent dans l’onglet Rédaction.
+              Mêmes colonnes pour tous les sites. Les colonnes <strong>Domaine</strong> et{" "}
+              <strong>Sujet</strong> sont obligatoires ; les autres peuvent être supprimées
+              tant qu’il reste au moins ces deux-là. Les cellules se remplissent dans
+              l’onglet Rédaction (ou × sur l’en-tête pour retirer une colonne).
             </p>
             <ul className={styles.paramDomainesList}>
               {getColonnesTableauSuiviProjet(projetCourant).map((col, idx) => {
@@ -1423,9 +1441,9 @@ export function RapportActivite() {
                     <button
                       type="button"
                       className={styles.paramDelSite}
-                      disabled={cols.length <= 1}
+                      disabled={!peutSupprimerColonneTableau(col.id, cols)}
                       onClick={() => {
-                        if (cols.length <= 1) return;
+                        if (!peutSupprimerColonneTableau(col.id, cols)) return;
                         majColonnesTableauEtContenu(
                           cols.filter((x) => x.id !== col.id),
                         );
@@ -1535,8 +1553,8 @@ export function RapportActivite() {
         {vueEdition === "redaction" ? (
           <>
             <p className={styles.intro}>
-              <strong>{RAPPEL_MODULES_INDEPENDANTS}</strong> Présentation du rapport
-              façon intercalaires par site : chaque domaine vide est omis dans le PDF.
+              Présentation du rapport façon intercalaires par site : chaque domaine vide
+              est omis dans le PDF.
             </p>
             {provenanceSynthese ? (
               <div className={styles.provenanceBanner}>
@@ -2046,7 +2064,26 @@ export function RapportActivite() {
                           <tr>
                             {cols.map((c) => (
                               <th key={c.id}>
-                                {c.label.trim() ? c.label : "\u00a0"}
+                                <div className={styles.tableauThInner}>
+                                  <span className={styles.tableauThLabel}>
+                                    {c.label.trim() ? c.label : "\u00a0"}
+                                  </span>
+                                  {peutSupprimerColonneTableau(c.id, cols) ? (
+                                    <button
+                                      type="button"
+                                      className={styles.tableauColDel}
+                                      title={`Retirer la colonne « ${c.label.trim() || c.id} »`}
+                                      aria-label={`Supprimer la colonne ${c.label.trim() || c.id}`}
+                                      onClick={() =>
+                                        majColonnesTableauEtContenu(
+                                          cols.filter((x) => x.id !== c.id),
+                                        )
+                                      }
+                                    >
+                                      ×
+                                    </button>
+                                  ) : null}
+                                </div>
                               </th>
                             ))}
                             <th className={styles.tableauSuiviThAction} aria-label="Actions" />
@@ -2071,20 +2108,18 @@ export function RapportActivite() {
                                     <span className={styles.tableauDomaineNom}>
                                       {blocDom.domaineLabel}
                                     </span>
-                                    {blocDom.domaineId.startsWith("custom:") ? (
-                                      <button
-                                        type="button"
-                                        className={styles.tableauBlocRemove}
-                                        onClick={() =>
-                                          supprimerBlocDomaineTableau(
-                                            sid,
-                                            blocDom.domaineId,
-                                          )
-                                        }
-                                      >
-                                        Retirer ce bloc
-                                      </button>
-                                    ) : null}
+                                    <button
+                                      type="button"
+                                      className={styles.tableauBlocRemove}
+                                      onClick={() =>
+                                        supprimerBlocDomaineTableau(
+                                          sid,
+                                          blocDom.domaineId,
+                                        )
+                                      }
+                                    >
+                                      Retirer ce bloc
+                                    </button>
                                   </td>
                                 ) : null}
                                 <td className={styles.tableauSuiviTdSujet}>

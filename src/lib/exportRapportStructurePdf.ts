@@ -160,11 +160,15 @@ function drawTableauSuiviPdf(
     doc.setTextColor(32);
     if (!text.trim()) return;
     const parts = doc.splitTextToSize(text.trim(), Math.max(cw - 2, 4));
-    let ty = yTop + 4.2;
-    for (let li = 0; li < Math.min(parts.length, Math.max(1, Math.floor(ch / 3.2))); li++) {
-      if (ty > yTop + ch - 1) break;
-      doc.text(parts[li] as string, x + 1, ty);
-      ty += 3.15;
+    const maxLines = Math.min(parts.length, Math.max(1, Math.floor(ch / 3.2)));
+    const lineH = 3.15;
+    const totalH = maxLines * lineH;
+    const cx = x + cw / 2;
+    let ty = yTop + (ch - totalH) / 2 + 3.35;
+    for (let li = 0; li < maxLines; li++) {
+      if (ty > yTop + ch - 0.5) break;
+      doc.text(parts[li] as string, cx, ty, { align: "center" });
+      ty += lineH;
     }
   }
 
@@ -218,7 +222,12 @@ function drawTableauSuiviPdf(
     doc.setTextColor(255, 255, 255);
     const lab = (colonnes[i].label || " ").trim() || "\u2014";
     const lines = doc.splitTextToSize(lab, Math.max(cw - 2, 4));
-    doc.text((lines[0] as string) || "\u2014", x + 1, y + 5);
+    const cx = x + cw / 2;
+    let hy = y + 4.2;
+    for (let hi = 0; hi < Math.min(lines.length, 2); hi++) {
+      doc.text(lines[hi] as string, cx, hy, { align: "center" });
+      hy += 3.1;
+    }
     x += cw;
   }
   y += TABLEAU_HDR_H;
