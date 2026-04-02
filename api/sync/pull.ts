@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_lib/db";
+import { jsonbValueToLocalStorageString } from "../_lib/jsonbStorageValue";
 import { cors } from "../_lib/http";
 import { requireUser } from "../_lib/requireUser";
 
@@ -48,7 +49,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const entries: Record<string, string> = {};
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       for (const [k, v] of Object.entries(raw)) {
-        if (typeof v === "string") entries[k] = v;
+        const s = jsonbValueToLocalStorageString(v);
+        if (s !== null) entries[k] = s;
       }
     }
 

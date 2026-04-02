@@ -183,6 +183,44 @@ export async function cloudPull(): Promise<
   };
 }
 
+/** Aligné sur api/_lib/syncPayload.ts (plafond corps HTTP Vercel ~4,5 Mo). */
+const CLOUD_ENTRIES_MAX_JSON_BYTES = 3 * 1024 * 1024;
+
+/**
+ * Découpe les entrées en plusieurs objets dont le JSON ne dépasse pas maxBytes,
+ * pour enchaîner reset + merge côté API.
+ */
+function chunkEntriesByJsonSize(
+  entries: Record<string, string>,
+  maxBytes: number,
+): Record<string, string>[] {
+  const out: Record<string, string>[] = [];
+  let cur: Record<string, string> = {};
+
+  function size(obj: Record<string, string>) {
+    return JSON.stringify(obj).length;
+  }
+
+  for (const [k, v] of Object.entries(entries)) {
+    const next = { ...cur, [k]: v };
+    if (size(next) <= maxBytes) {
+      cur = next;
+      continue;
+    }
+    if (Object.keys(cur).length > 0) {
+      out.push(cur);
+      cur = {};
+    }
+    cur = { [k]: v };
+    if (size(cur) > maxBytes) {
+      out.push(cur);
+      cur = {};
+    }
+  }
+  if (Object.keys(cur).length > 0) out.push(cur);
+  return out;
+}
+
 export async function cloudPush(): Promise<
   { ok: true } | { ok: false; error: string }
 > {
@@ -191,18 +229,57 @@ export async function cloudPush(): Promise<
     return { ok: false, error: "Non connecté au nuage." };
   }
   const entries = collectEntriesForCloudPush();
-  const r = await fetch("/api/sync/push", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ entries }),
-    cache: "no-store",
-  });
-  const data = (await readJson(r)) as ApiErr;
-  if (!r.ok) {
-    return { ok: false, error: data?.error ?? `Erreur ${r.status}` };
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  } as const;
+
+  async function pushBody(
+    body: unknown,
+  ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+    const r = await fetch("/api/sync/push", {
+      method: "POST",
+      headers: { ...headers },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    const data = (await readJson(r)) as ApiErr;
+    if (!r.ok) {
+      return {
+        ok: false,
+        error: data?.error ?? `Erreur ${r.status}`,
+        status: r.status,
+      };
+    }
+    return { ok: true };
   }
+
+  const innerLen = JSON.stringify(entries).length;
+  if (innerLen <= CLOUD_ENTRIES_MAX_JSON_BYTES) {
+    const r = await pushBody({ entries });
+    if (!r.ok) return { ok: false, error: r.error };
+    return { ok: true };
+  }
+
+  const chunks = chunkEntriesByJsonSize(entries, CLOUD_ENTRIES_MAX_JSON_BYTES);
+  const reset = await pushBody({ reset: true });
+  if (!reset.ok) {
+    return {
+      ok: false,
+      error: reset.error,
+    };
+  }
+
+  for (const chunk of chunks) {
+    if (Object.keys(chunk).length === 0) continue;
+    const part = await pushBody({ entries: chunk, merge: true });
+    if (!part.ok) {
+      return {
+        ok: false,
+        error: `${part.error} Envoi partiel sur le serveur — refaites « Envoyer vers le nuage » depuis ce poste.`,
+      };
+    }
+  }
+
   return { ok: true };
 }

@@ -9,10 +9,16 @@ export function isAllowedSyncKey(key: string): boolean {
   return key.startsWith("tk-gestion-") || key.startsWith("tk_gestion_");
 }
 
-const MAX_BYTES = 11 * 1024 * 1024;
+/**
+ * Taille max du JSON « entries » par requête (remplacement ou fragment).
+ * Aligné sur la limite de corps des fonctions Vercel (~4,5 Mo) : marge pour l’enveloppe JSON.
+ * @see https://vercel.com/docs/functions/runtimes#request-body-size
+ */
+export const MAX_SYNC_CHUNK_BYTES = 3 * 1024 * 1024;
 
 export function validateAndNormalizeEntries(
   raw: unknown,
+  maxPayloadBytes: number = MAX_SYNC_CHUNK_BYTES,
 ): { ok: true; entries: Record<string, string> } | { ok: false; error: string } {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { ok: false, error: "« entries » doit être un objet." };
@@ -29,10 +35,10 @@ export function validateAndNormalizeEntries(
     entries[k] = v;
   }
   const json = JSON.stringify(entries);
-  if (json.length > MAX_BYTES) {
+  if (json.length > maxPayloadBytes) {
     return {
       ok: false,
-      error: `Données trop volumineuses pour l’envoi (max. ${Math.round(MAX_BYTES / (1024 * 1024))} Mo). Réduisez les rapports / images.`,
+      error: `Ce fragment dépasse la taille max (${Math.round(maxPayloadBytes / (1024 * 1024))} Mo). Réduisez les photos dans les rapports ou utilisez une sauvegarde fichier.`,
     };
   }
   return { ok: true, entries };

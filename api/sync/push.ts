@@ -25,21 +25,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const body = readJsonBody(req) as { entries?: unknown } | null;
+    const body = readJsonBody(req) as {
+      reset?: unknown;
+      merge?: unknown;
+      entries?: unknown;
+    } | null;
+
+    const pool = getPool();
+
+    if (body?.reset === true) {
+      const upd = await pool.query<{ version: number; updatedAt: Date }>(
+        `UPDATE user_snapshots
+         SET payload = '{}'::jsonb, version = version + 1, "updatedAt" = NOW()
+         WHERE user_id = $1
+         RETURNING version, "updatedAt"`,
+        [user.userId],
+      );
+      const row = upd.rows[0];
+      if (!row) {
+        res.status(404).json({ error: "Profil nuage introuvable." });
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.status(200).json({
+        phase: "reset",
+        version: row.version,
+        updatedAt: row.updatedAt.toISOString(),
+      });
+      return;
+    }
+
+    const merge = body?.merge === true;
     const normalized = validateAndNormalizeEntries(body?.entries);
     if (!normalized.ok) {
       res.status(400).json({ error: normalized.error });
       return;
     }
-    const pool = getPool();
+
     const json = JSON.stringify(normalized.entries);
-    const upd = await pool.query<{ version: number; updatedAt: Date }>(
-      `UPDATE user_snapshots
-       SET payload = $1::jsonb, version = version + 1, "updatedAt" = NOW()
-       WHERE user_id = $2
-       RETURNING version, "updatedAt"`,
-      [json, user.userId],
-    );
+    const sql = merge
+      ? `UPDATE user_snapshots
+         SET payload = COALESCE(payload, '{}'::jsonb) || $1::jsonb,
+             version = version + 1,
+             "updatedAt" = NOW()
+         WHERE user_id = $2
+         RETURNING version, "updatedAt"`
+      : `UPDATE user_snapshots
+         SET payload = $1::jsonb, version = version + 1, "updatedAt" = NOW()
+         WHERE user_id = $2
+         RETURNING version, "updatedAt"`;
+
+    const upd = await pool.query<{ version: number; updatedAt: Date }>(sql, [
+      json,
+      user.userId,
+    ]);
     const row = upd.rows[0];
     if (!row) {
       res.status(404).json({ error: "Profil nuage introuvable." });
@@ -48,6 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     res.setHeader("Cache-Control", "no-store");
     res.status(200).json({
+      phase: merge ? "merge" : "replace",
       version: row.version,
       updatedAt: row.updatedAt.toISOString(),
     });

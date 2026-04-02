@@ -169,6 +169,10 @@ function CloudSyncPanel() {
           de la page <strong>Connexion</strong> (accès à l’app sur cet appareil).
           Même e-mail possible, mais le mot de passe nuage est celui défini
           ici pour Neon. Dernière copie envoyée gagne (pas de fusion ligne à ligne).
+          Les données « Rapports » (souvent lourdes à cause des photos) sont incluses ;
+          si le total dépasse la limite par envoi, plusieurs envois sont enchaînés
+          automatiquement. Si un message d’erreur de taille apparaît, allégez les images
+          ou passez par une sauvegarde fichier.
         </p>
         {linked && linkedEmail ? (
           <p className={styles.hint}>
