@@ -18,10 +18,8 @@
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: #ffffff;
-  letter-spacing: -0.02em;
+  display: inline-flex;
+  align-items: center;
 }
 
 .headerAside {

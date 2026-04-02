@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useThemeSettings } from "../context/ThemeSettingsContext";
+import { BrandTitle } from "./BrandTitle";
 import { ProfileDialog } from "./ProfileDialog";
 import styles from "./ModuleShell.module.css";
 
@@ -17,9 +18,9 @@ export function ModuleShell() {
           Changer de fonction
         </NavLink>
         <div className={styles.headerAside}>
-          <span className={styles.brand}>
-            {settings.brandName || "TK Pro Gestion"}
-          </span>
+          <div className={styles.brand}>
+            <BrandTitle name={settings.brandName} variant="module" />
+          </div>
           <button
             type="button"
             className={styles.profil}

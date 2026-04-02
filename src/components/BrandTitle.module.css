@@ -1,0 +1,44 @@
+.row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.22em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.mark {
+  flex-shrink: 0;
+  font-weight: 800;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.variantGate {
+  font-size: 0.95rem;
+}
+
+.textGate {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.variantModule {
+  font-size: 0.85rem;
+}
+
+.textModule {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+}
+
+.variantSidebar {
+  font-size: 0.92rem;
+}
+
+.textSidebar {
+  color: #ffffff;
+  font-weight: 700;
+}

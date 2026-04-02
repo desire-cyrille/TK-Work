@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useThemeSettings } from "../context/ThemeSettingsContext";
+import { BrandTitle } from "./BrandTitle";
 import { ProfileDialog } from "./ProfileDialog";
 import styles from "./GateLayout.module.css";
 
@@ -16,9 +17,9 @@ export function GateLayout({ children }: Props) {
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
-        <span className={styles.brand}>
-          {settings.brandName || "TK Pro Gestion"}
-        </span>
+        <div className={styles.brand}>
+          <BrandTitle name={settings.brandName} variant="gate" />
+        </div>
         <div className={styles.headerAside}>
           <button
             type="button"

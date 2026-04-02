@@ -63,13 +63,9 @@
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 0.92rem;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
   padding: 0 0.15rem 0 0.5rem;
-  color: #ffffff;
   border-left: 3px solid var(--brand-orange);
+  line-height: 1.25;
 }
 
 .brand::after {

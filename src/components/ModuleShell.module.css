@@ -73,10 +73,8 @@
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.55);
-  letter-spacing: -0.02em;
+  display: inline-flex;
+  align-items: center;
 }
 
 .main {

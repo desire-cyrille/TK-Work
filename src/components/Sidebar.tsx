@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useThemeSettings } from "../context/ThemeSettingsContext";
+import { BrandTitle } from "./BrandTitle";
 import { ProfileDialog } from "./ProfileDialog";
 import styles from "./Sidebar.module.css";
 
@@ -32,7 +33,9 @@ export function Sidebar() {
         onClose={() => setProfilOuvert(false)}
       />
 
-      <div className={styles.brand}>{settings.brandName || "TK Pro Gestion"}</div>
+      <div className={styles.brand}>
+        <BrandTitle name={settings.brandName} variant="sidebar" />
+      </div>
       <nav className={styles.nav}>
         <NavLink to="/biens" end className={navClass}>
           Page d&apos;accueil
