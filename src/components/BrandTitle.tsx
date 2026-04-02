@@ -1,4 +1,4 @@
-import logoSrc from "../assets/logo-tk-pro.svg?url";
+import logoSrc from "../assets/logo-tk-pro.png?url";
 import styles from "./BrandTitle.module.css";
 
 const DEFAULT = "TK Pro Gestion";
@@ -16,16 +16,18 @@ const logoMod = {
   sidebar: styles.logoSidebar,
 } as const;
 
-/** Logo seul (lisible, taille adaptée au bandeau / barre latérale). */
+/** Monogramme TK (asset bitmap), taille adaptée au bandeau / barre latérale. */
 export function BrandTitle({ name, variant }: Props) {
   const label = (name?.trim() || DEFAULT).trim() || DEFAULT;
   return (
     <span className={styles.row}>
-      <img
-        src={logoSrc}
-        alt={label}
-        className={`${styles.logo} ${logoMod[variant]}`}
-      />
+      <span className={styles.logoPad}>
+        <img
+          src={logoSrc}
+          alt={label}
+          className={`${styles.logo} ${logoMod[variant]}`}
+        />
+      </span>
     </span>
   );
 }
