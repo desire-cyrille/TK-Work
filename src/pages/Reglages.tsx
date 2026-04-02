@@ -1,4 +1,4 @@
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { PageFrame } from "../components/PageFrame";
 import { useBiens } from "../context/BiensContext";
 import { useFinance } from "../context/FinanceContext";
@@ -19,6 +19,82 @@ import {
 import styles from "./Reglages.module.css";
 
 type TabId = "parametres" | "finances" | "profil" | "sauvegarde";
+
+function ServerHealthCard() {
+  const [state, setState] = useState<"loading" | "ok" | "err">("loading");
+  const [errDetail, setErrDetail] = useState("");
+
+  const check = useCallback(async () => {
+    setState("loading");
+    setErrDetail("");
+    try {
+      const r = await fetch("/api/health", { cache: "no-store" });
+      let data: { ok?: boolean; db?: boolean; error?: string } = {};
+      try {
+        data = (await r.json()) as typeof data;
+      } catch {
+        /* ignore */
+      }
+      if (r.ok && data.ok === true && data.db === true) {
+        setState("ok");
+        return;
+      }
+      setState("err");
+      setErrDetail(
+        data.error ??
+          (r.status === 404
+            ? "Route /api/health introuvable (déployez sur Vercel ou lancez vercel dev)."
+            : `Réponse HTTP ${r.status}.`)
+      );
+    } catch (e) {
+      setState("err");
+      setErrDetail(
+        e instanceof TypeError
+          ? "Connexion refusée ou réseau. En développement : terminal 1 `npm run dev:api` (vercel dev), terminal 2 `npm run dev` — puis rechargez cette page."
+          : e instanceof Error
+            ? e.message
+            : "Erreur inconnue."
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    void check();
+  }, [check]);
+
+  return (
+    <section className={styles.section} style={{ marginTop: "1.25rem" }}>
+      <h2 className={styles.sectionTitle}>Base de données (Neon)</h2>
+      <p className={styles.hint}>
+        Vérifie la route <code className={styles.codeInline}>/api/health</code>{" "}
+        côté Vercel. Première utilisation : dans le dossier du projet, avec un{" "}
+        <code className={styles.codeInline}>DATABASE_URL</code> rempli dans{" "}
+        <code className={styles.codeInline}>.env</code>, exécutez{" "}
+        <code className={styles.codeInline}>npm run db:deploy</code> puis
+        déployez sur Vercel.
+      </p>
+      <div className={styles.healthRow}>
+        <button
+          type="button"
+          className={styles.secondaryBtn}
+          onClick={() => void check()}
+          disabled={state === "loading"}
+        >
+          {state === "loading" ? "Vérification…" : "Vérifier à nouveau"}
+        </button>
+        {state === "ok" ? (
+          <p className={styles.healthOk}>Connecté — la base répond correctement.</p>
+        ) : null}
+        {state === "err" ? (
+          <p className={styles.healthErr}>{errDetail || "Échec du test."}</p>
+        ) : null}
+        {state === "loading" ? (
+          <p className={styles.healthMuted}>Test en cours…</p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
 
 export function Reglages() {
   const { settings, setSettings, updateSettings, resetSettings } =
@@ -105,6 +181,7 @@ export function Reglages() {
         </div>
 
         {tab === "parametres" ? (
+          <>
           <form className={styles.form} onSubmit={onSubmit}>
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}>Nom affiché (menu)</h2>
@@ -347,6 +424,8 @@ export function Reglages() {
               </button>
             </div>
           </form>
+          <ServerHealthCard />
+          </>
         ) : null}
 
         {tab === "finances" ? (
