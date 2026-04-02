@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
-import { getPool } from "../_lib/db";
-import { readJsonBody, cors } from "../_lib/http";
-import { signSessionToken } from "../_lib/jwt";
-import { requireUser } from "../_lib/requireUser";
+import { getPool } from "../_lib/db.js";
+import { readJsonBody, cors } from "../_lib/http.js";
+import { signSessionToken } from "../_lib/jwt.js";
+import { requireUser } from "../_lib/requireUser.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ac = cors(req);

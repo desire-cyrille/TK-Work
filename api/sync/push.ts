@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "../_lib/db";
-import { readJsonBody, cors } from "../_lib/http";
-import { requireUser } from "../_lib/requireUser";
-import { validateAndNormalizeEntries } from "../_lib/syncPayload";
+import { getPool } from "../_lib/db.js";
+import { readJsonBody, cors } from "../_lib/http.js";
+import { requireUser } from "../_lib/requireUser.js";
+import { validateAndNormalizeEntries } from "../_lib/syncPayload.js";
 import {
   ensureWorkspaceSnapshotRow,
   WORKSPACE_SNAPSHOT_ID,
-} from "../_lib/workspaceSnapshot";
+} from "../_lib/workspaceSnapshot.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ac = cors(req);

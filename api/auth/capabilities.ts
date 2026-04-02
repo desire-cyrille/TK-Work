@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { cors } from "../_lib/http";
+import { cors } from "../_lib/http.js";
 
 function publicSignupAllowed(): boolean {
   const v = process.env.ALLOW_PUBLIC_SIGNUP?.trim().toLowerCase();

@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "../_lib/db";
-import { jsonbValueToLocalStorageString } from "../_lib/jsonbStorageValue";
-import { cors } from "../_lib/http";
-import { requireUser } from "../_lib/requireUser";
+import { getPool } from "../_lib/db.js";
+import { jsonbValueToLocalStorageString } from "../_lib/jsonbStorageValue.js";
+import { cors } from "../_lib/http.js";
+import { requireUser } from "../_lib/requireUser.js";
 import {
   ensureWorkspaceSnapshotRow,
   WORKSPACE_SNAPSHOT_ID,
-} from "../_lib/workspaceSnapshot";
+} from "../_lib/workspaceSnapshot.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ac = cors(req);

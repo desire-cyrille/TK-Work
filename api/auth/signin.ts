@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
-import { getPool } from "../_lib/db";
-import { readJsonBody, cors } from "../_lib/http";
-import { signSessionToken } from "../_lib/jwt";
+import { getPool } from "../_lib/db.js";
+import { readJsonBody, cors } from "../_lib/http.js";
+import { signSessionToken } from "../_lib/jwt.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 

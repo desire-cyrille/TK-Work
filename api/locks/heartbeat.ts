@@ -1,8 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "../_lib/db";
-import { readJsonBody, cors } from "../_lib/http";
-import { requireUser } from "../_lib/requireUser";
-import { heartbeatWorkspaceLock, isValidResourceKey } from "../_lib/workspaceLocks";
+import { getPool } from "../_lib/db.js";
+import { readJsonBody, cors } from "../_lib/http.js";
+import { requireUser } from "../_lib/requireUser.js";
+import {
+  heartbeatWorkspaceLock,
+  isValidResourceKey,
+} from "../_lib/workspaceLocks.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ac = cors(req);

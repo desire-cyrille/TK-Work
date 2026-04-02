@@ -1,6 +1,6 @@
 import type { VercelRequest } from "@vercel/node";
-import type { SessionClaims } from "./jwt";
-import { verifySessionToken } from "./jwt";
+import type { SessionClaims } from "./jwt.js";
+import { verifySessionToken } from "./jwt.js";
 
 export async function requireUser(
   req: VercelRequest,

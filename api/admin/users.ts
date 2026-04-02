@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
-import { getPool } from "../_lib/db";
-import { readJsonBody, cors } from "../_lib/http";
-import { requireUser } from "../_lib/requireUser";
-import type { SessionClaims } from "../_lib/jwt";
+import { getPool } from "../_lib/db.js";
+import { readJsonBody, cors } from "../_lib/http.js";
+import { requireUser } from "../_lib/requireUser.js";
+import type { SessionClaims } from "../_lib/jwt.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
