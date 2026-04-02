@@ -109,7 +109,8 @@ export function Connexion() {
             <span>E-mail</span>
             <input
               className={styles.input}
-              type="email"
+              type="text"
+              inputMode="email"
               autoComplete="username"
               value={email}
               onChange={(ev) => setEmail(ev.target.value)}
