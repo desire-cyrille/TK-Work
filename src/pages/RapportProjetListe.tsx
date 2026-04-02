@@ -10,6 +10,7 @@ import {
   type RapportEnregistre,
 } from "../lib/rapportChainStorage";
 import { getProjetById } from "../lib/rapportProjetStorage";
+import { withResourceLock } from "../lib/workspaceLockApi";
 import styles from "./RapportActivite.module.css";
 
 function fmtCourt(d: string): string {
@@ -55,36 +56,6 @@ export function RapportProjetListe() {
     return <Navigate to="/rapport-activite/projets" replace />;
   }
 
-  if (projet.archived) {
-    return (
-      <PageFrame title={`Rapports — ${projet.titre}`}>
-        <div className={styles.page}>
-          <p className={styles.intro}>
-            Ce projet est en archive. Restaurez-le depuis l’onglet{" "}
-            <strong>Archive</strong> pour consulter ou modifier les rapports
-            enregistrés.
-          </p>
-          <div className={styles.archivedActions}>
-            <button
-              type="button"
-              className={frameStyles.headerCtaSecondary}
-              onClick={() => navigate("/rapport-activite/archive")}
-            >
-              Ouvrir l’archive
-            </button>
-            <button
-              type="button"
-              className={frameStyles.headerCta}
-              onClick={() => navigate("/rapport-activite/projets")}
-            >
-              Projets
-            </button>
-          </div>
-        </div>
-      </PageFrame>
-    );
-  }
-
   return (
     <PageFrame
       title={`Rapports enregistrés — ${projet.titre}`}
@@ -108,6 +79,13 @@ export function RapportProjetListe() {
       }
     >
       <div className={styles.page}>
+        {projet.archived ? (
+          <p className={styles.intro}>
+            <strong>Projet archivé</strong> — les rapports enregistrés restent
+            accessibles. Pour restaurer le projet dans la liste active, utilisez
+            l’onglet <strong>Archive</strong>.
+          </p>
+        ) : null}
         <p className={styles.intro}>
           Liste des <strong>rapports enregistrés</strong> pour ce projet (données
           locales du navigateur). Ouvrez un rapport dans l’éditeur pour le modifier,
@@ -171,13 +149,25 @@ export function RapportProjetListe() {
                         className={styles.chainDelBtn}
                         onClick={() => {
                           if (
-                            confirm(
+                            !confirm(
                               `Supprimer définitivement le rapport « ${r.titre} » (${libellePeriodeStock(r)}) ?`,
                             )
                           ) {
-                            supprimerRapportEnregistre(r.id);
-                            refresh();
+                            return;
                           }
+                          void (async () => {
+                            const rLock = await withResourceLock(
+                              `projet:${projet.id}`,
+                              () => {
+                                supprimerRapportEnregistre(r.id);
+                              },
+                            );
+                            if (!rLock.ok) {
+                              window.alert(rLock.error);
+                              return;
+                            }
+                            refresh();
+                          })();
                         }}
                       >
                         Supprimer

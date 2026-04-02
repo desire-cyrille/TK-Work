@@ -14,6 +14,7 @@ import {
   mettreAJourProjet,
   projetsActifs,
 } from "../lib/rapportProjetStorage";
+import { withResourceLock } from "../lib/workspaceLockApi";
 import styles from "./RapportProjets.module.css";
 
 export function RapportProjets() {
@@ -120,11 +121,22 @@ export function RapportProjets() {
                       defaultValue={p.titre}
                       key={`${p.id}-${p.updatedAt}`}
                       onBlur={(e) => {
-                        const t = e.target.value.trim();
-                        if (t && t !== p.titre) {
-                          mettreAJourProjet(p.id, { titre: t });
+                        void (async () => {
+                          const t = e.target.value.trim();
+                          if (!t || t === p.titre) return;
+                          const r = await withResourceLock(
+                            `projet:${p.id}`,
+                            () => {
+                              mettreAJourProjet(p.id, { titre: t });
+                            },
+                          );
+                          if (!r.ok) {
+                            window.alert(r.error);
+                            e.target.value = p.titre;
+                            return;
+                          }
                           refresh();
-                        }
+                        })();
                       }}
                     />
                   </label>
@@ -138,11 +150,22 @@ export function RapportProjets() {
                       defaultValue={p.nombreSites}
                       key={`sites-${p.id}-${p.updatedAt}`}
                       onBlur={(e) => {
-                        const n = Number(e.target.value);
-                        if (Number.isFinite(n) && n !== p.nombreSites) {
-                          mettreAJourProjet(p.id, { nombreSites: n });
+                        void (async () => {
+                          const n = Number(e.target.value);
+                          if (!Number.isFinite(n) || n === p.nombreSites) return;
+                          const r = await withResourceLock(
+                            `projet:${p.id}`,
+                            () => {
+                              mettreAJourProjet(p.id, { nombreSites: n });
+                            },
+                          );
+                          if (!r.ok) {
+                            window.alert(r.error);
+                            e.target.value = String(p.nombreSites);
+                            return;
+                          }
                           refresh();
-                        }
+                        })();
                       }}
                     />
                   </label>
@@ -182,13 +205,25 @@ export function RapportProjets() {
                     className={styles.btnSecondary}
                     onClick={() => {
                       if (
-                        confirm(
+                        !confirm(
                           `Archiver le projet « ${p.titre} » ? Vous pourrez le consulter ou le supprimer dans l’onglet Archive.`,
                         )
                       ) {
-                        archiverProjet(p.id);
-                        refresh();
+                        return;
                       }
+                      void (async () => {
+                        const r = await withResourceLock(
+                          `projet:${p.id}`,
+                          () => {
+                            archiverProjet(p.id);
+                          },
+                        );
+                        if (!r.ok) {
+                          window.alert(r.error);
+                          return;
+                        }
+                        refresh();
+                      })();
                     }}
                   >
                     Archiver

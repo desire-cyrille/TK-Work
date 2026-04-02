@@ -36,8 +36,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
-    const row = await pool.query<{ id: string; password_hash: string }>(
-      `SELECT id, password_hash FROM users WHERE email = $1`,
+    const row = await pool.query<{
+      id: string;
+      password_hash: string;
+      role: string;
+      must_change_password: boolean;
+    }>(
+      `SELECT id, password_hash, role::text AS role, must_change_password
+       FROM users WHERE email = $1`,
       [email],
     );
     const u = row.rows[0];
@@ -45,9 +51,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(401).json({ error: "E-mail ou mot de passe incorrect." });
       return;
     }
-    const token = await signSessionToken(u.id, email);
+    const role = u.role === "ADMIN" ? "ADMIN" : ("USER" as const);
+    const token = await signSessionToken(
+      u.id,
+      email,
+      role,
+      u.must_change_password,
+    );
     res.setHeader("Cache-Control", "no-store");
-    res.status(200).json({ token, email });
+    res.status(200).json({
+      token,
+      email,
+      role,
+      mustChangePassword: u.must_change_password,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("JWT_SECRET")) {

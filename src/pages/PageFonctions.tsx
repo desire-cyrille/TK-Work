@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
+import { useAuth } from "../context/AuthContext";
 import styles from "./PageFonctions.module.css";
 
 const items = [
@@ -15,7 +16,7 @@ const items = [
     num: 2,
     title: "Gestion des devis",
     description:
-      "Préparation, suivi et validation des devis (module à compléter).",
+      "Création, suivi, archivage et suppression des devis (données partagées après synchro nuage).",
     to: "/devis",
     cta: "Accéder aux devis",
   },
@@ -30,6 +31,7 @@ const items = [
 ] as const;
 
 export function PageFonctions() {
+  const { isAdmin } = useAuth();
   return (
     <PageFrame title="Fonctions">
       <div className={styles.page}>
@@ -37,9 +39,10 @@ export function PageFonctions() {
           Choisissez l’activité sur laquelle vous souhaitez travailler.
         </p>
         <p className={styles.independenceNote}>
-          Chaque fonction est indépendante : les données de biens, devis et
-          rapports ne sont pas reliées entre elles ; changez de fonction pour
-          accéder à un autre périmètre.
+          Les volets biens, devis et rapports ont chacun leur écran, mais les
+          données sont <strong>partagées entre tous les utilisateurs</strong>{" "}
+          lorsque vous synchronisez avec le nuage (Réglages → Nuage, depuis la
+          fonction Biens).
         </p>
         <div className={styles.grid}>
           {items.map((item) => (
@@ -56,6 +59,13 @@ export function PageFonctions() {
             </NavLink>
           ))}
         </div>
+        {isAdmin ? (
+          <p className={styles.adminRow}>
+            <NavLink to="/admin/utilisateurs" className={styles.adminLink}>
+              Administration des comptes et mots de passe provisoires →
+            </NavLink>
+          </p>
+        ) : null}
       </div>
     </PageFrame>
   );

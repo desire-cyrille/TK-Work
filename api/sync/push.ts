@@ -3,6 +3,10 @@ import { getPool } from "../_lib/db";
 import { readJsonBody, cors } from "../_lib/http";
 import { requireUser } from "../_lib/requireUser";
 import { validateAndNormalizeEntries } from "../_lib/syncPayload";
+import {
+  ensureWorkspaceSnapshotRow,
+  WORKSPACE_SNAPSHOT_ID,
+} from "../_lib/workspaceSnapshot";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ac = cors(req);
@@ -32,18 +36,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } | null;
 
     const pool = getPool();
+    await ensureWorkspaceSnapshotRow(pool);
 
     if (body?.reset === true) {
       const upd = await pool.query<{ version: number; updatedAt: Date }>(
-        `UPDATE user_snapshots
+        `UPDATE workspace_snapshots
          SET payload = '{}'::jsonb, version = version + 1, "updatedAt" = NOW()
-         WHERE user_id = $1
+         WHERE id = $1
          RETURNING version, "updatedAt"`,
-        [user.userId],
+        [WORKSPACE_SNAPSHOT_ID],
       );
       const row = upd.rows[0];
       if (!row) {
-        res.status(404).json({ error: "Profil nuage introuvable." });
+        res.status(404).json({ error: "Espace nuage introuvable." });
         return;
       }
       res.setHeader("Cache-Control", "no-store");
@@ -64,24 +69,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const json = JSON.stringify(normalized.entries);
     const sql = merge
-      ? `UPDATE user_snapshots
-         SET payload = COALESCE(payload, '{}'::jsonb) || $1::jsonb,
+      ? `UPDATE workspace_snapshots
+         SET payload = COALESCE(payload, '{}'::jsonb) || $2::jsonb,
              version = version + 1,
              "updatedAt" = NOW()
-         WHERE user_id = $2
+         WHERE id = $1
          RETURNING version, "updatedAt"`
-      : `UPDATE user_snapshots
-         SET payload = $1::jsonb, version = version + 1, "updatedAt" = NOW()
-         WHERE user_id = $2
+      : `UPDATE workspace_snapshots
+         SET payload = $2::jsonb, version = version + 1, "updatedAt" = NOW()
+         WHERE id = $1
          RETURNING version, "updatedAt"`;
 
     const upd = await pool.query<{ version: number; updatedAt: Date }>(sql, [
+      WORKSPACE_SNAPSHOT_ID,
       json,
-      user.userId,
     ]);
     const row = upd.rows[0];
     if (!row) {
-      res.status(404).json({ error: "Profil nuage introuvable." });
+      res.status(404).json({ error: "Espace nuage introuvable." });
       return;
     }
 

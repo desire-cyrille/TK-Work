@@ -7,6 +7,12 @@ import { signSessionToken } from "../_lib/jwt";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
+function publicSignupAllowed(): boolean {
+  const v = process.env.ALLOW_PUBLIC_SIGNUP?.trim().toLowerCase();
+  if (v === "0" || v === "false" || v === "no") return false;
+  return true;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ac = cors(req);
   if (ac) {
@@ -28,6 +34,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   let token: string;
   try {
+    if (!publicSignupAllowed()) {
+      res.status(403).json({
+        error:
+          "L’inscription publique est désactivée. Contactez l’administrateur.",
+      });
+      return;
+    }
     if (!email || !EMAIL_RE.test(email)) {
       res.status(400).json({ error: "E-mail invalide." });
       return;
@@ -50,29 +63,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const passwordHash = bcrypt.hashSync(password, 10);
     const userId = randomUUID();
-    const snapId = randomUUID();
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(
-        `INSERT INTO users (id, email, password_hash, "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, NOW(), NOW())`,
-        [userId, email, passwordHash],
-      );
-      await client.query(
-        `INSERT INTO user_snapshots (id, user_id, payload, version, "updatedAt")
-         VALUES ($1, $2, '{}'::jsonb, 1, NOW())`,
-        [snapId, userId],
-      );
-      await client.query("COMMIT");
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
+    await pool.query(
+      `INSERT INTO users (id, email, password_hash, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, NOW(), NOW())`,
+      [userId, email, passwordHash],
+    );
 
-    token = await signSessionToken(userId, email);
+    token = await signSessionToken(userId, email, "USER", false);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("JWT_SECRET")) {
@@ -85,5 +82,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   res.setHeader("Cache-Control", "no-store");
-  res.status(201).json({ token, email });
+  res.status(201).json({
+    token,
+    email,
+    role: "USER",
+    mustChangePassword: false,
+  });
 }

@@ -116,3 +116,23 @@
   background-clip: text;
   color: transparent;
 }
+
+.adminRow {
+  margin: 1.75rem 0 0;
+  width: 100%;
+  max-width: 52rem;
+  text-align: center;
+}
+
+.adminLink {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--brand-pink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.adminLink:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

@@ -35,6 +35,17 @@
   line-height: 1.5;
 }
 
+.warn {
+  margin: 0 0 1rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  background: rgba(230, 126, 34, 0.12);
+  border: 1px solid rgba(230, 126, 34, 0.35);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--workspace-text);
+}
+
 .emailLine {
   margin: 0 0 1.1rem;
   font-size: 0.85rem;

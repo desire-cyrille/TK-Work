@@ -10,9 +10,25 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(s);
 }
 
-export async function signSessionToken(userId: string, email: string): Promise<string> {
+export type SessionClaims = {
+  userId: string;
+  email: string;
+  role: "USER" | "ADMIN";
+  mustChangePassword: boolean;
+};
+
+export async function signSessionToken(
+  userId: string,
+  email: string,
+  role: "USER" | "ADMIN",
+  mustChangePassword: boolean,
+): Promise<string> {
   const secret = getSecret();
-  return new jose.SignJWT({ email })
+  return new jose.SignJWT({
+    email,
+    role,
+    mcp: mustChangePassword,
+  })
     .setProtectedHeader({ alg: ALG })
     .setSubject(userId)
     .setIssuedAt()
@@ -20,18 +36,24 @@ export async function signSessionToken(userId: string, email: string): Promise<s
     .sign(secret);
 }
 
-export async function verifySessionToken(
-  token: string,
-): Promise<{ userId: string; email: string }> {
+export async function verifySessionToken(token: string): Promise<SessionClaims> {
   const secret = getSecret();
   const { payload } = await jose.jwtVerify(token, secret, { algorithms: [ALG] });
   const sub = payload.sub;
   const email = payload.email;
+  const roleRaw = payload.role;
+  const mcp = payload.mcp;
   if (typeof sub !== "string" || !sub) {
     throw new Error("Token invalide (sub).");
   }
   if (typeof email !== "string" || !email) {
     throw new Error("Token invalide (email).");
   }
-  return { userId: sub, email };
+  const role: "USER" | "ADMIN" = roleRaw === "ADMIN" ? "ADMIN" : "USER";
+  return {
+    userId: sub,
+    email,
+    role,
+    mustChangePassword: mcp === true,
+  };
 }

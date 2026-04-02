@@ -17,16 +17,33 @@ model AppKv {
   updatedAt DateTime @updatedAt
 }
 
-/// Compte cloud pour synchronisation multi-appareils (mot de passe hashé côté serveur).
+enum UserRole {
+  USER
+  ADMIN
+}
+
+/// Compte cloud pour connexion et droits (mot de passe hashé côté serveur).
 model User {
-  id           String         @id @default(cuid())
-  email        String         @unique
-  passwordHash String         @map("password_hash")
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  snapshot     UserSnapshot?
+  id                 String         @id @default(cuid())
+  email              String         @unique
+  passwordHash       String         @map("password_hash")
+  role               UserRole       @default(USER)
+  mustChangePassword Boolean        @default(false) @map("must_change_password")
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  snapshot           UserSnapshot?
 
   @@map("users")
+}
+
+/// Une seule copie des données métier partagée par tous les comptes (sync « nuage »).
+model WorkspaceSnapshot {
+  id        String   @id
+  payload   Json     @default("{}")
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@map("workspace_snapshots")
 }
 
 /// Dernière copie des entrées localStorage (JSON) pour un utilisateur.
@@ -39,4 +56,15 @@ model UserSnapshot {
   updatedAt DateTime @updatedAt
 
   @@map("user_snapshots")
+}
+
+/// Verrou d'édition (une clé : biens, devis:uuid, projet:uuid).
+model WorkspaceLock {
+  resourceKey  String   @id @map("resource_key")
+  holderUserId String   @map("holder_user_id")
+  holderEmail  String   @map("holder_email")
+  holderLabel  String   @map("holder_label")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("workspace_locks")
 }

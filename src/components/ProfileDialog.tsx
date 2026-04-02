@@ -8,7 +8,7 @@ type Props = {
 };
 
 export function ProfileDialog({ open, onClose }: Props) {
-  const { profileEmail, updatePassword } = useAuth();
+  const { profileEmail, mustChangePassword, updatePassword } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNew, setConfirmNew] = useState("");
@@ -70,23 +70,32 @@ export function ProfileDialog({ open, onClose }: Props) {
           Votre compte
         </h2>
         <p className={styles.subtitle}>
-          Compte serveur unique : même identifiant que la connexion et la
-          synchronisation (Réglages → Nuage). L’e-mail n’est pas modifiable ici.
+          Compte serveur : même identifiant que la connexion et la synchronisation
+          (Réglages → Nuage). Les données métier sont partagées entre utilisateurs
+          après synchro. L’e-mail n’est pas modifiable ici.
         </p>
         <p className={styles.emailLine}>
           <strong>E-mail :</strong> {profileEmail}
         </p>
+        {mustChangePassword ? (
+          <p className={styles.warn}>
+            Mot de passe provisoire : définissez votre mot de passe personnel
+            ci-dessous (le champ « actuel » n’apparaît pas dans ce cas).
+          </p>
+        ) : null}
         <form className={styles.form} onSubmit={(e) => void onSubmit(e)}>
-          <label className={styles.label}>
-            <span>Mot de passe actuel</span>
-            <input
-              className={styles.input}
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(ev) => setCurrentPassword(ev.target.value)}
-            />
-          </label>
+          {mustChangePassword ? null : (
+            <label className={styles.label}>
+              <span>Mot de passe actuel</span>
+              <input
+                className={styles.input}
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(ev) => setCurrentPassword(ev.target.value)}
+              />
+            </label>
+          )}
           <label className={styles.label}>
             <span>Nouveau mot de passe (8 caractères min.)</span>
             <input

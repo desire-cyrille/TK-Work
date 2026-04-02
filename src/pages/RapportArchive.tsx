@@ -9,6 +9,7 @@ import {
   compterRapportsPourProjet,
   supprimerRapportsPourProjet,
 } from "../lib/rapportChainStorage";
+import { withResourceLock } from "../lib/workspaceLockApi";
 import styles from "./RapportArchive.module.css";
 
 function fmtDate(iso?: string) {
@@ -63,8 +64,19 @@ export function RapportArchive() {
                       type="button"
                       className={styles.btnRestore}
                       onClick={() => {
-                        restaurerProjet(p.id);
-                        refresh();
+                        void (async () => {
+                          const r = await withResourceLock(
+                            `projet:${p.id}`,
+                            () => {
+                              restaurerProjet(p.id);
+                            },
+                          );
+                          if (!r.ok) {
+                            window.alert(r.error);
+                            return;
+                          }
+                          refresh();
+                        })();
                       }}
                     >
                       Restaurer
@@ -74,14 +86,26 @@ export function RapportArchive() {
                       className={styles.btnDelete}
                       onClick={() => {
                         if (
-                          confirm(
+                          !confirm(
                             `Supprimer définitivement « ${p.titre} » et ses ${n} rapport(s) ? Cette action est irréversible.`,
                           )
                         ) {
-                          supprimerRapportsPourProjet(p.id);
-                          supprimerProjetEntry(p.id);
-                          refresh();
+                          return;
                         }
+                        void (async () => {
+                          const r = await withResourceLock(
+                            `projet:${p.id}`,
+                            () => {
+                              supprimerRapportsPourProjet(p.id);
+                              supprimerProjetEntry(p.id);
+                            },
+                          );
+                          if (!r.ok) {
+                            window.alert(r.error);
+                            return;
+                          }
+                          refresh();
+                        })();
                       }}
                     >
                       Supprimer définitivement

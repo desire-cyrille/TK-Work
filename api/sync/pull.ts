@@ -3,6 +3,10 @@ import { getPool } from "../_lib/db";
 import { jsonbValueToLocalStorageString } from "../_lib/jsonbStorageValue";
 import { cors } from "../_lib/http";
 import { requireUser } from "../_lib/requireUser";
+import {
+  ensureWorkspaceSnapshotRow,
+  WORKSPACE_SNAPSHOT_ID,
+} from "../_lib/workspaceSnapshot";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ac = cors(req);
@@ -26,13 +30,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const pool = getPool();
+    await ensureWorkspaceSnapshotRow(pool);
     const row = await pool.query<{
       payload: Record<string, unknown>;
       version: number;
       updatedAt: Date;
     }>(
-      `SELECT payload, version, "updatedAt" FROM user_snapshots WHERE user_id = $1`,
-      [user.userId],
+      `SELECT payload, version, "updatedAt" FROM workspace_snapshots WHERE id = $1`,
+      [WORKSPACE_SNAPSHOT_ID],
     );
     const snap = row.rows[0];
     if (!snap) {

@@ -6,8 +6,12 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
+import { LockBanner } from "../components/LockBanner";
+import lockStyles from "../components/LockBanner.module.css";
 import { PageFrame } from "../components/PageFrame";
 import frameStyles from "../components/PageFrame.module.css";
+import { useAuth } from "../context/AuthContext";
+import { useWorkspaceLock } from "../hooks/useWorkspaceLock";
 import { RapportPhotoImport } from "../components/RapportPhotoImport";
 import {
   buildRapportPdfBlob,
@@ -139,6 +143,10 @@ export function RapportActivite() {
     () => (pidBrut ? getProjetById(pidBrut) : undefined),
     [pidBrut, projetNonce],
   );
+  const { isAuthenticated } = useAuth();
+  const projetLock = useWorkspaceLock(
+    isAuthenticated && pidBrut ? `projet:${pidBrut}` : null,
+  );
 
   const [vueEdition, setVueEdition] = useState<"redaction" | "parametres">(
     "redaction",
@@ -174,7 +182,7 @@ export function RapportActivite() {
   useEffect(() => {
     if (!pidBrut) return;
     const p = getProjetById(pidBrut);
-    if (!p || p.archived) return;
+    if (!p) return;
     const dom = getDomainesRapportProjet(p);
     setContenuParSite(contenuVidePourProjetSites(p.sites, dom));
     setSiteOngletId(p.sites[0]?.id ?? null);
@@ -191,7 +199,7 @@ export function RapportActivite() {
     setProvenanceSynthese(null);
     setSourceIdsSynthese(undefined);
     setMensuelPhotoKeysIncluded(null);
-    if (projetCourant && !projetCourant.archived) {
+    if (projetCourant) {
       setContenuParSite(
         contenuVidePourProjetSites(
           projetCourant.sites,
@@ -254,17 +262,17 @@ export function RapportActivite() {
 
   const stockCourant = useMemo(() => {
     const all = chargerRapportsEnregistres();
-    if (!projetCourant || projetCourant.archived) return [];
+    if (!projetCourant) return [];
     return all.filter((r) => r.projetId === projetCourant.id);
   }, [listeVersion, projetCourant]);
 
   const quotidiensPourMois = useMemo(() => {
-    if (!projetCourant || projetCourant.archived) return [];
+    if (!projetCourant) return [];
     return listerQuotidiensPourMoisCle(moisCleMensuel, projetCourant.id);
   }, [listeVersion, moisCleMensuel, projetCourant]);
 
   const photosMensuelItems = useMemo(() => {
-    if (!projetCourant || projetCourant.archived) return [];
+    if (!projetCourant) return [];
     return collecterPhotosQuotidiensPourMensuel(
       quotidiensPourMois,
       projetCourant.sites,
@@ -273,7 +281,7 @@ export function RapportActivite() {
   }, [quotidiensPourMois, projetCourant]);
 
   const mensuelsPourMission = useMemo(() => {
-    if (!missionOrdreOk || !projetCourant || projetCourant.archived) return [];
+    if (!missionOrdreOk || !projetCourant) return [];
     return listerMensuelsPourPeriodeMission(
       missionDebut,
       missionFin,
@@ -345,7 +353,7 @@ export function RapportActivite() {
   }
 
   function enregistrerDansLaChaine() {
-    if (!projetCourant || projetCourant.archived) return;
+    if (!projetCourant) return;
     if (mode === "fin_mission" && !missionOrdreOk) return;
     const row = sauvegarderRapport({
       id: rapportEditeId ?? undefined,
@@ -680,7 +688,7 @@ export function RapportActivite() {
   const idChargerUrl = searchParams.get("charger")?.trim() ?? "";
 
   useEffect(() => {
-    if (!projetCourant || projetCourant.archived || !idChargerUrl) return;
+    if (!projetCourant || !idChargerUrl) return;
     const r = chargerRapportsEnregistres().find(
       (x) => x.id === idChargerUrl && x.projetId === projetCourant.id,
     );
@@ -717,47 +725,29 @@ export function RapportActivite() {
     return <Navigate to="/rapport-activite/projets" replace />;
   }
 
-  if (projetCourant.archived) {
-    return (
-      <PageFrame title="Projet archivé">
-        <div className={styles.page}>
-          <p className={styles.intro}>
-            Le projet <strong>{projetCourant.titre}</strong> est en archive.
-            Restaurez-le depuis l’onglet <strong>Archive</strong> pour modifier
-            ou enregistrer des rapports.
-          </p>
-          <div className={styles.archivedActions}>
-            <button
-              type="button"
-              className={frameStyles.headerCtaSecondary}
-              onClick={() => navigate("/rapport-activite/archive")}
-            >
-              Ouvrir l’archive
-            </button>
-            <button
-              type="button"
-              className={frameStyles.headerCta}
-              onClick={() => navigate("/rapport-activite/projets")}
-            >
-              Liste des projets
-            </button>
-          </div>
-        </div>
-      </PageFrame>
-    );
-  }
-
   const siteIdActifStrip =
     siteOngletId ?? projetCourant.sites[0]?.id ?? "";
   const siteActifStrip = projetCourant.sites.find(
     (s) => s.id === siteIdActifStrip,
   );
 
+  const blockRapport =
+    isAuthenticated && projetLock.ready && !projetLock.canEdit;
+
   const redactionActionsDisabled =
-    vueEdition === "parametres" || (mode === "fin_mission" && !missionOrdreOk);
+    blockRapport ||
+    vueEdition === "parametres" ||
+    (mode === "fin_mission" && !missionOrdreOk);
 
   return (
-    <PageFrame
+    <div className={lockStyles.wrap}>
+      {blockRapport && projetLock.lockedByLabel ? (
+        <LockBanner
+          message={`Ce projet est en cours de modification par ${projetLock.lockedByLabel}. Lecture seule.`}
+        />
+      ) : null}
+      <div className={lockStyles.body}>
+        <PageFrame
       title={`Rapports — ${projetCourant.titre}`}
       actions={
         <>
@@ -797,15 +787,23 @@ export function RapportActivite() {
       }
     >
       <div className={styles.page}>
+        {projetCourant.archived ? (
+          <p className={styles.intro}>
+            <strong>Projet archivé.</strong> Vous pouvez consulter et modifier les
+            rapports ici. Pour remettre le projet dans la liste principale, ouvrez{" "}
+            <Link to="/rapport-activite/archive">Archive</Link> puis « Restaurer
+            ».
+          </p>
+        ) : null}
         <p className={styles.syncHint}>
-          <strong>Autres appareils :</strong> vos projets et rapports (textes et
-          photos) font partie de la copie synchronisée. Avec le{" "}
-          <strong>même compte</strong>, ouvrez{" "}
+          <strong>Autres appareils :</strong> projets et rapports (textes et
+          photos) font partie de la{" "}
+          <strong>copie nuage partagée</strong>. Ouvrez{" "}
           <Link className={styles.syncHintLink} to="/biens/reglages?tab=nuage">
             Réglages → Nuage
           </Link>{" "}
-          : envoyez depuis l’appareil où vous travaillez, récupérez sur mobile ou
-          un autre poste.
+          (fonction Biens) : envoyez depuis l’appareil où vous travaillez,
+          récupérez sur mobile ou un autre poste avec n’importe quel compte.
         </p>
         <div className={styles.editionTopTabs}>
           <button
@@ -1722,5 +1720,10 @@ export function RapportActivite() {
         ) : null}
       </div>
     </PageFrame>
+        {blockRapport ? (
+          <div className={lockStyles.overlay} aria-hidden />
+        ) : null}
+      </div>
+    </div>
   );
 }

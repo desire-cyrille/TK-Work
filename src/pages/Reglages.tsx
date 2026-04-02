@@ -87,7 +87,7 @@ function CloudSyncPanel() {
     }
     setCloudMsg({
       type: "ok",
-      text: "Copie enregistrée pour ce compte. Sur un autre appareil, connectez-vous avec le même e-mail puis « Récupérer ».",
+      text: "Copie enregistrée sur le nuage partagé. Sur un autre appareil, tout compte peut « Récupérer » pour aligner les données.",
     });
   }
 
@@ -109,15 +109,17 @@ function CloudSyncPanel() {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Synchronisation entre appareils</h2>
         <p className={styles.hint}>
-          <strong>Un compte = un espace de données.</strong> Chaque utilisateur
-          s’inscrit ou se connecte depuis la page d’accueil ; les données sont
-          séparées sur le serveur. La synchronisation utilise{" "}
-          <strong>le même identifiant</strong> que la connexion. Dernière copie
-          envoyée gagne (pas de fusion détaillée). Cela inclut les{" "}
-          <strong>projets et rapports d’activité</strong> (textes et photos
-          embarquées dans les brouillons). Les rapports très lourds peuvent
-          exiger plusieurs envois ; si une erreur de taille apparaît, allégez les
-          images ou utilisez une sauvegarde fichier.
+          <strong>Nuage unique pour l’organisation.</strong> Tous les utilisateurs
+          partagent la même copie des données sur le serveur : biens, finances,
+          Airbnb, thème,{" "}
+          <strong>devis</strong>,{" "}
+          <strong>projets et rapports d’activité</strong> (y compris photos
+          embarquées). La synchronisation s’authentifie avec{" "}
+          <strong>votre compte personnel</strong>, mais envoie et récupère le
+          même contenu pour tous. Dernière copie envoyée gagne (pas de fusion
+          détaillée). Les rapports très lourds peuvent exiger plusieurs envois ;
+          en cas d’erreur de taille, allégez les images ou utilisez une sauvegarde
+          fichier.
         </p>
         {!isAuthenticated ? (
           <p className={styles.backupBannerErr} role="status">
@@ -148,8 +150,9 @@ function CloudSyncPanel() {
               </button>
             </div>
             <p className={styles.hint} style={{ marginTop: "0.75rem" }}>
-              Pour utiliser un <strong>autre utilisateur</strong>, déconnectez-vous
-              via le menu (bouton en bas à gauche), puis reconnectez-vous.
+              Pour vous connecter avec un <strong>autre compte</strong>,
+              déconnectez-vous via le menu, puis ouvrez à nouveau la page de
+              connexion.
             </p>
           </>
         )}

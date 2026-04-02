@@ -7,6 +7,7 @@ import {
 import { Layout } from "./components/Layout";
 import { ModuleShell } from "./components/ModuleShell";
 import { RedirectIfAuthed } from "./components/RedirectIfAuthed";
+import { RequireAdmin } from "./components/RequireAdmin";
 import { RequireAuth } from "./components/RequireAuth";
 import { Bailleurs } from "./pages/Bailleurs";
 import { Connexion } from "./pages/Connexion";
@@ -22,7 +23,9 @@ import { Reglages } from "./pages/Reglages";
 import { Finance } from "./pages/Finance";
 import { RapportModuleLayout } from "./components/RapportModuleLayout";
 import { PageFonctions } from "./pages/PageFonctions";
-import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { AdminUtilisateurs } from "./pages/AdminUtilisateurs";
+import { DevisListe } from "./pages/DevisListe";
+import { MustChangePassword } from "./pages/MustChangePassword";
 import { RapportAccueil } from "./pages/RapportAccueil";
 import { RapportActivite } from "./pages/RapportActivite";
 import { RapportArchive } from "./pages/RapportArchive";
@@ -37,6 +40,12 @@ export default function App() {
       </Route>
 
       <Route element={<RequireAuth />}>
+        <Route path="/changement-mot-de-passe" element={<MustChangePassword />} />
+
+        <Route element={<RequireAdmin />}>
+          <Route path="/admin/utilisateurs" element={<AdminUtilisateurs />} />
+        </Route>
+
         <Route path="/logement" element={<Navigate to="/biens/logement" replace />} />
         <Route
           path="/logement/nouveau"
@@ -95,15 +104,7 @@ export default function App() {
         </Route>
 
         <Route element={<ModuleShell />}>
-          <Route
-            path="devis"
-            element={
-              <PlaceholderPage
-                title="Gestion des devis"
-                description="Espace réservé à la création, au suivi et à l’archivage des devis. Les écrans et données seront ajoutés ici."
-              />
-            }
-          />
+          <Route path="devis" element={<DevisListe />} />
           <Route path="rapport-activite" element={<RapportModuleLayout />}>
             <Route index element={<Navigate to="accueil" replace />} />
             <Route path="accueil" element={<RapportAccueil />} />

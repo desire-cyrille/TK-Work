@@ -1,4 +1,32 @@
-/** Jeton JWT (connexion + API sync) — un compte = un espace de données sur le serveur. */
+/** Jeton JWT (connexion + API sync). Les données métier sont partagées (workspace unique sur le serveur). */
+
+export type AuthTokenClaims = {
+  email: string;
+  role: "USER" | "ADMIN";
+  mustChangePassword: boolean;
+};
+
+export function decodeAuthTokenClaims(token: string): AuthTokenClaims | null {
+  try {
+    const [, payloadB64] = token.split(".");
+    if (!payloadB64) return null;
+    const json = JSON.parse(
+      atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")),
+    ) as {
+      email?: string;
+      role?: string;
+      mcp?: boolean;
+    };
+    if (typeof json.email !== "string" || !json.email) return null;
+    return {
+      email: json.email,
+      role: json.role === "ADMIN" ? "ADMIN" : "USER",
+      mustChangePassword: json.mcp === true,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export const AUTH_TOKEN_KEY = "tk_gestion_auth_token";
 export const AUTH_EMAIL_KEY = "tk_gestion_auth_email";
