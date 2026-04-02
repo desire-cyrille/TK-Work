@@ -1,19 +1,21 @@
 .row {
   display: inline-flex;
-  align-items: baseline;
-  gap: 0.22em;
+  align-items: center;
+  gap: 0.45em;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
 
-.mark {
+/* Logo noir sur blanc → inversé pour bandeaux sombres ; hauteur = corps du texte (1em). */
+.logo {
   flex-shrink: 0;
-  font-weight: 800;
-  background: var(--gradient-brand);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  height: 1em;
+  width: auto;
+  display: block;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  opacity: 0.95;
 }
 
 .variantGate {
