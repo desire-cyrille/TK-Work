@@ -1,5 +1,4 @@
 .page {
-  max-width: min(52rem, 100%);
   min-width: 0;
   width: 100%;
 }
