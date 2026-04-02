@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { cloudPush } from "../lib/cloudSync";
 import {
   clearAuthSession,
   decodeAuthTokenClaims,
@@ -31,7 +32,7 @@ type AuthContextValue = {
   mustChangePassword: boolean;
   login: (email: string, password: string) => Promise<AuthActionResult>;
   signup: (email: string, password: string) => Promise<AuthActionResult>;
-  logout: () => void;
+  logout: () => Promise<void>;
   applySessionToken: (token: string, email: string) => void;
   updatePassword: (
     currentPassword: string,
@@ -136,12 +137,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: true as const };
   }, [applySessionToken]);
 
-  const logout = useCallback(() => {
-    clearAuthSession();
-    setAuth(false);
-    setProfileEmail("");
-    setRole("USER");
-    setMustChangePassword(false);
+  const logout = useCallback(async () => {
+    try {
+      const token = getAuthToken();
+      if (token) {
+        const push = await cloudPush();
+        if (!push.ok) {
+          console.warn("Envoi nuage à la déconnexion :", push.error);
+        }
+      }
+    } catch (e) {
+      console.warn("Envoi nuage à la déconnexion :", e);
+    } finally {
+      clearAuthSession();
+      setAuth(false);
+      setProfileEmail("");
+      setRole("USER");
+      setMustChangePassword(false);
+    }
   }, []);
 
   const updatePassword = useCallback(

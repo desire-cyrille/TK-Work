@@ -168,7 +168,7 @@ export function AdminUtilisateurs() {
           Création des comptes, mots de passe provisoires et rôles. Vous êtes connecté
           en tant que <strong>{profileEmail}</strong>. Les données métier (biens,
           devis, rapports) sont <strong>partagées</strong> entre tous les comptes
-          après synchronisation (Réglages → Nuage).
+          après synchronisation (page <strong>Fonctions</strong> → Nuage).
         </p>
 
         {msg ? (

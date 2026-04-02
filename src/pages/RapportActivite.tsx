@@ -379,7 +379,7 @@ export function RapportActivite() {
     setRapportEditeId(row.id);
     setListeVersion((v) => v + 1);
     setProvenanceSynthese(
-      "Brouillon enregistré sur cet appareil — rechargez-le depuis « Chaîne de rapports ». Pour le voir sur un autre téléphone ou ordinateur : même compte, puis Réglages → Nuage (envoyer ici, récupérer ailleurs).",
+      "Brouillon enregistré sur cet appareil — rechargez-le depuis « Chaîne de rapports ». Pour le voir sur un autre téléphone ou ordinateur : même compte, puis page Fonctions → Nuage (envoyer ici, récupérer ailleurs).",
     );
   }
 
@@ -799,8 +799,8 @@ export function RapportActivite() {
           <strong>Autres appareils :</strong> projets et rapports (textes et
           photos) font partie de la{" "}
           <strong>copie nuage partagée</strong>. Ouvrez{" "}
-          <Link className={styles.syncHintLink} to="/biens/reglages?tab=nuage">
-            Réglages → Nuage
+          <Link className={styles.syncHintLink} to="/fonctions#nuage">
+            Fonctions → Nuage
           </Link>{" "}
           (fonction Biens) : envoyez depuis l’appareil où vous travaillez,
           récupérez sur mobile ou un autre poste avec n’importe quel compte.

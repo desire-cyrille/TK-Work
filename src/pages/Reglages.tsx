@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
 import { useBiens } from "../context/BiensContext";
 import { useFinance } from "../context/FinanceContext";
@@ -10,8 +10,6 @@ import {
   estimateTkGestionBackupWriteBytes,
   parseTkGestionBackupJson,
 } from "../lib/appDataBackup";
-import { useAuth } from "../context/AuthContext";
-import { applyCloudPullEntries, cloudPull, cloudPush } from "../lib/cloudSync";
 import { nomCompletLocataire } from "../lib/locataireUi";
 import {
   DEFAULT_EMETTEUR_DOCUMENTS_PDF,
@@ -21,144 +19,14 @@ import {
 } from "../context/themeSettingsStorage";
 import styles from "./Reglages.module.css";
 
-type TabId = "parametres" | "finances" | "profil" | "sauvegarde" | "nuage";
+type TabId = "parametres" | "finances" | "profil" | "sauvegarde";
 
-const TAB_IDS: TabId[] = [
-  "parametres",
-  "finances",
-  "profil",
-  "sauvegarde",
-  "nuage",
-];
+const TAB_IDS: TabId[] = ["parametres", "finances", "profil", "sauvegarde"];
 
 function tabFromSearchParams(sp: URLSearchParams): TabId | null {
   const t = sp.get("tab");
   if (t && (TAB_IDS as string[]).includes(t)) return t as TabId;
   return null;
-}
-
-function CloudSyncPanel() {
-  const { isAuthenticated, profileEmail } = useAuth();
-  const [busy, setBusy] = useState(false);
-  const [cloudMsg, setCloudMsg] = useState<{
-    type: "ok" | "err";
-    text: string;
-  } | null>(null);
-
-  async function onPull() {
-    setCloudMsg(null);
-    setBusy(true);
-    const r = await cloudPull();
-    setBusy(false);
-    if (!r.ok) {
-      setCloudMsg({ type: "err", text: r.error });
-      return;
-    }
-    if (r.version === 0 || Object.keys(r.entries).length === 0) {
-      setCloudMsg({
-        type: "ok",
-        text: "Aucune donnée sur le serveur pour ce compte — utilisez « Envoyer » depuis un appareil à jour.",
-      });
-      return;
-    }
-    if (
-      !window.confirm(
-        "Remplacer toutes les données TK Gestion sur CET appareil par la copie du serveur ? Vous restez connecté avec le même compte.",
-      )
-    ) {
-      return;
-    }
-    const applied = applyCloudPullEntries(r.entries);
-    if (!applied.ok) {
-      setCloudMsg({ type: "err", text: applied.error });
-      return;
-    }
-    window.location.reload();
-  }
-
-  async function onPush() {
-    setCloudMsg(null);
-    setBusy(true);
-    const r = await cloudPush();
-    setBusy(false);
-    if (!r.ok) {
-      setCloudMsg({ type: "err", text: r.error });
-      return;
-    }
-    setCloudMsg({
-      type: "ok",
-      text: "Copie enregistrée sur le nuage partagé. Sur un autre appareil, tout compte peut « Récupérer » pour aligner les données.",
-    });
-  }
-
-  return (
-    <div className={styles.form}>
-      {cloudMsg ? (
-        <p
-          className={
-            cloudMsg.type === "err"
-              ? styles.backupBannerErr
-              : styles.backupBannerOk
-          }
-          role="status"
-        >
-          {cloudMsg.text}
-        </p>
-      ) : null}
-
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Synchronisation entre appareils</h2>
-        <p className={styles.hint}>
-          <strong>Nuage unique pour l’organisation.</strong> Tous les utilisateurs
-          partagent la même copie des données sur le serveur : biens, finances,
-          Airbnb, thème,{" "}
-          <strong>devis</strong>,{" "}
-          <strong>projets et rapports d’activité</strong> (y compris photos
-          embarquées). La synchronisation s’authentifie avec{" "}
-          <strong>votre compte personnel</strong>, mais envoie et récupère le
-          même contenu pour tous. Dernière copie envoyée gagne (pas de fusion
-          détaillée). Les rapports très lourds peuvent exiger plusieurs envois ;
-          en cas d’erreur de taille, allégez les images ou utilisez une sauvegarde
-          fichier.
-        </p>
-        {!isAuthenticated ? (
-          <p className={styles.backupBannerErr} role="status">
-            Connectez-vous depuis la page <strong>Connexion</strong> pour accéder
-            à l’envoi et à la récupération sur le serveur.
-          </p>
-        ) : (
-          <>
-            <p className={styles.hint}>
-              Compte actuel : <strong>{profileEmail}</strong>
-            </p>
-            <div className={styles.cloudActions}>
-              <button
-                type="button"
-                className={styles.primaryBtn}
-                disabled={busy}
-                onClick={() => void onPush()}
-              >
-                Envoyer vers le serveur (données locales → nuage)
-              </button>
-              <button
-                type="button"
-                className={styles.secondaryBtn}
-                disabled={busy}
-                onClick={() => void onPull()}
-              >
-                Récupérer depuis le serveur (nuage → cet appareil)
-              </button>
-            </div>
-            <p className={styles.hint} style={{ marginTop: "0.75rem" }}>
-              Pour vous connecter avec un <strong>autre compte</strong>,
-              déconnectez-vous via le menu, puis ouvrez à nouveau la page de
-              connexion.
-            </p>
-          </>
-        )}
-      </section>
-    </div>
-  );
 }
 
 function ServerHealthCard() {
@@ -281,6 +149,10 @@ export function Reglages() {
     }
   }
 
+  if (searchParams.get("tab") === "nuage") {
+    return <Navigate to="/fonctions" replace />;
+  }
+
   return (
     <PageFrame title="Réglages">
       <div className={styles.page}>
@@ -326,18 +198,6 @@ export function Reglages() {
             }}
           >
             Sauvegarde
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "nuage"}
-            className={`${styles.tab} ${tab === "nuage" ? styles.tabActive : ""}`}
-            onClick={() => {
-              setBackupMsg(null);
-              setTab("nuage");
-            }}
-          >
-            Nuage
           </button>
         </div>
 
@@ -891,7 +751,6 @@ export function Reglages() {
           </div>
         ) : null}
 
-        {tab === "nuage" ? <CloudSyncPanel /> : null}
       </div>
     </PageFrame>
   );

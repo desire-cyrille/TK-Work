@@ -40,11 +40,12 @@ export function RapportAccueil() {
             <strong>Même compte sur téléphone, tablette et ordinateur :</strong> les
             rapports et projets sont inclus dans la synchronisation. Après une
             modification, utilisez{" "}
-            <Link className={styles.syncAsideLink} to="/biens/reglages?tab=nuage">
-              Réglages → Nuage
+            <Link className={styles.syncAsideLink} to="/fonctions#nuage">
+              Fonctions → Nuage
             </Link>{" "}
-            pour envoyer puis, sur l’autre appareil, vous connecter et récupérer
-            la copie.
+            pour envoyer manuellement ; à la déconnexion un envoi est tenté
+            automatiquement. Sur l’autre appareil, la connexion récupère le nuage
+            si des données y sont présentes.
           </p>
         </aside>
         <div className={styles.actions}>

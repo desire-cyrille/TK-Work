@@ -65,7 +65,11 @@ export function Sidebar() {
         </NavLink>
       </nav>
       <div className={styles.footer}>
-        <button type="button" className={styles.logout} onClick={logout}>
+          <button
+            type="button"
+            className={styles.logout}
+            onClick={() => void logout()}
+          >
           Déconnexion
         </button>
       </div>

@@ -71,7 +71,7 @@ export function ProfileDialog({ open, onClose }: Props) {
         </h2>
         <p className={styles.subtitle}>
           Compte serveur : même identifiant que la connexion et la synchronisation
-          (Réglages → Nuage). Les données métier sont partagées entre utilisateurs
+          (page Fonctions → Nuage). Les données métier sont partagées entre utilisateurs
           après synchro. L’e-mail n’est pas modifiable ici.
         </p>
         <p className={styles.emailLine}>

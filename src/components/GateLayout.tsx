@@ -28,7 +28,11 @@ export function GateLayout({ children }: Props) {
           >
             Profil
           </button>
-          <button type="button" className={styles.logout} onClick={logout}>
+          <button
+            type="button"
+            className={styles.logout}
+            onClick={() => void logout()}
+          >
             Déconnexion
           </button>
         </div>

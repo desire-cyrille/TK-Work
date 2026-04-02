@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { CloudSyncPanel } from "../components/CloudSyncPanel";
 import { PageFrame } from "../components/PageFrame";
 import { useAuth } from "../context/AuthContext";
 import styles from "./PageFonctions.module.css";
@@ -41,8 +42,7 @@ export function PageFonctions() {
         <p className={styles.independenceNote}>
           Les volets biens, devis et rapports ont chacun leur écran, mais les
           données sont <strong>partagées entre tous les utilisateurs</strong>{" "}
-          lorsque vous synchronisez avec le nuage (Réglages → Nuage, depuis la
-          fonction Biens).
+          lorsque vous synchronisez avec le nuage (section ci-dessous).
         </p>
         <div className={styles.grid}>
           {items.map((item) => (
@@ -59,6 +59,9 @@ export function PageFonctions() {
             </NavLink>
           ))}
         </div>
+        <section id="nuage" className={styles.cloudSection} aria-label="Nuage">
+          <CloudSyncPanel />
+        </section>
         {isAdmin ? (
           <p className={styles.adminRow}>
             <NavLink to="/admin/utilisateurs" className={styles.adminLink}>

@@ -135,7 +135,8 @@ export function DevisListe() {
       <div className={styles.page}>
         <p className={styles.intro}>
           Devis locaux (navigateur), synchronisés avec le même{" "}
-          <strong>nuage partagé</strong> que les biens et rapports (Réglages → Nuage).
+          <strong>nuage partagé</strong> que les biens et rapports (page{" "}
+          <strong>Fonctions</strong> → section Nuage).
           Tous les comptes voient les mêmes devis après synchronisation.
         </p>
 

@@ -1,6 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import {
+  hardNavigateToFonctionsAfterCloudPull,
+  syncCloudPullAfterLogin,
+} from "../lib/cloudSync";
 import { decodeAuthTokenClaims, getAuthToken } from "../lib/authToken";
 import styles from "./Connexion.module.css";
 
@@ -54,15 +58,29 @@ export function Connexion() {
       mode === "signup"
         ? await signup(email.trim(), password)
         : await login(email.trim(), password);
-    setLoading(false);
     if (!res.ok) {
+      setLoading(false);
       setErrorMsg(res.error);
       return;
     }
     const tok = getAuthToken();
     const must =
       tok && decodeAuthTokenClaims(tok)?.mustChangePassword === true;
-    navigate(must ? "/changement-mot-de-passe" : "/fonctions", { replace: true });
+    if (must) {
+      setLoading(false);
+      navigate("/changement-mot-de-passe", { replace: true });
+      return;
+    }
+    const sync = await syncCloudPullAfterLogin();
+    setLoading(false);
+    if (sync.pullError || sync.applyError) {
+      console.warn("Nuage après connexion :", sync.pullError ?? sync.applyError);
+    }
+    if (sync.shouldHardNavigate) {
+      hardNavigateToFonctionsAfterCloudPull();
+      return;
+    }
+    navigate("/fonctions", { replace: true });
   }
 
   return (
@@ -74,7 +92,9 @@ export function Connexion() {
         <p className={styles.hint}>
           Chaque personne a <strong>ses identifiants</strong> ; les données
           métier (biens, devis, rapports) sont <strong>communes</strong> sur le
-          serveur après synchronisation (Réglages → Nuage dans la fonction Biens).
+          serveur : une récupération depuis le nuage est tentée à chaque connexion ;
+          les réglages manuels sont sur la page <strong>Fonctions</strong> (section
+          Nuage).
         </p>
         <div className={styles.modeRow}>
           <button
@@ -131,7 +151,7 @@ export function Connexion() {
           {errorMsg ? <p className={styles.error}>{errorMsg}</p> : null}
           <button type="submit" className={styles.submit} disabled={loading}>
             {loading
-              ? "Patientez…"
+              ? "Synchronisation…"
               : mode === "signup"
                 ? "Créer le compte et se connecter"
                 : "Se connecter"}

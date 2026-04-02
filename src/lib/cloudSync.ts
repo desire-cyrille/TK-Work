@@ -239,3 +239,34 @@ export async function cloudPush(): Promise<
 
   return { ok: true };
 }
+
+/**
+ * Après connexion ou inscription : remplace les données locales par la copie serveur si elle existe.
+ * Indique si un rechargement complet est nécessaire pour rafraîchir l’application.
+ */
+export async function syncCloudPullAfterLogin(): Promise<{
+  shouldHardNavigate: boolean;
+  pullError?: string;
+  applyError?: string;
+}> {
+  const r = await cloudPull();
+  if (!r.ok) {
+    return { shouldHardNavigate: false, pullError: r.error };
+  }
+  if (r.version === 0 || Object.keys(r.entries).length === 0) {
+    return { shouldHardNavigate: false };
+  }
+  const applied = applyCloudPullEntries(r.entries);
+  if (!applied.ok) {
+    return { shouldHardNavigate: false, applyError: applied.error };
+  }
+  return { shouldHardNavigate: true };
+}
+
+/** Rechargement vers la page Fonctions après application d’une copie nuage (état React obsolète). */
+export function hardNavigateToFonctionsAfterCloudPull(): void {
+  const base = import.meta.env.BASE_URL;
+  const prefix = typeof base === "string" ? base.replace(/\/$/, "") : "";
+  const path = prefix ? `${prefix}/fonctions` : "/fonctions";
+  window.location.assign(path);
+}
