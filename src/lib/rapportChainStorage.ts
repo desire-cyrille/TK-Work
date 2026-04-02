@@ -11,6 +11,7 @@ import {
   getProjetById,
 } from "./rapportProjetStorage";
 import {
+  clonerTableauSuiviContenu,
   createDefaultTableauBlocs,
   fusionnerTableauSuiviPourSite,
   getColonnesTableauSuiviProjet,
@@ -462,6 +463,149 @@ export function listerQuotidiensPourMoisCle(
         r.jourDate.startsWith(moisCle),
     )
     .sort((a, b) => (a.jourDate ?? "").localeCompare(b.jourDate ?? ""));
+}
+
+/** Quotidiens dont le jour est dans [debutISO, finISO] (YYYY-MM-DD). */
+export function listerQuotidiensPourPeriodeMission(
+  debutISO: string,
+  finISO: string,
+  projetId: string,
+): RapportEnregistre[] {
+  const d0 = debutISO.trim().slice(0, 10);
+  const d1 = finISO.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d0) || !/^\d{4}-\d{2}-\d{2}$/.test(d1)) {
+    return [];
+  }
+  const pid = projetId.trim();
+  return chargerRapportsEnregistres()
+    .filter(
+      (r) =>
+        r.projetId === pid &&
+        r.mode === "quotidien" &&
+        r.jourDate &&
+        r.jourDate >= d0 &&
+        r.jourDate <= d1,
+    )
+    .sort((a, b) => (a.jourDate ?? "").localeCompare(b.jourDate ?? ""));
+}
+
+export function premierEtDernierQuotidienMois(
+  moisCle: string,
+  projetId: string,
+): { premier?: RapportEnregistre; dernier?: RapportEnregistre } {
+  const arr = listerQuotidiensPourMoisCle(moisCle, projetId);
+  if (arr.length === 0) return {};
+  return { premier: arr[0], dernier: arr[arr.length - 1] };
+}
+
+export function premierEtDernierQuotidienMission(
+  debutISO: string,
+  finISO: string,
+  projetId: string,
+): { premier?: RapportEnregistre; dernier?: RapportEnregistre } {
+  const arr = listerQuotidiensPourPeriodeMission(debutISO, finISO, projetId);
+  if (arr.length === 0) return {};
+  return { premier: arr[0], dernier: arr[arr.length - 1] };
+}
+
+function jourPrecedentISO(jourISO: string): string | null {
+  const j = jourISO.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(j)) return null;
+  const d = new Date(j + "T12:00:00");
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() - 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Tableaux de suivi par siteId issus du quotidien « veille » (J-1) ou,
+ * à défaut, du dernier jour enregistré strictement avant `jourDateISO`.
+ */
+export function extraireTableauxSuiviVeilleQuotidien(
+  projetId: string,
+  jourDateISO: string,
+  domaines: RapportDomaineDef[],
+  colonnes: TableauSuiviColonne[],
+): Partial<Record<string, TableauSuiviContenu>> | null {
+  const pid = projetId.trim();
+  const jp = jourDateISO.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(jp)) return null;
+  const all = chargerRapportsEnregistres().filter(
+    (r) => r.projetId === pid && r.mode === "quotidien" && r.jourDate,
+  );
+
+  const hier = jourPrecedentISO(jp);
+  let choix: RapportEnregistre[] = [];
+  if (hier) {
+    choix = all.filter((r) => r.jourDate === hier);
+    choix.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+  if (choix.length === 0) {
+    const avant = all
+      .filter((r) => (r.jourDate ?? "") < jp)
+      .sort((a, b) => {
+        const jd = (b.jourDate ?? "").localeCompare(a.jourDate ?? "");
+        if (jd !== 0) return jd;
+        return b.updatedAt.localeCompare(a.updatedAt);
+      });
+    choix = avant.length ? [avant[0]!] : [];
+  } else {
+    choix = [choix[0]!];
+  }
+
+  const r = choix[0];
+  if (!r) return null;
+
+  const out: Partial<Record<string, TableauSuiviContenu>> = {};
+  for (const c of r.contenuParSite) {
+    if (!c.tableauSuivi) continue;
+    out[c.siteId] = normalizeTableauSuiviContenu(
+      c.tableauSuivi,
+      colonnes,
+      domaines,
+    );
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+export function appliquerVeilleTableauSurContenu(
+  contenu: ContenuSiteRapport[],
+  projetId: string,
+  jourDateISO: string,
+  domaines: RapportDomaineDef[],
+  colonnes: TableauSuiviColonne[],
+): ContenuSiteRapport[] {
+  const veille = extraireTableauxSuiviVeilleQuotidien(
+    projetId,
+    jourDateISO,
+    domaines,
+    colonnes,
+  );
+  if (!veille) return contenu;
+  return contenu.map((c) => {
+    const ts = veille[c.siteId];
+    if (!ts) return c;
+    return { ...c, tableauSuivi: clonerTableauSuiviContenu(ts) };
+  });
+}
+
+/** Ligne sous le titre du tableau dans le PDF (jour + date d’enregistrement). */
+export function libelleEditionTableauPdf(r: RapportEnregistre): string {
+  const jour =
+    r.mode === "quotidien" && r.jourDate
+      ? `Jour du rapport : ${libelleJourFr(r.jourDate)}`
+      : "";
+  const ed = new Date(r.updatedAt);
+  const edStr = Number.isNaN(ed.getTime())
+    ? r.updatedAt
+    : ed.toLocaleString("fr-FR", {
+        dateStyle: "short",
+        timeStyle: "short",
+      });
+  return [jour, `Enregistré le ${edStr}`].filter(Boolean).join(" — ");
 }
 
 export function listerMensuelsPourPeriodeMission(

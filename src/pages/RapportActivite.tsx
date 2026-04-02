@@ -17,6 +17,7 @@ import {
   buildRapportPdfBlob,
   telechargerRapportPdfDepuisBlob,
   type ExportRapportPdfInput,
+  type PdfBlocTableauSuivi,
 } from "../lib/exportRapportStructurePdf";
 import {
   bornesJourPourInputDate,
@@ -26,14 +27,18 @@ import {
 } from "../lib/rapportActiviteData";
 import {
   alignerContenuAvecProjetSites,
+  appliquerVeilleTableauSurContenu,
   chargerRapportsEnregistres,
   collecterPhotosQuotidiensPourMensuel,
   fusionnerContenuParSiteDepuisRapports,
   fusionnerObservationsDepuisRapports,
+  libelleEditionTableauPdf,
   libelleJourFr,
   libelleMoisCleFr,
   listerMensuelsPourPeriodeMission,
   listerQuotidiensPourMoisCle,
+  premierEtDernierQuotidienMission,
+  premierEtDernierQuotidienMois,
   sauvegarderRapport,
   supprimerRapportEnregistre,
   type ContenuSiteRapport,
@@ -58,10 +63,12 @@ import {
   dataColIds,
   emptyDataCellules,
   getColonnesTableauSuiviProjet,
+  normalizeTableauSuiviContenu,
   normaliserValeurEtat,
   peutSupprimerColonneTableau,
   remapBlocsPourColonnes,
   type TableauSuiviColonne,
+  type TableauSuiviContenu,
 } from "../lib/tableauSuivi";
 import styles from "./RapportActivite.module.css";
 
@@ -151,6 +158,30 @@ function contenuVidePourProjetSites(
   }));
 }
 
+function tableauSuiviVersPdfBloc(
+  ts: TableauSuiviContenu | undefined,
+  colsPdf: TableauSuiviColonne[],
+  doms: RapportDomaineDef[],
+  sousTitre?: string,
+): PdfBlocTableauSuivi | undefined {
+  if (!ts) return undefined;
+  const norm = normalizeTableauSuiviContenu(ts, colsPdf, doms);
+  if (!norm.blocs.some((b) => b.sujets.length > 0)) return undefined;
+  return {
+    colonnes: colsPdf.map((c) => ({ ...c })),
+    blocs: norm.blocs.map((b) => ({
+      domaineId: b.domaineId,
+      domaineLabel: b.domaineLabel,
+      sujets: b.sujets.map((s) => ({
+        id: s.id,
+        sujet: s.sujet,
+        cellules: { ...s.cellules },
+      })),
+    })),
+    sousTitre,
+  };
+}
+
 export function RapportActivite() {
   const { projetId: projetIdParam } = useParams<{ projetId: string }>();
   const navigate = useNavigate();
@@ -214,6 +245,23 @@ export function RapportActivite() {
     setMensuelPhotoKeysIncluded(null);
     setInclureTableauSuiviPdf(true);
   }, [pidBrut]);
+
+  /** Brouillon quotidien : reprendre les tableaux de suivi de la veille (sans toucher au texte / photos). */
+  useEffect(() => {
+    if (!projetCourant || !pidBrut) return;
+    if (mode !== "quotidien" || rapportEditeId) return;
+    const dom = getDomainesRapportProjet(projetCourant);
+    const colsTs = getColonnesTableauSuiviProjet(projetCourant);
+    setContenuParSite((prev) =>
+      appliquerVeilleTableauSurContenu(
+        prev,
+        projetCourant.id,
+        jourDate,
+        dom,
+        colsTs,
+      ),
+    );
+  }, [projetCourant, pidBrut, mode, rapportEditeId, jourDate]);
 
   function preparerNouveauMode(m: ModeRapportChain) {
     setMode(m);
@@ -560,6 +608,63 @@ export function RapportActivite() {
 
     const colsPdf = getColonnesTableauSuiviProjet(projetCourant);
 
+    let pdMensuelP: RapportEnregistre | undefined;
+    let pdMensuelD: RapportEnregistre | undefined;
+    if (mode === "mensuel") {
+      const x = premierEtDernierQuotidienMois(moisCleMensuel, projetCourant.id);
+      pdMensuelP = x.premier;
+      pdMensuelD = x.dernier;
+    }
+    let pdMissionP: RapportEnregistre | undefined;
+    let pdMissionD: RapportEnregistre | undefined;
+    if (mode === "fin_mission" && missionOrdreOk) {
+      const x = premierEtDernierQuotidienMission(
+        missionDebut,
+        missionFin,
+        projetCourant.id,
+      );
+      pdMissionP = x.premier;
+      pdMissionD = x.dernier;
+    }
+
+    function pdfTableauxPremierDernier(
+      siteId: string,
+      prem: RapportEnregistre | undefined,
+      der: RapportEnregistre | undefined,
+    ): {
+      tableauSuivi?: PdfBlocTableauSuivi;
+      tableauxSuivi?: PdfBlocTableauSuivi[];
+    } {
+      const csP = prem?.contenuParSite.find((c) => c.siteId === siteId);
+      const csD = der?.contenuParSite.find((c) => c.siteId === siteId);
+      const memeFiche = prem && der && prem.id === der.id;
+      if (memeFiche) {
+        const one = tableauSuiviVersPdfBloc(
+          csP?.tableauSuivi,
+          colsPdf,
+          doms,
+          prem ? libelleEditionTableauPdf(prem) : undefined,
+        );
+        return one ? { tableauSuivi: one } : {};
+      }
+      const t1 = tableauSuiviVersPdfBloc(
+        csP?.tableauSuivi,
+        colsPdf,
+        doms,
+        prem ? libelleEditionTableauPdf(prem) : undefined,
+      );
+      const t2 = tableauSuiviVersPdfBloc(
+        csD?.tableauSuivi,
+        colsPdf,
+        doms,
+        der ? libelleEditionTableauPdf(der) : undefined,
+      );
+      const arr = [t1, t2].filter(
+        (x): x is PdfBlocTableauSuivi => x !== undefined,
+      );
+      return arr.length ? { tableauxSuivi: arr } : {};
+    }
+
     const sections = projetCourant.sites
       .map((site) => {
         const bloc = contenuParSite.find((c) => c.siteId === site.id);
@@ -589,39 +694,64 @@ export function RapportActivite() {
           })
           .filter((x): x is NonNullable<typeof x> => x !== null);
 
-        const tsBloc = bloc?.tableauSuivi;
-        const hasTsRows =
-          tsBloc?.blocs?.some((b) => b.sujets.length > 0) ?? false;
-        const tableauSuivi =
-          inclureTableauSuiviPdf && tsBloc && hasTsRows
-            ? {
-                colonnes: colsPdf.map((c) => ({ ...c })),
-                blocs: tsBloc.blocs.map((b) => ({
-                  domaineId: b.domaineId,
-                  domaineLabel: b.domaineLabel,
-                  sujets: b.sujets.map((s) => ({
-                    id: s.id,
-                    sujet: s.sujet,
-                    cellules: { ...s.cellules },
-                  })),
-                })),
-              }
-            : undefined;
+        let tableauSuivi: PdfBlocTableauSuivi | undefined;
+        let tableauxSuivi: PdfBlocTableauSuivi[] | undefined;
+
+        if (inclureTableauSuiviPdf) {
+          if (mode === "mensuel") {
+            const tsPdf = pdfTableauxPremierDernier(
+              site.id,
+              pdMensuelP,
+              pdMensuelD,
+            );
+            tableauSuivi = tsPdf.tableauSuivi;
+            tableauxSuivi = tsPdf.tableauxSuivi;
+          } else if (mode === "fin_mission") {
+            const tsPdf = pdfTableauxPremierDernier(
+              site.id,
+              pdMissionP,
+              pdMissionD,
+            );
+            tableauSuivi = tsPdf.tableauSuivi;
+            tableauxSuivi = tsPdf.tableauxSuivi;
+          } else {
+            const tsBloc = bloc?.tableauSuivi;
+            const hasTsRows =
+              tsBloc?.blocs?.some((b) => b.sujets.length > 0) ?? false;
+            if (tsBloc && hasTsRows) {
+              tableauSuivi = tableauSuiviVersPdfBloc(tsBloc, colsPdf, doms);
+            }
+          }
+        }
+
+        const hasTsPdf =
+          inclureTableauSuiviPdf &&
+          (Boolean(tableauSuivi?.blocs.some((b) => b.sujets.length > 0)) ||
+            Boolean(
+              tableauxSuivi?.some((t) =>
+                t.blocs.some((b) => b.sujets.length > 0),
+              ),
+            ));
 
         return {
           siteNom: site.nom,
           sitePhotoDataUrl: site.photoDataUrl,
           domaines: domainesPdf,
-          tableauSuivi,
+          ...(tableauxSuivi?.length
+            ? { tableauxSuivi }
+            : tableauSuivi
+              ? { tableauSuivi }
+              : {}),
+          _hasTsPdf: hasTsPdf,
         };
       })
       .filter(
         (s) =>
           s.domaines.length > 0 ||
           Boolean(s.sitePhotoDataUrl) ||
-          (inclureTableauSuiviPdf &&
-            Boolean(s.tableauSuivi?.blocs?.some((b) => b.sujets.length > 0))),
-      );
+          s._hasTsPdf,
+      )
+      .map(({ _hasTsPdf: _h, ...rest }) => rest);
 
     return {
       projetTitre: projetCourant.titre,

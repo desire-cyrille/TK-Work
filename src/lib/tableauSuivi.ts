@@ -128,6 +128,10 @@ export function emptyDataCellules(colonnes: TableauSuiviColonne[]): Record<strin
   return Object.fromEntries(dataColIds(colonnes).map((id) => [id, ""]));
 }
 
+export function clonerTableauSuiviContenu(ts: TableauSuiviContenu): TableauSuiviContenu {
+  return structuredClone(ts);
+}
+
 /** Réduit une valeur stockée à un code état reconnu, ou chaîne vide. */
 export function normaliserValeurEtat(stocke: string): string {
   const t = stocke.trim();

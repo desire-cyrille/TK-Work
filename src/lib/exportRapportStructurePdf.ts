@@ -12,16 +12,22 @@ const MARGE = 15;
 const PAGE_W = 210;
 const MAX_TXT = 180;
 
+export type PdfBlocTableauSuivi = {
+  colonnes: TableauSuiviColonne[];
+  blocs: TableauSuiviBloc[];
+  /** Sous le titre « Tableau de suivi » (ex. jour + date d’enregistrement). */
+  sousTitre?: string;
+};
+
 export type PdfSectionSite = {
   siteNom: string;
   sitePhotoDataUrl?: string;
   /** Une ou plusieurs images par domaine (mensuel : plusieurs jours). */
   domaines: { titre: string; texte: string; photoDataUrls?: string[] }[];
-  /** Tableau de suivi (même colonnes que le projet). */
-  tableauSuivi?: {
-    colonnes: TableauSuiviColonne[];
-    blocs: TableauSuiviBloc[];
-  };
+  /** Tableau de suivi (quotidien / brouillon unique). */
+  tableauSuivi?: PdfBlocTableauSuivi;
+  /** Plusieurs tableaux (ex. mensuel / fin de mission : premier & dernier jour). */
+  tableauxSuivi?: PdfBlocTableauSuivi[];
 };
 
 export type ExportRapportPdfInput = {
@@ -120,6 +126,7 @@ function drawTableauSuiviPdf(
   yStart: number,
   colonnes: TableauSuiviColonne[],
   blocs: TableauSuiviBloc[],
+  sousTitre?: string,
 ): number {
   const nc = colonnes.length;
   if (!nc || !blocs.length) return yStart;
@@ -130,6 +137,7 @@ function drawTableauSuiviPdf(
 
   const x0 = MARGE;
   const wTot = MAX_TXT;
+  const st = sousTitre?.trim() ?? "";
   const wLead =
     nc >= 2 ? Math.min(34, wTot * 0.19) : Math.max(wTot / nc, 14);
   const wLead2 = nc >= 2 ? Math.min(36, wTot * 0.2) : 0;
@@ -163,6 +171,10 @@ function drawTableauSuiviPdf(
   /** Hauteur dessinée : titre, en-tête, lignes, légende, marge de fin (mm). */
   function hauteurTableauDessinee(): number {
     let h = 8 + TABLEAU_HDR_H;
+    if (st) {
+      const subLines = doc.splitTextToSize(st, wTot);
+      h += Math.min(subLines.length, 4) * 3.9 + 2;
+    }
     for (const b of blocs) {
       h += Math.max(b.sujets.length, 1) * TABLEAU_ROW_H;
     }
@@ -244,8 +256,23 @@ function drawTableauSuiviPdf(
   doc.text("Tableau de suivi", x0, y);
   y += 8;
 
+  if (st) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(75, 82, 92);
+    const subLines = doc.splitTextToSize(st, wTot);
+    for (let si = 0; si < Math.min(subLines.length, 4); si++) {
+      pageBreakIf(4);
+      doc.text(subLines[si] as string, x0, y);
+      y += 3.9;
+    }
+    y += 2;
+    doc.setTextColor(0, 0, 0);
+  }
+
   pageBreakIf(TABLEAU_HDR_H);
   let x = x0;
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
   for (let i = 0; i < nc; i++) {
     const cw = colW(i);
@@ -490,9 +517,12 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
 
   // —— Corps : une section par site (intercalaire) ——
   for (const section of input.sectionsParSite) {
+    const tableauRempli = (t: { blocs: TableauSuiviBloc[] } | undefined) =>
+      Boolean(t?.blocs?.some((b) => b.sujets.length > 0));
     const hasTableauPdf =
       input.inclureTableauSuiviPdf !== false &&
-      Boolean(section.tableauSuivi?.blocs?.some((b) => b.sujets.length > 0));
+      (tableauRempli(section.tableauSuivi) ||
+        Boolean(section.tableauxSuivi?.some((t) => tableauRempli(t))));
     if (
       !section.domaines.length &&
       !section.sitePhotoDataUrl?.trim() &&
@@ -558,13 +588,27 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
       y += 5;
     }
 
-    if (hasTableauPdf && section.tableauSuivi) {
-      y = drawTableauSuiviPdf(
-        doc,
-        y,
-        section.tableauSuivi.colonnes,
-        section.tableauSuivi.blocs,
-      );
+    if (input.inclureTableauSuiviPdf !== false) {
+      if (section.tableauxSuivi?.length) {
+        for (const t of section.tableauxSuivi) {
+          if (!tableauRempli(t)) continue;
+          y = drawTableauSuiviPdf(
+            doc,
+            y,
+            t.colonnes,
+            t.blocs,
+            t.sousTitre,
+          );
+        }
+      } else if (tableauRempli(section.tableauSuivi)) {
+        y = drawTableauSuiviPdf(
+          doc,
+          y,
+          section.tableauSuivi!.colonnes,
+          section.tableauSuivi!.blocs,
+          section.tableauSuivi!.sousTitre,
+        );
+      }
     }
   }
 
