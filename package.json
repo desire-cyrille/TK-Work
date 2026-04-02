@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:api": "vercel dev",
+    "dev:api": "npx vercel dev",
     "build": "prisma generate && tsc --noEmit && vite build",
     "preview": "vite preview",
     "update-irl": "node scripts/update-irl.mjs",
@@ -34,7 +34,6 @@
     "@vitejs/plugin-react": "^4.3.4",
     "prisma": "6.19.3",
     "typescript": "~5.7.2",
-    "vercel": "^50.38.2",
     "vite": "^6.2.1"
   }
 }

@@ -4,6 +4,10 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || "/",
   plugins: [react()],
+  build: {
+    /** Bundle principal ~1 Mo (jspdf, html2canvas) — évite le warning Vite en CI. */
+    chunkSizeWarningLimit: 1100,
+  },
   server: {
     proxy: {
       // API Vercel en local : lancer `npx vercel dev` (port 3000 par défaut)
