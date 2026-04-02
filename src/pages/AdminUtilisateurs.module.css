@@ -6,7 +6,22 @@
 .intro {
   line-height: 1.5;
   margin: 0 0 1rem;
-  color: var(--tk-text-muted, #555);
+  color: var(--workspace-muted, var(--tk-text-muted, #555));
+}
+
+.headerBackLink {
+  text-decoration: none;
+}
+
+.introLink {
+  color: #5eead4;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.introLink:hover {
+  color: #99f6e4;
 }
 
 .bannerOk,

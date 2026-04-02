@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { NavLink } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
 import frameStyles from "../components/PageFrame.module.css";
 import { useAuth } from "../context/AuthContext";
@@ -153,14 +154,22 @@ export function AdminUtilisateurs() {
     <PageFrame
       title="Administration — profils utilisateurs"
       actions={
-        <button
-          type="button"
-          className={frameStyles.headerCtaSecondary}
-          onClick={() => void load()}
-          disabled={busy}
-        >
-          Actualiser
-        </button>
+        <>
+          <NavLink
+            to="/fonctions"
+            className={`${frameStyles.headerCtaSecondary} ${styles.headerBackLink}`}
+          >
+            ← Retour à Fonctions
+          </NavLink>
+          <button
+            type="button"
+            className={frameStyles.headerCtaSecondary}
+            onClick={() => void load()}
+            disabled={busy}
+          >
+            Actualiser
+          </button>
+        </>
       }
     >
       <div className={styles.page}>
@@ -168,7 +177,11 @@ export function AdminUtilisateurs() {
           Création des comptes, mots de passe provisoires et rôles. Vous êtes connecté
           en tant que <strong>{profileEmail}</strong>. Les données métier (biens,
           devis, rapports) sont <strong>partagées</strong> entre tous les comptes
-          après synchronisation (page <strong>Fonctions</strong> → Nuage).
+          après synchronisation (page{" "}
+          <NavLink to="/fonctions" className={styles.introLink}>
+            Fonctions
+          </NavLink>{" "}
+          → Nuage).
         </p>
 
         {msg ? (
