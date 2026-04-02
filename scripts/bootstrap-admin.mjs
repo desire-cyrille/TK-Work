@@ -16,7 +16,10 @@ const envPath = resolve(__dirname, "..", ".env");
 if (existsSync(envPath)) {
   const raw = readFileSync(envPath, "utf8");
   for (const line of raw.split("\n")) {
-    const m = line.match(/^([^#=]+)=(.*)$/);
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const noExport = t.replace(/^export\s+/i, "");
+    const m = noExport.match(/^([^#=]+)=(.*)$/);
     if (!m) continue;
     const k = m[1].trim();
     let v = m[2].trim().replace(/^["']|["']$/g, "");
