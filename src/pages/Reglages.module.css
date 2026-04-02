@@ -304,3 +304,18 @@
   font-size: 0.88rem;
   color: var(--workspace-muted);
 }
+
+.subsectionTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--workspace-text);
+}
+
+.cloudActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}

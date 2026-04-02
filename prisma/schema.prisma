@@ -16,3 +16,27 @@ model AppKv {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+/// Compte cloud pour synchronisation multi-appareils (mot de passe hashé côté serveur).
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  snapshot     UserSnapshot?
+
+  @@map("users")
+}
+
+/// Dernière copie des entrées localStorage (JSON) pour un utilisateur.
+model UserSnapshot {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payload   Json
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@map("user_snapshots")
+}

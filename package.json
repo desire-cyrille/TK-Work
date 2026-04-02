@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.2",
     "jspdf": "^4.2.1",
     "pg": "^8.20.0",
     "react": "^19.0.0",
@@ -23,6 +25,7 @@
     "react-router-dom": "^7.4.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
