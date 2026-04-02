@@ -1066,9 +1066,193 @@
   background: rgba(255, 255, 255, 0.02);
 }
 
-.tableauSuiviTable tbody td:first-child,
-.tableauSuiviTable tbody td:nth-child(2) {
-  background: rgba(236, 241, 248, 0.12);
+.tableauSuiviTdDomaine {
+  background: rgba(31, 59, 102, 0.12) !important;
+  font-weight: 600;
+  color: var(--workspace-text);
+  vertical-align: middle;
+  text-align: center;
+  min-width: 6.5rem;
+}
+
+.tableauSuiviTdSujet {
+  background: rgba(236, 241, 248, 0.2) !important;
+  min-width: 7rem;
+}
+
+.tableauSuiviBlocStart td:not(.tableauSuiviTdDomaine):not(.tableauSuiviTdAction) {
+  border-top: 2px solid rgba(31, 59, 102, 0.25);
+}
+
+.tableauDomaineNom {
+  display: block;
+  margin-bottom: 0.5rem;
+  line-height: 1.35;
+}
+
+.tableauBlocRemove {
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid rgba(251, 113, 133, 0.4);
+  background: transparent;
+  color: #fb7185;
+  cursor: pointer;
+}
+
+.tableauToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.tableauToolbarField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: min(100%, 14rem);
+}
+
+.tableauToolbarLabel {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--workspace-muted);
+}
+
+.tableauSelect {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-on-light);
+  background: var(--workspace-bg);
+  color: var(--workspace-text);
+}
+
+.tableauRowActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+.tableauSuiviRowAdd {
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.3rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid rgba(94, 234, 212, 0.45);
+  background: rgba(94, 234, 212, 0.1);
+  color: #5eead4;
+  cursor: pointer;
+}
+
+.tableauSuiviHint a {
+  color: #5eead4;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tableauSuiviTdEtat {
+  vertical-align: middle;
+  min-width: 8.5rem;
+  text-align: center;
+}
+
+.tableauEtatSwatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0;
+}
+
+.tableauEtatSwatch {
+  width: 1.4rem;
+  height: 1.4rem;
+  min-width: 1.4rem;
+  min-height: 1.4rem;
+  border-radius: 5px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  padding: 0;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.tableauEtatSwatch:hover {
+  filter: brightness(1.08);
+}
+
+.tableauEtatSwatch[aria-pressed="true"] {
+  outline: 2px solid rgba(94, 234, 212, 0.85);
+  outline-offset: 2px;
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+.tableauEtatClear {
+  width: 1.4rem;
+  height: 1.4rem;
+  min-width: 1.4rem;
+  border-radius: 5px;
+  border: 2px dashed var(--border-on-light);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.tableauEtatClear[aria-pressed="true"] {
+  outline: 2px solid rgba(148, 163, 184, 0.6);
+  outline-offset: 2px;
+}
+
+.tableauEtatLegende {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(31, 59, 102, 0.2);
+  background: rgba(31, 59, 102, 0.06);
+}
+
+.tableauEtatLegendeTitre {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--workspace-text);
+}
+
+.tableauEtatLegendeListe {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  color: var(--workspace-muted);
+}
+
+.tableauEtatLegendeListe li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tableauEtatPastille {
+  display: inline-block;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.15);
 }
 
 .tableauSuiviCell {
@@ -1092,12 +1276,13 @@
 }
 
 .tableauSuiviThAction {
-  width: 4.5rem;
+  width: 6.5rem;
+  min-width: 6.5rem;
 }
 
 .tableauSuiviTdAction {
-  width: 4.5rem;
-  white-space: nowrap;
+  width: 6.5rem;
+  min-width: 6.5rem;
   vertical-align: middle;
 }
 

@@ -11,7 +11,7 @@ import {
   getProjetById,
 } from "./rapportProjetStorage";
 import {
-  createDefaultTableauLignes,
+  createDefaultTableauBlocs,
   fusionnerTableauSuiviPourSite,
   getColonnesTableauSuiviProjet,
   normalizeTableauSuiviContenu,
@@ -132,7 +132,7 @@ function normalizeContenuParSiteRaw(
     const tsRaw = o.tableauSuivi;
     const tableauSuivi =
       tsRaw !== undefined && tsRaw !== null
-        ? normalizeTableauSuiviContenu(tsRaw, colonnesTableau)
+        ? normalizeTableauSuiviContenu(tsRaw, colonnesTableau, domaines)
         : undefined;
     out.push({
       siteId,
@@ -190,8 +190,8 @@ export function alignerContenuAvecProjetSites(
   ) {
     const leg = raw[0];
     const tableauSuivi = leg.tableauSuivi
-      ? normalizeTableauSuiviContenu(leg.tableauSuivi, colonnesTableau)
-      : { lignes: createDefaultTableauLignes(colonnesTableau) };
+      ? normalizeTableauSuiviContenu(leg.tableauSuivi, colonnesTableau, domaines)
+      : { blocs: createDefaultTableauBlocs(domaines, colonnesTableau) };
     return [
       {
         siteId: sitesProjet[0].id,
@@ -207,8 +207,8 @@ export function alignerContenuAvecProjetSites(
       ? fusionnerAxesVersDomaines(existing.axes, empty, domaines)
       : { ...empty };
     const tableauSuivi = existing?.tableauSuivi
-      ? normalizeTableauSuiviContenu(existing.tableauSuivi, colonnesTableau)
-      : { lignes: createDefaultTableauLignes(colonnesTableau) };
+      ? normalizeTableauSuiviContenu(existing.tableauSuivi, colonnesTableau, domaines)
+      : { blocs: createDefaultTableauBlocs(domaines, colonnesTableau) };
     return { siteId: s.id, axes, tableauSuivi };
   });
 }
@@ -514,7 +514,7 @@ export function fusionnerContenuParSiteDepuisRapports(
       {
         siteId: "__legacy__",
         axes: axesContenuVidesPourDomaines(domaines),
-        tableauSuivi: { lignes: createDefaultTableauLignes(colonnesTableau) },
+        tableauSuivi: { blocs: createDefaultTableauBlocs(domaines, colonnesTableau) },
       },
     ];
   }
@@ -534,6 +534,7 @@ export function fusionnerContenuParSiteDepuisRapports(
       rapports,
       siteId,
       colonnesTableau,
+      domaines,
       libelleSource,
     );
     return { siteId, axes, tableauSuivi };

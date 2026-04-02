@@ -51,9 +51,15 @@ import {
   type RapportSiteProjet,
 } from "../lib/rapportProjetStorage";
 import {
-  createDefaultTableauLignes,
+  COL_ETAT_ID,
+  TABLEAU_ETAT_LEGENDE,
+  colonneEstEtat,
+  createDefaultTableauBlocs,
+  dataColIds,
+  emptyDataCellules,
   getColonnesTableauSuiviProjet,
-  remapLignesPourColonnes,
+  normaliserValeurEtat,
+  remapBlocsPourColonnes,
   type TableauSuiviColonne,
 } from "../lib/tableauSuivi";
 import styles from "./RapportActivite.module.css";
@@ -140,7 +146,7 @@ function contenuVidePourProjetSites(
   return sites.map((s) => ({
     siteId: s.id,
     axes: { ...axes },
-    tableauSuivi: { lignes: createDefaultTableauLignes(colonnesTableau) },
+    tableauSuivi: { blocs: createDefaultTableauBlocs(domaines, colonnesTableau) },
   }));
 }
 
@@ -583,15 +589,20 @@ export function RapportActivite() {
           .filter((x): x is NonNullable<typeof x> => x !== null);
 
         const tsBloc = bloc?.tableauSuivi;
+        const hasTsRows =
+          tsBloc?.blocs?.some((b) => b.sujets.length > 0) ?? false;
         const tableauSuivi =
-          inclureTableauSuiviPdf &&
-          tsBloc &&
-          tsBloc.lignes.length > 0
+          inclureTableauSuiviPdf && tsBloc && hasTsRows
             ? {
                 colonnes: colsPdf.map((c) => ({ ...c })),
-                lignes: tsBloc.lignes.map((l) => ({
-                  id: l.id,
-                  cellules: { ...l.cellules },
+                blocs: tsBloc.blocs.map((b) => ({
+                  domaineId: b.domaineId,
+                  domaineLabel: b.domaineLabel,
+                  sujets: b.sujets.map((s) => ({
+                    id: s.id,
+                    sujet: s.sujet,
+                    cellules: { ...s.cellules },
+                  })),
                 })),
               }
             : undefined;
@@ -607,7 +618,8 @@ export function RapportActivite() {
         (s) =>
           s.domaines.length > 0 ||
           Boolean(s.sitePhotoDataUrl) ||
-          (inclureTableauSuiviPdf && Boolean(s.tableauSuivi?.lignes?.length)),
+          (inclureTableauSuiviPdf &&
+            Boolean(s.tableauSuivi?.blocs?.some((b) => b.sujets.length > 0))),
       );
 
     return {
@@ -720,6 +732,7 @@ export function RapportActivite() {
 
   function majColonnesTableauEtContenu(next: TableauSuiviColonne[]) {
     if (!projetCourant || next.length === 0) return;
+    const doms = getDomainesRapportProjet(projetCourant);
     mettreAJourProjetComplet(projetCourant.id, {
       tableauSuiviColonnes: next,
     });
@@ -728,8 +741,9 @@ export function RapportActivite() {
       prev.map((b) => ({
         ...b,
         tableauSuivi: {
-          lignes: remapLignesPourColonnes(
-            b.tableauSuivi?.lignes ?? createDefaultTableauLignes(next),
+          blocs: remapBlocsPourColonnes(
+            b.tableauSuivi?.blocs ??
+              createDefaultTableauBlocs(doms, next),
             next,
           ),
         },
@@ -737,11 +751,11 @@ export function RapportActivite() {
     );
   }
 
-  function setTableauCellule(
+  function setTableauSujet(
     siteId: string,
-    ligneId: string,
-    colId: string,
-    value: string,
+    blocDomaineId: string,
+    sujetRowId: string,
+    sujet: string,
   ) {
     setContenuParSite((prev) =>
       prev.map((c) =>
@@ -750,12 +764,14 @@ export function RapportActivite() {
           : {
               ...c,
               tableauSuivi: {
-                lignes: (c.tableauSuivi?.lignes ?? []).map((l) =>
-                  l.id !== ligneId
-                    ? l
+                blocs: (c.tableauSuivi?.blocs ?? []).map((bl) =>
+                  bl.domaineId !== blocDomaineId
+                    ? bl
                     : {
-                        ...l,
-                        cellules: { ...l.cellules, [colId]: value },
+                        ...bl,
+                        sujets: bl.sujets.map((s) =>
+                          s.id !== sujetRowId ? s : { ...s, sujet },
+                        ),
                       },
                 ),
               },
@@ -764,12 +780,15 @@ export function RapportActivite() {
     );
   }
 
-  function ajouterLigneTableauSuivi(siteId: string) {
-    if (!projetCourant) return;
-    const cols = getColonnesTableauSuiviProjet(projetCourant);
-    const ids = cols.map((x) => x.id);
-    const cellules = Object.fromEntries(ids.map((id) => [id, ""]));
-    const ligne = { id: crypto.randomUUID(), cellules };
+  function setTableauDonnee(
+    siteId: string,
+    blocDomaineId: string,
+    sujetRowId: string,
+    colId: string,
+    value: string,
+  ) {
+    const stocke =
+      colId === COL_ETAT_ID ? normaliserValeurEtat(value) : value;
     setContenuParSite((prev) =>
       prev.map((c) =>
         c.siteId !== siteId
@@ -777,14 +796,40 @@ export function RapportActivite() {
           : {
               ...c,
               tableauSuivi: {
-                lignes: [...(c.tableauSuivi?.lignes ?? []), ligne],
+                blocs: (c.tableauSuivi?.blocs ?? []).map((bl) =>
+                  bl.domaineId !== blocDomaineId
+                    ? bl
+                    : {
+                        ...bl,
+                        sujets: bl.sujets.map((s) =>
+                          s.id !== sujetRowId
+                            ? s
+                            : {
+                                ...s,
+                                cellules: { ...s.cellules, [colId]: stocke },
+                              },
+                        ),
+                      },
+                ),
               },
             },
       ),
     );
   }
 
-  function supprimerLigneTableauSuivi(siteId: string, ligneId: string) {
+  function ajouterSujetTableauSuivi(
+    siteId: string,
+    blocDomaineId: string,
+    apresSujetId?: string,
+  ) {
+    if (!projetCourant) return;
+    const cols = getColonnesTableauSuiviProjet(projetCourant);
+    const vide = { ...emptyDataCellules(cols) };
+    const nouvelle = {
+      id: crypto.randomUUID(),
+      sujet: "",
+      cellules: vide,
+    };
     setContenuParSite((prev) =>
       prev.map((c) =>
         c.siteId !== siteId
@@ -792,13 +837,153 @@ export function RapportActivite() {
           : {
               ...c,
               tableauSuivi: {
-                lignes: (c.tableauSuivi?.lignes ?? []).filter(
-                  (l) => l.id !== ligneId,
+                blocs: (c.tableauSuivi?.blocs ?? []).map((bl) => {
+                  if (bl.domaineId !== blocDomaineId) return bl;
+                  if (!apresSujetId) {
+                    return { ...bl, sujets: [...bl.sujets, nouvelle] };
+                  }
+                  const idx = bl.sujets.findIndex((s) => s.id === apresSujetId);
+                  if (idx < 0) return { ...bl, sujets: [...bl.sujets, nouvelle] };
+                  const next = [...bl.sujets];
+                  next.splice(idx + 1, 0, nouvelle);
+                  return { ...bl, sujets: next };
+                }),
+              },
+            },
+      ),
+    );
+  }
+
+  function supprimerSujetTableauSuivi(
+    siteId: string,
+    blocDomaineId: string,
+    sujetRowId: string,
+  ) {
+    if (!projetCourant) return;
+    const cols = getColonnesTableauSuiviProjet(projetCourant);
+    setContenuParSite((prev) =>
+      prev.map((c) =>
+        c.siteId !== siteId
+          ? c
+          : {
+              ...c,
+              tableauSuivi: {
+                blocs: (c.tableauSuivi?.blocs ?? []).map((bl) => {
+                  if (bl.domaineId !== blocDomaineId) return bl;
+                  if (bl.sujets.length <= 1) {
+                    return {
+                      ...bl,
+                      sujets: [
+                        {
+                          id: crypto.randomUUID(),
+                          sujet: "",
+                          cellules: { ...emptyDataCellules(cols) },
+                        },
+                      ],
+                    };
+                  }
+                  return {
+                    ...bl,
+                    sujets: bl.sujets.filter((s) => s.id !== sujetRowId),
+                  };
+                }),
+              },
+            },
+      ),
+    );
+  }
+
+  function ajouterBlocDomaineTableau(siteId: string, domaineId: string) {
+    if (!projetCourant) return;
+    const d = getDomainesRapportProjet(projetCourant).find(
+      (x) => x.id === domaineId,
+    );
+    if (!d) return;
+    const cols = getColonnesTableauSuiviProjet(projetCourant);
+    setContenuParSite((prev) =>
+      prev.map((c) => {
+        if (c.siteId !== siteId) return c;
+        const blocs = c.tableauSuivi?.blocs ?? [];
+        if (blocs.some((b) => b.domaineId === domaineId)) return c;
+        return {
+          ...c,
+          tableauSuivi: {
+            blocs: [
+              ...blocs,
+              {
+                domaineId: d.id,
+                domaineLabel: d.label,
+                sujets: [
+                  {
+                    id: crypto.randomUUID(),
+                    sujet: "",
+                    cellules: { ...emptyDataCellules(cols) },
+                  },
+                ],
+              },
+            ],
+          },
+        };
+      }),
+    );
+  }
+
+  function ajouterBlocDomaineLibreTableau(siteId: string, label: string) {
+    if (!projetCourant) return;
+    const cols = getColonnesTableauSuiviProjet(projetCourant);
+    const domaineId = `custom:${crypto.randomUUID()}`;
+    setContenuParSite((prev) =>
+      prev.map((c) =>
+        c.siteId !== siteId
+          ? c
+          : {
+              ...c,
+              tableauSuivi: {
+                blocs: [
+                  ...(c.tableauSuivi?.blocs ?? []),
+                  {
+                    domaineId,
+                    domaineLabel: label.trim() || "Domaine",
+                    sujets: [
+                      {
+                        id: crypto.randomUUID(),
+                        sujet: "",
+                        cellules: { ...emptyDataCellules(cols) },
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+      ),
+    );
+  }
+
+  function supprimerBlocDomaineTableau(siteId: string, blocDomaineId: string) {
+    if (!blocDomaineId.startsWith("custom:")) return;
+    setContenuParSite((prev) =>
+      prev.map((c) =>
+        c.siteId !== siteId
+          ? c
+          : {
+              ...c,
+              tableauSuivi: {
+                blocs: (c.tableauSuivi?.blocs ?? []).filter(
+                  (b) => b.domaineId !== blocDomaineId,
                 ),
               },
             },
       ),
     );
+  }
+
+  function ajouterColonneEnteteTableau() {
+    if (!projetCourant) return;
+    const id = `ts_${crypto.randomUUID().slice(0, 8)}`;
+    majColonnesTableauEtContenu([
+      ...getColonnesTableauSuiviProjet(projetCourant),
+      { id, label: "Nouvelle colonne" },
+    ]);
   }
 
   async function appliquerPhotoDomaine(
@@ -1207,7 +1392,10 @@ export function RapportActivite() {
               Ajouter un domaine
             </button>
 
-            <h3 className={styles.paramSitesTitle}>
+            <h3
+              id="param-tableau-colonnes"
+              className={styles.paramSitesTitle}
+            >
               Tableau de suivi — colonnes d’en-tête
             </h3>
             <p className={styles.paramDomainesIntro}>
@@ -1789,17 +1977,69 @@ export function RapportActivite() {
                 const siteNom =
                   projetCourant.sites.find((s) => s.id === sid)?.nom ?? "Site";
                 const bloc = contenuParSite.find((c) => c.siteId === sid);
-                const lignes = bloc?.tableauSuivi?.lignes ?? [];
+                const blocsTs = bloc?.tableauSuivi?.blocs ?? [];
                 const cols = getColonnesTableauSuiviProjet(projetCourant);
+                const domsListe = getDomainesRapportProjet(projetCourant);
+                const domainesDispo = domsListe.filter(
+                  (d) => !blocsTs.some((b) => b.domaineId === d.id),
+                );
+                const idsData = dataColIds(cols);
                 return (
                   <div className={styles.tableauSuiviCard}>
                     <h3 className={styles.tableauSuiviTitle}>
                       Tableau de suivi — {siteNom}
                     </h3>
                     <p className={styles.tableauSuiviHint}>
-                      Un tableau par site (onglets ci-dessus). Colonnes : Paramètres du
-                      projet. S’affiche dans le PDF si vous choisissez « Oui » ci-dessus.
+                      Chaque bloc correspond à un <strong>domaine du rapport</strong> (les
+                      mêmes que ci-dessus). Ajoutez des sujets par domaine. La colonne{" "}
+                      <strong>État</strong> se remplit uniquement par pastilles de couleur
+                      (sans texte) ; la légende figure sous le tableau et dans le PDF. Les
+                      autres colonnes sont modifiables ici ou dans{" "}
+                      <a href="#param-tableau-colonnes">Paramètres</a>.
                     </p>
+                    <div className={styles.tableauToolbar}>
+                      <label className={styles.tableauToolbarField}>
+                        <span className={styles.tableauToolbarLabel}>
+                          Ajouter un domaine au tableau
+                        </span>
+                        <select
+                          className={styles.tableauSelect}
+                          value=""
+                          disabled={!sid}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            e.target.value = "";
+                            if (!v || !sid) return;
+                            if (v === "__free__") {
+                              const lab = window.prompt(
+                                "Libellé du domaine (libre, hors liste du projet)",
+                              );
+                              if (lab?.trim()) {
+                                ajouterBlocDomaineLibreTableau(sid, lab.trim());
+                              }
+                            } else {
+                              ajouterBlocDomaineTableau(sid, v);
+                            }
+                          }}
+                        >
+                          <option value="">Choisir…</option>
+                          {domainesDispo.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.label}
+                            </option>
+                          ))}
+                          <option value="__free__">Autre (libellé libre)</option>
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        className={frameStyles.headerCtaSecondary}
+                        disabled={!sid}
+                        onClick={() => ajouterColonneEnteteTableau()}
+                      >
+                        + Colonne (en-tête)
+                      </button>
+                    </div>
                     <div className={styles.tableauSuiviScroll}>
                       <table className={styles.tableauSuiviTable}>
                         <thead>
@@ -1813,51 +2053,184 @@ export function RapportActivite() {
                           </tr>
                         </thead>
                         <tbody>
-                          {lignes.map((ligne) => (
-                            <tr key={ligne.id}>
-                              {cols.map((c) => (
-                                <td key={c.id}>
+                          {blocsTs.map((blocDom) =>
+                            blocDom.sujets.map((suj, idx) => (
+                              <tr
+                                key={suj.id}
+                                className={
+                                  idx === 0
+                                    ? styles.tableauSuiviBlocStart
+                                    : undefined
+                                }
+                              >
+                                {idx === 0 ? (
+                                  <td
+                                    rowSpan={blocDom.sujets.length}
+                                    className={styles.tableauSuiviTdDomaine}
+                                  >
+                                    <span className={styles.tableauDomaineNom}>
+                                      {blocDom.domaineLabel}
+                                    </span>
+                                    {blocDom.domaineId.startsWith("custom:") ? (
+                                      <button
+                                        type="button"
+                                        className={styles.tableauBlocRemove}
+                                        onClick={() =>
+                                          supprimerBlocDomaineTableau(
+                                            sid,
+                                            blocDom.domaineId,
+                                          )
+                                        }
+                                      >
+                                        Retirer ce bloc
+                                      </button>
+                                    ) : null}
+                                  </td>
+                                ) : null}
+                                <td className={styles.tableauSuiviTdSujet}>
                                   <textarea
                                     className={styles.tableauSuiviCell}
                                     rows={2}
-                                    value={ligne.cellules[c.id] ?? ""}
+                                    value={suj.sujet}
                                     onChange={(e) =>
-                                      setTableauCellule(
+                                      setTableauSujet(
                                         sid,
-                                        ligne.id,
-                                        c.id,
+                                        blocDom.domaineId,
+                                        suj.id,
                                         e.target.value,
                                       )
                                     }
-                                    aria-label={c.label.trim() || "Cellule"}
+                                    placeholder="Sujet"
+                                    aria-label="Sujet"
                                   />
                                 </td>
-                              ))}
-                              <td className={styles.tableauSuiviTdAction}>
-                                <button
-                                  type="button"
-                                  className={styles.tableauSuiviRowDel}
-                                  disabled={lignes.length <= 1}
-                                  onClick={() =>
-                                    supprimerLigneTableauSuivi(sid, ligne.id)
+                                {idsData.map((cid) => {
+                                  const col = cols.find((c) => c.id === cid);
+                                  const valEtat = (suj.cellules[cid] ?? "").trim();
+                                  if (colonneEstEtat(cid)) {
+                                    return (
+                                      <td key={cid} className={styles.tableauSuiviTdEtat}>
+                                        <div
+                                          className={styles.tableauEtatSwatches}
+                                          role="group"
+                                          aria-label={col?.label?.trim() || "État"}
+                                        >
+                                          <button
+                                            type="button"
+                                            className={styles.tableauEtatClear}
+                                            title="Effacer"
+                                            aria-label="Aucun état"
+                                            aria-pressed={valEtat === ""}
+                                            onClick={() =>
+                                              setTableauDonnee(
+                                                sid,
+                                                blocDom.domaineId,
+                                                suj.id,
+                                                cid,
+                                                "",
+                                              )
+                                            }
+                                          />
+                                          {TABLEAU_ETAT_LEGENDE.map((ent) => (
+                                            <button
+                                              key={ent.code}
+                                              type="button"
+                                              className={styles.tableauEtatSwatch}
+                                              style={{ backgroundColor: ent.couleur }}
+                                              title={ent.label}
+                                              aria-label={ent.label}
+                                              aria-pressed={valEtat === ent.code}
+                                              onClick={() =>
+                                                setTableauDonnee(
+                                                  sid,
+                                                  blocDom.domaineId,
+                                                  suj.id,
+                                                  cid,
+                                                  ent.code,
+                                                )
+                                              }
+                                            />
+                                          ))}
+                                        </div>
+                                      </td>
+                                    );
                                   }
-                                >
-                                  Supprimer
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                                  return (
+                                    <td key={cid}>
+                                      <textarea
+                                        className={styles.tableauSuiviCell}
+                                        rows={2}
+                                        value={suj.cellules[cid] ?? ""}
+                                        onChange={(e) =>
+                                          setTableauDonnee(
+                                            sid,
+                                            blocDom.domaineId,
+                                            suj.id,
+                                            cid,
+                                            e.target.value,
+                                          )
+                                        }
+                                        aria-label={col?.label?.trim() || cid}
+                                      />
+                                    </td>
+                                  );
+                                })}
+                                <td className={styles.tableauSuiviTdAction}>
+                                  <div className={styles.tableauRowActions}>
+                                    <button
+                                      type="button"
+                                      className={styles.tableauSuiviRowAdd}
+                                      disabled={!sid}
+                                      onClick={() =>
+                                        ajouterSujetTableauSuivi(
+                                          sid,
+                                          blocDom.domaineId,
+                                          suj.id,
+                                        )
+                                      }
+                                    >
+                                      + Sujet
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={styles.tableauSuiviRowDel}
+                                      onClick={() =>
+                                        supprimerSujetTableauSuivi(
+                                          sid,
+                                          blocDom.domaineId,
+                                          suj.id,
+                                        )
+                                      }
+                                    >
+                                      Supprimer ligne
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )),
+                          )}
                         </tbody>
                       </table>
                     </div>
-                    <button
-                      type="button"
-                      className={frameStyles.headerCtaSecondary}
-                      disabled={!sid}
-                      onClick={() => ajouterLigneTableauSuivi(sid)}
-                    >
-                      Ajouter une ligne
-                    </button>
+                    {cols.some((c) => c.id === COL_ETAT_ID) ? (
+                      <div className={styles.tableauEtatLegende} role="note">
+                        <p className={styles.tableauEtatLegendeTitre}>
+                          Légende — colonne État
+                        </p>
+                        <ul className={styles.tableauEtatLegendeListe}>
+                          {TABLEAU_ETAT_LEGENDE.map((ent) => (
+                            <li key={ent.code}>
+                              <span
+                                className={styles.tableauEtatPastille}
+                                style={{ backgroundColor: ent.couleur }}
+                                aria-hidden
+                              />
+                              <span>{ent.label}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })()}

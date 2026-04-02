@@ -1,8 +1,7 @@
+import logoSrc from "../assets/logo-tk-pro.svg?url";
 import styles from "./BrandTitle.module.css";
 
 const DEFAULT = "TK Pro Gestion";
-
-const LOGO_SRC = `${import.meta.env.BASE_URL}logo-tk-pro.png`;
 
 export type BrandTitleVariant = "gate" | "module" | "sidebar";
 
@@ -23,7 +22,7 @@ export function BrandTitle({ name, variant }: Props) {
   return (
     <span className={styles.row}>
       <img
-        src={LOGO_SRC}
+        src={logoSrc}
         alt={label}
         className={`${styles.logo} ${logoMod[variant]}`}
       />

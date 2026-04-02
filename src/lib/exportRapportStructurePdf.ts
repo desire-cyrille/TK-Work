@@ -1,5 +1,10 @@
 import { jsPDF } from "jspdf";
-import type { TableauSuiviColonne, TableauSuiviLigne } from "./tableauSuivi";
+import {
+  COL_ETAT_ID,
+  TABLEAU_ETAT_LEGENDE,
+  type TableauSuiviBloc,
+  type TableauSuiviColonne,
+} from "./tableauSuivi";
 
 /** Bandeau type pièce jointe (bleu nuit). */
 const NAVY: [number, number, number] = [31, 59, 102];
@@ -15,7 +20,7 @@ export type PdfSectionSite = {
   /** Tableau de suivi (même colonnes que le projet). */
   tableauSuivi?: {
     colonnes: TableauSuiviColonne[];
-    lignes: TableauSuiviLigne[];
+    blocs: TableauSuiviBloc[];
   };
 };
 
@@ -101,28 +106,31 @@ function addImageAlignedRight(
   }
 }
 
-const TABLEAU_ROW_H = 6.5;
+const TABLEAU_ROW_H = 6.8;
 const TABLEAU_HDR_H = 7.5;
-const CELL_LIGHT: [number, number, number] = [236, 241, 248];
+const CELL_DOMAIN: [number, number, number] = [240, 244, 250];
+const CELL_SUBJ: [number, number, number] = [248, 250, 252];
+const CELL_BODY: [number, number, number] = [255, 255, 255];
+const BORDER: [number, number, number] = [198, 206, 216];
 
 function drawTableauSuiviPdf(
   doc: jsPDF,
   yStart: number,
   colonnes: TableauSuiviColonne[],
-  lignes: TableauSuiviLigne[],
+  blocs: TableauSuiviBloc[],
 ): number {
   const nc = colonnes.length;
-  if (!nc || !lignes.length) return yStart;
+  if (!nc || !blocs.length) return yStart;
 
   let y = yStart;
   const x0 = MARGE;
   const wTot = MAX_TXT;
   const wLead =
-    nc >= 2 ? Math.min(36, wTot * 0.2) : Math.max(wTot / nc, 14);
-  const wLead2 = nc >= 2 ? Math.min(40, wTot * 0.22) : 0;
+    nc >= 2 ? Math.min(34, wTot * 0.19) : Math.max(wTot / nc, 14);
+  const wLead2 = nc >= 2 ? Math.min(36, wTot * 0.2) : 0;
   const wData =
     nc > 2
-      ? Math.max((wTot - wLead - wLead2) / (nc - 2), 14)
+      ? Math.max((wTot - wLead - wLead2) / (nc - 2), 13)
       : wTot / Math.max(nc, 1);
 
   function colW(i: number): number {
@@ -139,7 +147,58 @@ function drawTableauSuiviPdf(
     }
   }
 
-  pageBreakIf(12);
+  function drawCellText(
+    text: string,
+    x: number,
+    yTop: number,
+    cw: number,
+    ch: number,
+    bold = false,
+  ) {
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(32);
+    if (!text.trim()) return;
+    const parts = doc.splitTextToSize(text.trim(), Math.max(cw - 2, 4));
+    let ty = yTop + 4.2;
+    for (let li = 0; li < Math.min(parts.length, Math.max(1, Math.floor(ch / 3.2))); li++) {
+      if (ty > yTop + ch - 1) break;
+      doc.text(parts[li] as string, x + 1, ty);
+      ty += 3.15;
+    }
+  }
+
+  const inclutColonneEtat = colonnes.some((c) => c.id === COL_ETAT_ID);
+
+  function drawCarreEtat(
+    code: string,
+    xi: number,
+    rowY: number,
+    cw: number,
+  ) {
+    const pad = 1.1;
+    const side = Math.min(Math.max(cw - pad * 2, 2.8), TABLEAU_ROW_H - pad * 2, 5);
+    const cx = xi + (cw - side) / 2;
+    const cy = rowY + (TABLEAU_ROW_H - side) / 2;
+    doc.setLineWidth(0.15);
+    if (!code.trim()) {
+      doc.setFillColor(250, 251, 252);
+      doc.setDrawColor(...BORDER);
+      doc.rect(cx, cy, side, side, "FD");
+      return;
+    }
+    const ent = TABLEAU_ETAT_LEGENDE.find((e) => e.code === code.trim());
+    const rgb = ent?.rgb ?? ([200, 200, 200] as const);
+    doc.setFillColor(...rgb);
+    doc.setDrawColor(
+      Math.max(0, rgb[0] - 35),
+      Math.max(0, rgb[1] - 35),
+      Math.max(0, rgb[2] - 35),
+    );
+    doc.rect(cx, cy, side, side, "FD");
+  }
+
+  pageBreakIf(14);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(...NAVY);
@@ -154,7 +213,7 @@ function drawTableauSuiviPdf(
     doc.setFillColor(...NAVY);
     doc.rect(x, y, cw, TABLEAU_HDR_H, "F");
     doc.setDrawColor(255, 255, 255);
-    doc.setLineWidth(0.12);
+    doc.setLineWidth(0.1);
     doc.rect(x, y, cw, TABLEAU_HDR_H, "S");
     doc.setTextColor(255, 255, 255);
     const lab = (colonnes[i].label || " ").trim() || "\u2014";
@@ -164,37 +223,81 @@ function drawTableauSuiviPdf(
   }
   y += TABLEAU_HDR_H;
 
-  doc.setTextColor(38);
-  for (const ligne of lignes) {
-    pageBreakIf(TABLEAU_ROW_H);
+  for (const bloc of blocs) {
+    const n = Math.max(bloc.sujets.length, 1);
+    const blockH = n * TABLEAU_ROW_H;
+    pageBreakIf(blockH + 2);
+
     x = x0;
-    for (let i = 0; i < nc; i++) {
-      const cw = colW(i);
-      const cid = colonnes[i].id;
-      const raw = (ligne.cellules[cid] ?? "").trim();
-      if (i < 2) {
-        doc.setFillColor(...CELL_LIGHT);
-      } else {
-        doc.setFillColor(255, 255, 255);
-      }
-      doc.rect(x, y, cw, TABLEAU_ROW_H, "F");
-      doc.setDrawColor(175, 184, 195);
-      doc.setLineWidth(0.18);
-      doc.rect(x, y, cw, TABLEAU_ROW_H, "S");
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      doc.setTextColor(35);
-      if (raw) {
-        const parts = doc.splitTextToSize(raw, Math.max(cw - 2, 4));
-        let ty = y + 4.5;
-        for (let li = 0; li < Math.min(parts.length, 2); li++) {
-          doc.text(parts[li] as string, x + 1, ty);
-          ty += 3.1;
-        }
-      }
-      x += cw;
+    const w0 = colW(0);
+    doc.setFillColor(...CELL_DOMAIN);
+    doc.rect(x, y, w0, blockH, "F");
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.18);
+    doc.rect(x, y, w0, blockH, "S");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...NAVY);
+    const domLines = doc.splitTextToSize(bloc.domaineLabel, w0 - 3);
+    let dy = y + blockH / 2 - (Math.min(domLines.length, 3) * 3) / 2;
+    for (let li = 0; li < Math.min(domLines.length, 4); li++) {
+      doc.text(domLines[li] as string, x + w0 / 2, dy, { align: "center" });
+      dy += 3.3;
     }
-    y += TABLEAU_ROW_H;
+    const xAfterDom = x + w0;
+
+    for (let ri = 0; ri < bloc.sujets.length; ri++) {
+      const suj = bloc.sujets[ri];
+      const rowY = y + ri * TABLEAU_ROW_H;
+      let xi = xAfterDom;
+      for (let ci = 1; ci < nc; ci++) {
+        const cw = colW(ci);
+        doc.setFillColor(...(ci === 1 ? CELL_SUBJ : CELL_BODY));
+        doc.rect(xi, rowY, cw, TABLEAU_ROW_H, "F");
+        doc.setDrawColor(...BORDER);
+        doc.rect(xi, rowY, cw, TABLEAU_ROW_H, "S");
+        const colId = colonnes[ci]?.id;
+        if (inclutColonneEtat && colId === COL_ETAT_ID) {
+          const code = (suj.cellules[colId] ?? "").trim();
+          drawCarreEtat(code, xi, rowY, cw);
+        } else {
+          const txt = ci === 1 ? suj.sujet : colId ? (suj.cellules[colId] ?? "") : "";
+          drawCellText(txt, xi, rowY, cw, TABLEAU_ROW_H, ci === 1);
+        }
+        xi += cw;
+      }
+    }
+    y += blockH;
+  }
+
+  if (inclutColonneEtat) {
+    pageBreakIf(22);
+    y += 3;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...NAVY);
+    doc.text("Légende — colonne État", x0, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.6);
+    doc.setTextColor(48, 55, 65);
+    const sq = 2.6;
+    const gapApresCarre = 3.5;
+    for (const ent of TABLEAU_ETAT_LEGENDE) {
+      pageBreakIf(8);
+      doc.setFillColor(...ent.rgb);
+      doc.setDrawColor(...BORDER);
+      doc.setLineWidth(0.12);
+      doc.rect(x0, y - sq + 0.6, sq, sq, "FD");
+      const lines = doc.splitTextToSize(ent.label, wTot - sq - gapApresCarre - 2);
+      let ly = y;
+      for (let li = 0; li < Math.min(lines.length, 4); li++) {
+        doc.text(lines[li] as string, x0 + sq + gapApresCarre, ly);
+        ly += 3.1;
+      }
+      y = ly + 1;
+    }
+    y += 2;
   }
 
   return y + 5;
@@ -345,7 +448,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
   for (const section of input.sectionsParSite) {
     const hasTableauPdf =
       input.inclureTableauSuiviPdf !== false &&
-      Boolean(section.tableauSuivi?.lignes?.length);
+      Boolean(section.tableauSuivi?.blocs?.some((b) => b.sujets.length > 0));
     if (
       !section.domaines.length &&
       !section.sitePhotoDataUrl?.trim() &&
@@ -416,7 +519,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
         doc,
         y,
         section.tableauSuivi.colonnes,
-        section.tableauSuivi.lignes,
+        section.tableauSuivi.blocs,
       );
     }
   }

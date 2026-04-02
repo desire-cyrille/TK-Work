@@ -4,14 +4,13 @@
   line-height: 0;
 }
 
-/* Logo noir sur blanc → inversé sur fonds sombres */
+/* Logo SVG (dégradé marque, lisible sur bandeaux sombres) */
 .logo {
   flex-shrink: 0;
   width: auto;
   display: block;
   object-fit: contain;
-  filter: brightness(0) invert(1);
-  opacity: 0.95;
+  opacity: 0.98;
 }
 
 .logoGate {
