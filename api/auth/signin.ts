@@ -1,10 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import { getPool } from "../_lib/db.js";
+import { EMAIL_RE } from "../_lib/email.js";
 import { readJsonBody, cors } from "../_lib/http.js";
 import { signSessionToken } from "../_lib/jwt.js";
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ac = cors(req);

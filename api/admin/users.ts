@@ -2,11 +2,10 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import { getPool } from "../_lib/db.js";
+import { EMAIL_RE } from "../_lib/email.js";
 import { readJsonBody, cors } from "../_lib/http.js";
 import { requireUser } from "../_lib/requireUser.js";
 import type { SessionClaims } from "../_lib/jwt.js";
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 type UserRow = {
   id: string;
