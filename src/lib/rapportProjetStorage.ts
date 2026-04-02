@@ -2,6 +2,10 @@ import {
   cloneDomainesDefaut,
   type RapportDomaineDef,
 } from "../data/rapportParkingDomains";
+import {
+  normalizeColonnesTableauRaw,
+  type TableauSuiviColonne,
+} from "./tableauSuivi";
 
 const PROJETS_KEY = "tk-gestion-rapports-projets-v1";
 /** Même clé que `rapportChainStorage.ts` — réassignation lors de la purge du projet import. */
@@ -37,6 +41,8 @@ export type RapportProjet = {
   sites: RapportSiteProjet[];
   /** Domaines de rédaction (texte / photo par bloc). Toujours au moins une entrée après normalisation. */
   domainesRapport: RapportDomaineDef[];
+  /** Colonnes du tableau de suivi (tous les sites) ; absent = défaut maquette. */
+  tableauSuiviColonnes?: TableauSuiviColonne[];
   archived: boolean;
   archivedAt?: string;
   createdAt: string;
@@ -130,6 +136,7 @@ function normalizeProjet(raw: unknown): RapportProjet | null {
   nombreSites = sites.length;
 
   const domainesRapport = normalizeDomainesRapport(o.domainesRapport);
+  const tableauSuiviColonnes = normalizeColonnesTableauRaw(o.tableauSuiviColonnes);
 
   return {
     id,
@@ -144,6 +151,7 @@ function normalizeProjet(raw: unknown): RapportProjet | null {
     piedDePageRapport,
     sites,
     domainesRapport,
+    ...(tableauSuiviColonnes?.length ? { tableauSuiviColonnes } : {}),
     archived,
     archivedAt,
     createdAt,
@@ -326,6 +334,7 @@ export function mettreAJourProjetComplet(
       | "piedDePageRapport"
       | "sites"
       | "domainesRapport"
+      | "tableauSuiviColonnes"
     >
   >,
 ): RapportProjet | null {
@@ -397,6 +406,20 @@ export function mettreAJourProjetComplet(
     })).filter((d) => d.id && d.label);
     if (cur.domainesRapport.length === 0) {
       cur.domainesRapport = cloneDomainesDefaut();
+    }
+  }
+
+  if (Array.isArray(patch.tableauSuiviColonnes)) {
+    const next = patch.tableauSuiviColonnes
+      .map((c) => ({
+        id: typeof c.id === "string" && c.id.trim() ? c.id.trim() : "",
+        label: typeof c.label === "string" ? c.label : "",
+      }))
+      .filter((c) => c.id.length > 0);
+    if (next.length === 0) {
+      delete cur.tableauSuiviColonnes;
+    } else {
+      cur.tableauSuiviColonnes = next;
     }
   }
 

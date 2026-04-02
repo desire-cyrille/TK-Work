@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import type { TableauSuiviColonne, TableauSuiviLigne } from "./tableauSuivi";
 
 /** Bandeau type pièce jointe (bleu nuit). */
 const NAVY: [number, number, number] = [31, 59, 102];
@@ -11,6 +12,11 @@ export type PdfSectionSite = {
   sitePhotoDataUrl?: string;
   /** Une ou plusieurs images par domaine (mensuel : plusieurs jours). */
   domaines: { titre: string; texte: string; photoDataUrls?: string[] }[];
+  /** Tableau de suivi (même colonnes que le projet). */
+  tableauSuivi?: {
+    colonnes: TableauSuiviColonne[];
+    lignes: TableauSuiviLigne[];
+  };
 };
 
 export type ExportRapportPdfInput = {
@@ -35,6 +41,8 @@ export type ExportRapportPdfInput = {
   synthese: string;
   piedDePage: string;
   nomFichierPrefix: string;
+  /** Si `false`, le tableau de suivi n’est pas dessiné (défaut : affiché). */
+  inclureTableauSuiviPdf?: boolean;
 }
 
 function imgFmt(dataUrl: string): "PNG" | "JPEG" {
@@ -91,6 +99,105 @@ function addImageAlignedRight(
   } catch {
     return 0;
   }
+}
+
+const TABLEAU_ROW_H = 6.5;
+const TABLEAU_HDR_H = 7.5;
+const CELL_LIGHT: [number, number, number] = [236, 241, 248];
+
+function drawTableauSuiviPdf(
+  doc: jsPDF,
+  yStart: number,
+  colonnes: TableauSuiviColonne[],
+  lignes: TableauSuiviLigne[],
+): number {
+  const nc = colonnes.length;
+  if (!nc || !lignes.length) return yStart;
+
+  let y = yStart;
+  const x0 = MARGE;
+  const wTot = MAX_TXT;
+  const wLead =
+    nc >= 2 ? Math.min(36, wTot * 0.2) : Math.max(wTot / nc, 14);
+  const wLead2 = nc >= 2 ? Math.min(40, wTot * 0.22) : 0;
+  const wData =
+    nc > 2
+      ? Math.max((wTot - wLead - wLead2) / (nc - 2), 14)
+      : wTot / Math.max(nc, 1);
+
+  function colW(i: number): number {
+    if (nc === 1) return wTot;
+    if (i === 0) return wLead;
+    if (i === 1) return wLead2;
+    return wData;
+  }
+
+  function pageBreakIf(need: number) {
+    if (y + need > 283) {
+      doc.addPage();
+      y = MARGE;
+    }
+  }
+
+  pageBreakIf(12);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...NAVY);
+  doc.text("Tableau de suivi", x0, y);
+  y += 8;
+
+  pageBreakIf(TABLEAU_HDR_H);
+  let x = x0;
+  doc.setFontSize(7);
+  for (let i = 0; i < nc; i++) {
+    const cw = colW(i);
+    doc.setFillColor(...NAVY);
+    doc.rect(x, y, cw, TABLEAU_HDR_H, "F");
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(0.12);
+    doc.rect(x, y, cw, TABLEAU_HDR_H, "S");
+    doc.setTextColor(255, 255, 255);
+    const lab = (colonnes[i].label || " ").trim() || "\u2014";
+    const lines = doc.splitTextToSize(lab, Math.max(cw - 2, 4));
+    doc.text((lines[0] as string) || "\u2014", x + 1, y + 5);
+    x += cw;
+  }
+  y += TABLEAU_HDR_H;
+
+  doc.setTextColor(38);
+  for (const ligne of lignes) {
+    pageBreakIf(TABLEAU_ROW_H);
+    x = x0;
+    for (let i = 0; i < nc; i++) {
+      const cw = colW(i);
+      const cid = colonnes[i].id;
+      const raw = (ligne.cellules[cid] ?? "").trim();
+      if (i < 2) {
+        doc.setFillColor(...CELL_LIGHT);
+      } else {
+        doc.setFillColor(255, 255, 255);
+      }
+      doc.rect(x, y, cw, TABLEAU_ROW_H, "F");
+      doc.setDrawColor(175, 184, 195);
+      doc.setLineWidth(0.18);
+      doc.rect(x, y, cw, TABLEAU_ROW_H, "S");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(35);
+      if (raw) {
+        const parts = doc.splitTextToSize(raw, Math.max(cw - 2, 4));
+        let ty = y + 4.5;
+        for (let li = 0; li < Math.min(parts.length, 2); li++) {
+          doc.text(parts[li] as string, x + 1, ty);
+          ty += 3.1;
+        }
+      }
+      x += cw;
+    }
+    y += TABLEAU_ROW_H;
+  }
+
+  return y + 5;
 }
 
 function appliquerPiedsDePage(doc: jsPDF, pied: string) {
@@ -236,7 +343,16 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
 
   // —— Corps : une section par site (intercalaire) ——
   for (const section of input.sectionsParSite) {
-    if (!section.domaines.length && !section.sitePhotoDataUrl) continue;
+    const hasTableauPdf =
+      input.inclureTableauSuiviPdf !== false &&
+      Boolean(section.tableauSuivi?.lignes?.length);
+    if (
+      !section.domaines.length &&
+      !section.sitePhotoDataUrl?.trim() &&
+      !hasTableauPdf
+    ) {
+      continue;
+    }
 
     doc.addPage();
     y = MARGE;
@@ -293,6 +409,15 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
         }
       }
       y += 5;
+    }
+
+    if (hasTableauPdf && section.tableauSuivi) {
+      y = drawTableauSuiviPdf(
+        doc,
+        y,
+        section.tableauSuivi.colonnes,
+        section.tableauSuivi.lignes,
+      );
     }
   }
 

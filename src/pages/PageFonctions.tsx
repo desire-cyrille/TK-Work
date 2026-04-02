@@ -39,11 +39,6 @@ export function PageFonctions() {
         <p className={styles.subtitle}>
           Choisissez l’activité sur laquelle vous souhaitez travailler.
         </p>
-        <p className={styles.independenceNote}>
-          Les volets biens, devis et rapports ont chacun leur écran, mais les
-          données sont <strong>partagées entre tous les utilisateurs</strong>{" "}
-          lorsque vous synchronisez avec le nuage (section ci-dessous).
-        </p>
         <div className={styles.grid}>
           {items.map((item) => (
             <NavLink

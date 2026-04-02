@@ -1,16 +1,12 @@
 .row {
   display: inline-flex;
   align-items: center;
-  gap: 0.45em;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  line-height: 0;
 }
 
-/* Logo noir sur blanc → inversé pour bandeaux sombres ; hauteur = corps du texte (1em). */
+/* Logo noir sur blanc → inversé sur fonds sombres */
 .logo {
   flex-shrink: 0;
-  height: 1em;
   width: auto;
   display: block;
   object-fit: contain;
@@ -18,29 +14,14 @@
   opacity: 0.95;
 }
 
-.variantGate {
-  font-size: 0.95rem;
+.logoGate {
+  height: clamp(1.9rem, 4.5vw, 2.45rem);
 }
 
-.textGate {
-  color: #ffffff;
-  font-weight: 700;
+.logoModule {
+  height: clamp(1.75rem, 4vw, 2.25rem);
 }
 
-.variantModule {
-  font-size: 0.85rem;
-}
-
-.textModule {
-  color: rgba(255, 255, 255, 0.55);
-  font-weight: 700;
-}
-
-.variantSidebar {
-  font-size: 0.92rem;
-}
-
-.textSidebar {
-  color: #ffffff;
-  font-weight: 700;
+.logoSidebar {
+  height: clamp(1.65rem, 3.5vw, 2.05rem);
 }

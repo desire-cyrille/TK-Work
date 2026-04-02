@@ -92,3 +92,32 @@
 .headerCtaSecondary:active {
   transform: scale(0.98);
 }
+
+@media (max-width: 720px) {
+  .topBar {
+    padding: 0.75rem 1rem;
+    align-items: flex-start;
+  }
+
+  .topBarTitle {
+    font-size: clamp(1.05rem, 4.5vw, 1.25rem);
+    line-height: 1.25;
+    word-break: break-word;
+  }
+
+  .topBarActions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .workspace {
+    padding: 1rem clamp(0.85rem, 3.5vw, 1.35rem);
+  }
+
+  .headerCta,
+  .headerCtaSecondary {
+    font-size: 0.82rem;
+    padding: 0.5rem 0.95rem;
+  }
+}

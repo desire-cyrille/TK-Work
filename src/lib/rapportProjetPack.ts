@@ -157,7 +157,13 @@ function cloneContenuParSite(
     if (sid === "__legacy__") sid = fallbackSiteId;
     else sid = siteIdMap.get(sid) ?? sid;
     const axes = structuredClone(c.axes) as ContenuSiteRapport["axes"];
-    return { siteId: sid, axes };
+    return {
+      siteId: sid,
+      axes,
+      ...(c.tableauSuivi
+        ? { tableauSuivi: structuredClone(c.tableauSuivi) }
+        : {}),
+    };
   });
 }
 
@@ -260,6 +266,9 @@ export function importerRapportProjetPackCommeNouveau(
       updatedAt: r.updatedAt,
       sourceIds,
       photosMensuelSelection,
+      ...(r.inclureTableauSuiviPdf === false
+        ? { inclureTableauSuiviPdf: false as const }
+        : {}),
     };
   });
 

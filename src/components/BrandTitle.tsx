@@ -11,34 +11,22 @@ type Props = {
   variant: BrandTitleVariant;
 };
 
-const rowMod = {
-  gate: styles.variantGate,
-  module: styles.variantModule,
-  sidebar: styles.variantSidebar,
+const logoMod = {
+  gate: styles.logoGate,
+  module: styles.logoModule,
+  sidebar: styles.logoSidebar,
 } as const;
 
-const textMod = {
-  gate: styles.textGate,
-  module: styles.textModule,
-  sidebar: styles.textSidebar,
-} as const;
-
-/** Logo TK (image) + suite du nom, hauteur du logo calée sur le corps du texte. */
+/** Logo seul (lisible, taille adaptée au bandeau / barre latérale). */
 export function BrandTitle({ name, variant }: Props) {
   const label = (name?.trim() || DEFAULT).trim() || DEFAULT;
-  const m = /^TK(\s+)(.+)$/i.exec(label);
-  const rowClass = `${styles.row} ${rowMod[variant]}`;
-  const textClass = textMod[variant];
-
-  if (m) {
-    const rest = `${m[1]}${m[2]}`;
-    return (
-      <span className={rowClass}>
-        <img src={LOGO_SRC} alt="TK" className={styles.logo} />
-        <span className={textClass}>{rest}</span>
-      </span>
-    );
-  }
-
-  return <span className={`${rowClass} ${textClass}`}>{label}</span>;
+  return (
+    <span className={styles.row}>
+      <img
+        src={LOGO_SRC}
+        alt={label}
+        className={`${styles.logo} ${logoMod[variant]}`}
+      />
+    </span>
+  );
 }

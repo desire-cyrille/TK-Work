@@ -50,6 +50,12 @@ import {
   mettreAJourProjetComplet,
   type RapportSiteProjet,
 } from "../lib/rapportProjetStorage";
+import {
+  createDefaultTableauLignes,
+  getColonnesTableauSuiviProjet,
+  remapLignesPourColonnes,
+  type TableauSuiviColonne,
+} from "../lib/tableauSuivi";
 import styles from "./RapportActivite.module.css";
 
 const MOIS_CHOIX = [
@@ -128,9 +134,14 @@ function lireImageVersDataUrl(f: File):
 function contenuVidePourProjetSites(
   sites: { id: string }[],
   domaines: RapportDomaineDef[],
+  colonnesTableau: TableauSuiviColonne[],
 ): ContenuSiteRapport[] {
   const axes = axesContenuVidesPourDomaines(domaines);
-  return sites.map((s) => ({ siteId: s.id, axes: { ...axes } }));
+  return sites.map((s) => ({
+    siteId: s.id,
+    axes: { ...axes },
+    tableauSuivi: { lignes: createDefaultTableauLignes(colonnesTableau) },
+  }));
 }
 
 export function RapportActivite() {
@@ -178,19 +189,23 @@ export function RapportActivite() {
   const [mensuelPhotoKeysIncluded, setMensuelPhotoKeysIncluded] = useState<
     string[] | null
   >(null);
+  /** Inclure le tableau de suivi dans le PDF exporté. */
+  const [inclureTableauSuiviPdf, setInclureTableauSuiviPdf] = useState(true);
 
   useEffect(() => {
     if (!pidBrut) return;
     const p = getProjetById(pidBrut);
     if (!p) return;
     const dom = getDomainesRapportProjet(p);
-    setContenuParSite(contenuVidePourProjetSites(p.sites, dom));
+    const colsTs = getColonnesTableauSuiviProjet(p);
+    setContenuParSite(contenuVidePourProjetSites(p.sites, dom, colsTs));
     setSiteOngletId(p.sites[0]?.id ?? null);
     setRapportEditeId(null);
     setObservations("");
     setProvenanceSynthese(null);
     setSourceIdsSynthese(undefined);
     setMensuelPhotoKeysIncluded(null);
+    setInclureTableauSuiviPdf(true);
   }, [pidBrut]);
 
   function preparerNouveauMode(m: ModeRapportChain) {
@@ -199,11 +214,14 @@ export function RapportActivite() {
     setProvenanceSynthese(null);
     setSourceIdsSynthese(undefined);
     setMensuelPhotoKeysIncluded(null);
+    setInclureTableauSuiviPdf(true);
     if (projetCourant) {
+      const colsTs = getColonnesTableauSuiviProjet(projetCourant);
       setContenuParSite(
         contenuVidePourProjetSites(
           projetCourant.sites,
           getDomainesRapportProjet(projetCourant),
+          colsTs,
         ),
       );
       setSiteOngletId(projetCourant.sites[0]?.id ?? null);
@@ -218,8 +236,9 @@ export function RapportActivite() {
     if (!projetCourant) return;
     mettreAJourProjetComplet(projetCourant.id, { sites });
     const dom = getDomainesRapportProjet(projetCourant);
+    const colsTs = getColonnesTableauSuiviProjet(projetCourant);
     setContenuParSite((prev) =>
-      alignerContenuAvecProjetSites(prev, sites, dom),
+      alignerContenuAvecProjetSites(prev, sites, dom, colsTs),
     );
     setSiteOngletId((cur) =>
       cur && sites.some((s) => s.id === cur) ? cur : (sites[0]?.id ?? null),
@@ -311,6 +330,7 @@ export function RapportActivite() {
         (r) => libelleJourFr(r.jourDate ?? ""),
         ordre,
         getDomainesRapportProjet(projetCourant),
+        getColonnesTableauSuiviProjet(projetCourant),
       ),
     );
     setObservations(
@@ -339,6 +359,7 @@ export function RapportActivite() {
         (r) => libelleMoisCleFr(r.moisCle ?? ""),
         ordre,
         getDomainesRapportProjet(projetCourant),
+        getColonnesTableauSuiviProjet(projetCourant),
       ),
     );
     setObservations(
@@ -375,6 +396,9 @@ export function RapportActivite() {
             ? undefined
             : [...mensuelPhotoKeysIncluded]
           : undefined,
+      ...(inclureTableauSuiviPdf === false
+        ? { inclureTableauSuiviPdf: false as const }
+        : {}),
     });
     setRapportEditeId(row.id);
     setListeVersion((v) => v + 1);
@@ -392,8 +416,10 @@ export function RapportActivite() {
         r.contenuParSite,
         projetCourant.sites,
         getDomainesRapportProjet(projetCourant),
+        getColonnesTableauSuiviProjet(projetCourant),
       ),
     );
+    setInclureTableauSuiviPdf(r.inclureTableauSuiviPdf !== false);
     setSiteOngletId(projetCourant.sites[0]?.id ?? null);
     setObservations(r.observations);
     setSourceIdsSynthese(r.sourceIds);
@@ -433,10 +459,12 @@ export function RapportActivite() {
     if (rapportEditeId === id) {
       setRapportEditeId(null);
       if (projetCourant) {
+        const colsTs = getColonnesTableauSuiviProjet(projetCourant);
         setContenuParSite(
           contenuVidePourProjetSites(
             projetCourant.sites,
             getDomainesRapportProjet(projetCourant),
+            colsTs,
           ),
         );
       }
@@ -444,6 +472,7 @@ export function RapportActivite() {
       setProvenanceSynthese(null);
       setSourceIdsSynthese(undefined);
       setMensuelPhotoKeysIncluded(null);
+      setInclureTableauSuiviPdf(true);
     }
     setListeVersion((v) => v + 1);
   }
@@ -522,6 +551,8 @@ export function RapportActivite() {
       }
     }
 
+    const colsPdf = getColonnesTableauSuiviProjet(projetCourant);
+
     const sections = projetCourant.sites
       .map((site) => {
         const bloc = contenuParSite.find((c) => c.siteId === site.id);
@@ -551,13 +582,33 @@ export function RapportActivite() {
           })
           .filter((x): x is NonNullable<typeof x> => x !== null);
 
+        const tsBloc = bloc?.tableauSuivi;
+        const tableauSuivi =
+          inclureTableauSuiviPdf &&
+          tsBloc &&
+          tsBloc.lignes.length > 0
+            ? {
+                colonnes: colsPdf.map((c) => ({ ...c })),
+                lignes: tsBloc.lignes.map((l) => ({
+                  id: l.id,
+                  cellules: { ...l.cellules },
+                })),
+              }
+            : undefined;
+
         return {
           siteNom: site.nom,
           sitePhotoDataUrl: site.photoDataUrl,
           domaines: domainesPdf,
+          tableauSuivi,
         };
       })
-      .filter((s) => s.domaines.length > 0 || Boolean(s.sitePhotoDataUrl));
+      .filter(
+        (s) =>
+          s.domaines.length > 0 ||
+          Boolean(s.sitePhotoDataUrl) ||
+          (inclureTableauSuiviPdf && Boolean(s.tableauSuivi?.lignes?.length)),
+      );
 
     return {
       projetTitre: projetCourant.titre,
@@ -589,6 +640,7 @@ export function RapportActivite() {
         projetCourant.piedDePageRapport?.trim() ||
         "Document généré depuis le module Rapport — données locales.",
       nomFichierPrefix,
+      inclureTableauSuiviPdf: inclureTableauSuiviPdf,
     };
   }
 
@@ -654,14 +706,99 @@ export function RapportActivite() {
     refreshProjet();
     const p2 = getProjetById(projetCourant.id);
     if (p2) {
+      const colsTs = getColonnesTableauSuiviProjet(p2);
       setContenuParSite((prev) =>
         alignerContenuAvecProjetSites(
           prev,
           p2.sites,
           getDomainesRapportProjet(p2),
+          colsTs,
         ),
       );
     }
+  }
+
+  function majColonnesTableauEtContenu(next: TableauSuiviColonne[]) {
+    if (!projetCourant || next.length === 0) return;
+    mettreAJourProjetComplet(projetCourant.id, {
+      tableauSuiviColonnes: next,
+    });
+    refreshProjet();
+    setContenuParSite((prev) =>
+      prev.map((b) => ({
+        ...b,
+        tableauSuivi: {
+          lignes: remapLignesPourColonnes(
+            b.tableauSuivi?.lignes ?? createDefaultTableauLignes(next),
+            next,
+          ),
+        },
+      })),
+    );
+  }
+
+  function setTableauCellule(
+    siteId: string,
+    ligneId: string,
+    colId: string,
+    value: string,
+  ) {
+    setContenuParSite((prev) =>
+      prev.map((c) =>
+        c.siteId !== siteId
+          ? c
+          : {
+              ...c,
+              tableauSuivi: {
+                lignes: (c.tableauSuivi?.lignes ?? []).map((l) =>
+                  l.id !== ligneId
+                    ? l
+                    : {
+                        ...l,
+                        cellules: { ...l.cellules, [colId]: value },
+                      },
+                ),
+              },
+            },
+      ),
+    );
+  }
+
+  function ajouterLigneTableauSuivi(siteId: string) {
+    if (!projetCourant) return;
+    const cols = getColonnesTableauSuiviProjet(projetCourant);
+    const ids = cols.map((x) => x.id);
+    const cellules = Object.fromEntries(ids.map((id) => [id, ""]));
+    const ligne = { id: crypto.randomUUID(), cellules };
+    setContenuParSite((prev) =>
+      prev.map((c) =>
+        c.siteId !== siteId
+          ? c
+          : {
+              ...c,
+              tableauSuivi: {
+                lignes: [...(c.tableauSuivi?.lignes ?? []), ligne],
+              },
+            },
+      ),
+    );
+  }
+
+  function supprimerLigneTableauSuivi(siteId: string, ligneId: string) {
+    setContenuParSite((prev) =>
+      prev.map((c) =>
+        c.siteId !== siteId
+          ? c
+          : {
+              ...c,
+              tableauSuivi: {
+                lignes: (c.tableauSuivi?.lignes ?? []).filter(
+                  (l) => l.id !== ligneId,
+                ),
+              },
+            },
+      ),
+    );
   }
 
   async function appliquerPhotoDomaine(
@@ -1068,6 +1205,62 @@ export function RapportActivite() {
               }}
             >
               Ajouter un domaine
+            </button>
+
+            <h3 className={styles.paramSitesTitle}>
+              Tableau de suivi — colonnes d’en-tête
+            </h3>
+            <p className={styles.paramDomainesIntro}>
+              Mêmes colonnes pour tous les sites. Valeurs par défaut modifiables ; au moins
+              une colonne. Les cellules du tableau se remplissent dans l’onglet Rédaction.
+            </p>
+            <ul className={styles.paramDomainesList}>
+              {getColonnesTableauSuiviProjet(projetCourant).map((col, idx) => {
+                const cols = getColonnesTableauSuiviProjet(projetCourant);
+                return (
+                  <li key={col.id} className={styles.paramTableauColRow}>
+                    <input
+                      className={styles.paramInput}
+                      defaultValue={col.label}
+                      aria-label={`En-tête colonne ${idx + 1}`}
+                      key={`tcl-${col.id}-${projetCourant.updatedAt}`}
+                      onBlur={(e) => {
+                        const label = e.target.value;
+                        const next = cols.map((x) =>
+                          x.id === col.id ? { ...x, label } : x,
+                        );
+                        majColonnesTableauEtContenu(next);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={styles.paramDelSite}
+                      disabled={cols.length <= 1}
+                      onClick={() => {
+                        if (cols.length <= 1) return;
+                        majColonnesTableauEtContenu(
+                          cols.filter((x) => x.id !== col.id),
+                        );
+                      }}
+                    >
+                      Supprimer
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <button
+              type="button"
+              className={frameStyles.headerCtaSecondary}
+              onClick={() => {
+                const id = crypto.randomUUID();
+                majColonnesTableauEtContenu([
+                  ...getColonnesTableauSuiviProjet(projetCourant),
+                  { id, label: "Nouvelle colonne" },
+                ]);
+              }}
+            >
+              Ajouter une colonne
             </button>
 
             <h3 className={styles.paramSitesTitle}>Sites du projet</h3>
@@ -1519,6 +1712,35 @@ export function RapportActivite() {
                 par bloc (<strong>glisser-déposer</strong> ou « Parcourir »). Les
                 blocs sans texte ni image sont absents du PDF.
               </p>
+              <div className={styles.tableauPdfToggleRow}>
+                <span className={styles.tableauPdfToggleLabel}>
+                  Tableau de suivi dans le PDF
+                </span>
+                <div className={styles.yesNoToggle} role="group" aria-label="Inclure le tableau de suivi dans le PDF">
+                  <button
+                    type="button"
+                    className={
+                      inclureTableauSuiviPdf
+                        ? `${styles.yesNoBtn} ${styles.yesNoBtnActive}`
+                        : styles.yesNoBtn
+                    }
+                    onClick={() => setInclureTableauSuiviPdf(true)}
+                  >
+                    Oui
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      !inclureTableauSuiviPdf
+                        ? `${styles.yesNoBtn} ${styles.yesNoBtnActive}`
+                        : styles.yesNoBtn
+                    }
+                    onClick={() => setInclureTableauSuiviPdf(false)}
+                  >
+                    Non
+                  </button>
+                </div>
+              </div>
               <div className={styles.axesGrid}>
                 {(() => {
                   const sid =
@@ -1559,6 +1781,87 @@ export function RapportActivite() {
                 })()}
               </div>
 
+              {(() => {
+                const sid =
+                  siteOngletId ??
+                  projetCourant.sites[0]?.id ??
+                  "";
+                const siteNom =
+                  projetCourant.sites.find((s) => s.id === sid)?.nom ?? "Site";
+                const bloc = contenuParSite.find((c) => c.siteId === sid);
+                const lignes = bloc?.tableauSuivi?.lignes ?? [];
+                const cols = getColonnesTableauSuiviProjet(projetCourant);
+                return (
+                  <div className={styles.tableauSuiviCard}>
+                    <h3 className={styles.tableauSuiviTitle}>
+                      Tableau de suivi — {siteNom}
+                    </h3>
+                    <p className={styles.tableauSuiviHint}>
+                      Un tableau par site (onglets ci-dessus). Colonnes : Paramètres du
+                      projet. S’affiche dans le PDF si vous choisissez « Oui » ci-dessus.
+                    </p>
+                    <div className={styles.tableauSuiviScroll}>
+                      <table className={styles.tableauSuiviTable}>
+                        <thead>
+                          <tr>
+                            {cols.map((c) => (
+                              <th key={c.id}>
+                                {c.label.trim() ? c.label : "\u00a0"}
+                              </th>
+                            ))}
+                            <th className={styles.tableauSuiviThAction} aria-label="Actions" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lignes.map((ligne) => (
+                            <tr key={ligne.id}>
+                              {cols.map((c) => (
+                                <td key={c.id}>
+                                  <textarea
+                                    className={styles.tableauSuiviCell}
+                                    rows={2}
+                                    value={ligne.cellules[c.id] ?? ""}
+                                    onChange={(e) =>
+                                      setTableauCellule(
+                                        sid,
+                                        ligne.id,
+                                        c.id,
+                                        e.target.value,
+                                      )
+                                    }
+                                    aria-label={c.label.trim() || "Cellule"}
+                                  />
+                                </td>
+                              ))}
+                              <td className={styles.tableauSuiviTdAction}>
+                                <button
+                                  type="button"
+                                  className={styles.tableauSuiviRowDel}
+                                  disabled={lignes.length <= 1}
+                                  onClick={() =>
+                                    supprimerLigneTableauSuivi(sid, ligne.id)
+                                  }
+                                >
+                                  Supprimer
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button
+                      type="button"
+                      className={frameStyles.headerCtaSecondary}
+                      disabled={!sid}
+                      onClick={() => ajouterLigneTableauSuivi(sid)}
+                    >
+                      Ajouter une ligne
+                    </button>
+                  </div>
+                );
+              })()}
+
               <div className={styles.field}>
                 <label htmlFor="rapport-obs">
                   Synthèse et notes complémentaires (conclusions, risques, suite)
@@ -1574,7 +1877,8 @@ export function RapportActivite() {
                 <strong>Enregistrer</strong> sauvegarde le brouillon localement ; à droite,{" "}
                 <strong>Valider</strong> ouvre l’édition / aperçu PDF du rapport (raccourcis « Aperçu
                 du rapport » en haut de page et sous les visuels). <strong>Télécharger le PDF</strong>{" "}
-                est en haut à droite. Seuls les domaines et photos renseignés sont exportés.
+                est en haut à droite. Seuls les domaines et photos renseignés sont exportés. Le{" "}
+                <strong>tableau de suivi</strong> suit le réglage Oui/Non au-dessus des domaines.
               </p>
               <div className={styles.redactionBottomActions}>
                 <button

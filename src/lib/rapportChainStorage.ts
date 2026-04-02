@@ -8,7 +8,16 @@ import {
 import {
   getDomainesPourProjetOuDefaut,
   getOrCreateLegacyProjetId,
+  getProjetById,
 } from "./rapportProjetStorage";
+import {
+  createDefaultTableauLignes,
+  fusionnerTableauSuiviPourSite,
+  getColonnesTableauSuiviProjet,
+  normalizeTableauSuiviContenu,
+  type TableauSuiviColonne,
+  type TableauSuiviContenu,
+} from "./tableauSuivi";
 
 export type ModeRapportChain = "quotidien" | "mensuel" | "fin_mission";
 
@@ -17,6 +26,7 @@ const STORAGE_KEY = "tk-gestion-rapports-chain-v1";
 export type ContenuSiteRapport = {
   siteId: string;
   axes: Record<string, AxeContenu>;
+  tableauSuivi?: TableauSuiviContenu;
 };
 
 export type RapportEnregistre = {
@@ -41,6 +51,8 @@ export type RapportEnregistre = {
    * Absent = toutes les photos du mois sont incluses (comportement par défaut).
    */
   photosMensuelSelection?: string[];
+  /** Si `false`, le tableau de suivi n’apparaît pas dans le PDF (défaut : inclus). */
+  inclureTableauSuiviPdf?: boolean;
 };
 
 function newId() {
@@ -97,6 +109,7 @@ function normalizeContenuParSiteRaw(
   raw: unknown,
   legacyAxes: Record<string, string>,
   domaines: RapportDomaineDef[],
+  colonnesTableau: TableauSuiviColonne[],
 ): ContenuSiteRapport[] {
   if (!Array.isArray(raw) || raw.length === 0) {
     return [contenuBlocLegacy(legacyAxes, domaines)];
@@ -116,7 +129,16 @@ function normalizeContenuParSiteRaw(
         axes[id] = normalizeAxeContenuRaw(ax[key]);
       }
     }
-    out.push({ siteId, axes });
+    const tsRaw = o.tableauSuivi;
+    const tableauSuivi =
+      tsRaw !== undefined && tsRaw !== null
+        ? normalizeTableauSuiviContenu(tsRaw, colonnesTableau)
+        : undefined;
+    out.push({
+      siteId,
+      axes,
+      ...(tableauSuivi ? { tableauSuivi } : {}),
+    });
   }
   return out.length ? out : [contenuBlocLegacy(legacyAxes, domaines)];
 }
@@ -158,6 +180,7 @@ export function alignerContenuAvecProjetSites(
   raw: ContenuSiteRapport[],
   sitesProjet: { id: string }[],
   domaines: RapportDomaineDef[],
+  colonnesTableau: TableauSuiviColonne[],
 ): ContenuSiteRapport[] {
   const empty = axesContenuVidesPourDomaines(domaines);
   if (
@@ -165,21 +188,28 @@ export function alignerContenuAvecProjetSites(
     raw[0].siteId === "__legacy__" &&
     sitesProjet.length >= 1
   ) {
+    const leg = raw[0];
+    const tableauSuivi = leg.tableauSuivi
+      ? normalizeTableauSuiviContenu(leg.tableauSuivi, colonnesTableau)
+      : { lignes: createDefaultTableauLignes(colonnesTableau) };
     return [
       {
         siteId: sitesProjet[0].id,
-        axes: fusionnerAxesVersDomaines(raw[0].axes, empty, domaines),
+        axes: fusionnerAxesVersDomaines(leg.axes, empty, domaines),
+        tableauSuivi,
       },
     ];
   }
   const byId = new Map(raw.map((c) => [c.siteId, c]));
   return sitesProjet.map((s) => {
     const existing = byId.get(s.id);
-    if (!existing) return { siteId: s.id, axes: { ...empty } };
-    return {
-      siteId: s.id,
-      axes: fusionnerAxesVersDomaines(existing.axes, empty, domaines),
-    };
+    const axes = existing
+      ? fusionnerAxesVersDomaines(existing.axes, empty, domaines)
+      : { ...empty };
+    const tableauSuivi = existing?.tableauSuivi
+      ? normalizeTableauSuiviContenu(existing.tableauSuivi, colonnesTableau)
+      : { lignes: createDefaultTableauLignes(colonnesTableau) };
+    return { siteId: s.id, axes, tableauSuivi };
   });
 }
 
@@ -206,13 +236,17 @@ function normalizeRapport(raw: unknown): RapportEnregistre | null {
       ? r.projetId
       : getOrCreateLegacyProjetId();
   const domaines = getDomainesPourProjetOuDefaut(projetId);
+  const colonnesTs = getColonnesTableauSuiviProjet(getProjetById(projetId));
   const legacyAxes = normalizeAxes(r.axes, domaines);
   const contenuParSite = normalizeContenuParSiteRaw(
     r.contenuParSite,
     legacyAxes,
     domaines,
+    colonnesTs,
   );
   const axes = aplatirAxesPourCompat(contenuParSite, domaines);
+  const inclureTableauSuiviPdf =
+    r.inclureTableauSuiviPdf === false ? false : true;
   return {
     id,
     projetId,
@@ -231,6 +265,7 @@ function normalizeRapport(raw: unknown): RapportEnregistre | null {
     updatedAt,
     sourceIds,
     photosMensuelSelection,
+    inclureTableauSuiviPdf,
   };
 }
 
@@ -317,8 +352,12 @@ function cleNaturelle(
 }
 
 export function sauvegarderRapport(
-  data: Omit<RapportEnregistre, "id" | "createdAt" | "updatedAt" | "axes"> & {
+  data: Omit<
+    RapportEnregistre,
+    "id" | "createdAt" | "updatedAt" | "axes" | "inclureTableauSuiviPdf"
+  > & {
     id?: string;
+    inclureTableauSuiviPdf?: boolean;
   },
 ): RapportEnregistre {
   const now = new Date().toISOString();
@@ -379,6 +418,9 @@ export function sauvegarderRapport(
     photosMensuelSelection: data.photosMensuelSelection,
     createdAt,
     updatedAt: now,
+    ...(data.inclureTableauSuiviPdf === false
+      ? { inclureTableauSuiviPdf: false as const }
+      : {}),
   };
 
   if (idx >= 0) liste[idx] = row;
@@ -462,12 +504,19 @@ export function fusionnerContenuParSiteDepuisRapports(
   libelleSource: (r: RapportEnregistre) => string,
   siteIdsOrdered: string[] | undefined,
   domaines: RapportDomaineDef[],
+  colonnesTableau: TableauSuiviColonne[],
 ): ContenuSiteRapport[] {
   const explicit =
     Array.isArray(siteIdsOrdered) && siteIdsOrdered.some((s) => s && String(s).trim());
   const order = explicit ? siteIdsOrdered! : ordreSitesDepuisRapports(rapports);
   if (order.length === 0) {
-    return [{ siteId: "__legacy__", axes: axesContenuVidesPourDomaines(domaines) }];
+    return [
+      {
+        siteId: "__legacy__",
+        axes: axesContenuVidesPourDomaines(domaines),
+        tableauSuivi: { lignes: createDefaultTableauLignes(colonnesTableau) },
+      },
+    ];
   }
   return order.map((siteId) => {
     const axes = axesContenuVidesPourDomaines(domaines);
@@ -481,7 +530,13 @@ export function fusionnerContenuParSiteDepuisRapports(
       }
       axes[d.id] = { texte: parts.join("\n\n") };
     }
-    return { siteId, axes };
+    const tableauSuivi = fusionnerTableauSuiviPourSite(
+      rapports,
+      siteId,
+      colonnesTableau,
+      libelleSource,
+    );
+    return { siteId, axes, tableauSuivi };
   });
 }
 
@@ -490,13 +545,20 @@ export function fusionnerAxesDepuisRapports(
   libelleSource: (r: RapportEnregistre) => string,
   siteIdsOrdered: string[] | undefined,
   domaines: RapportDomaineDef[],
+  colonnesTableau?: TableauSuiviColonne[],
 ): Record<string, string> {
+  const cols =
+    colonnesTableau ??
+    getColonnesTableauSuiviProjet(
+      getProjetById(rapports[0]?.projetId?.trim() ?? "") ?? undefined,
+    );
   return aplatirAxesPourCompat(
     fusionnerContenuParSiteDepuisRapports(
       rapports,
       libelleSource,
       siteIdsOrdered,
       domaines,
+      cols,
     ),
     domaines,
   );
