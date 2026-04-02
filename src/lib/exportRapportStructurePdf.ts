@@ -108,6 +108,8 @@ function addImageAlignedRight(
 
 const TABLEAU_ROW_H = 6.8;
 const TABLEAU_HDR_H = 7.5;
+/** Bas de zone utile avant saut (mm). */
+const TABLEAU_PAGE_BOTTOM = 283;
 const CELL_DOMAIN: [number, number, number] = [240, 244, 250];
 const CELL_SUBJ: [number, number, number] = [248, 250, 252];
 const CELL_BODY: [number, number, number] = [255, 255, 255];
@@ -122,7 +124,6 @@ function drawTableauSuiviPdf(
   const nc = colonnes.length;
   if (!nc || !blocs.length) return yStart;
 
-  let y = yStart;
   const x0 = MARGE;
   const wTot = MAX_TXT;
   const wLead =
@@ -140,8 +141,59 @@ function drawTableauSuiviPdf(
     return wData;
   }
 
-  function pageBreakIf(need: number) {
-    if (y + need > 283) {
+  const inclutColonneEtat = colonnes.some((c) => c.id === COL_ETAT_ID);
+
+  /** Hauteur légende état (mm), cohérente avec le dessin réel. */
+  function hauteurLegendeEstimee(): number {
+    if (!inclutColonneEtat) return 0;
+    let h = 3 + 5 + 2;
+    const sq = 2.6;
+    const gapApresCarre = 3.5;
+    for (const ent of TABLEAU_ETAT_LEGENDE) {
+      const lines = doc.splitTextToSize(ent.label, wTot - sq - gapApresCarre - 2);
+      h += Math.min(lines.length, 4) * 3.1 + 1;
+    }
+    return h + 2;
+  }
+
+  /** Hauteur dessinée : titre, en-tête, lignes, légende, marge de fin (mm). */
+  function hauteurTableauDessinee(): number {
+    let h = 8 + TABLEAU_HDR_H;
+    for (const b of blocs) {
+      h += Math.max(b.sujets.length, 1) * TABLEAU_ROW_H;
+    }
+    h += hauteurLegendeEstimee();
+    h += 5 + 6;
+    return h;
+  }
+
+  const extent = hauteurTableauDessinee();
+  /** Comme l’ancien pageBreakIf(14) avant le titre. */
+  const headroomDebut = 14;
+  const fitsOnFreshPage = MARGE + extent <= TABLEAU_PAGE_BOTTOM;
+  const fitsHere =
+    yStart + headroomDebut <= TABLEAU_PAGE_BOTTOM &&
+    yStart + extent <= TABLEAU_PAGE_BOTTOM;
+
+  let y: number;
+  /** Si true, couper entre blocs / légende comme avant (tableau plus haut qu’une page). */
+  let splitMode: boolean;
+
+  if (fitsHere) {
+    y = yStart;
+    splitMode = false;
+  } else if (fitsOnFreshPage) {
+    doc.addPage();
+    y = MARGE;
+    splitMode = false;
+  } else {
+    y = yStart;
+    splitMode = true;
+  }
+
+  function pageBreakIf(needLocal: number) {
+    if (!splitMode) return;
+    if (y + needLocal > TABLEAU_PAGE_BOTTOM) {
       doc.addPage();
       y = MARGE;
     }
@@ -171,8 +223,6 @@ function drawTableauSuiviPdf(
       ty += lineH;
     }
   }
-
-  const inclutColonneEtat = colonnes.some((c) => c.id === COL_ETAT_ID);
 
   function drawCarreEtat(
     code: string,
