@@ -35,6 +35,18 @@ export function RapportAccueil() {
           sites sont la somme du champ « nombre de sites » renseigné sur chaque
           projet.
         </p>
+        <aside className={styles.syncAside} aria-label="Synchronisation multi-appareils">
+          <p className={styles.syncAsideText}>
+            <strong>Même compte sur téléphone, tablette et ordinateur :</strong> les
+            rapports et projets sont inclus dans la synchronisation. Après une
+            modification, utilisez{" "}
+            <Link className={styles.syncAsideLink} to="/biens/reglages?tab=nuage">
+              Réglages → Nuage
+            </Link>{" "}
+            pour envoyer puis, sur l’autre appareil, vous connecter et récupérer
+            la copie.
+          </p>
+        </aside>
         <div className={styles.actions}>
           <Link className={styles.linkCta} to="/rapport-activite/projets">
             Gérer les projets →

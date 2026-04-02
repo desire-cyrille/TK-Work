@@ -3,6 +3,8 @@ const SKIP_SERVER_KEYS = new Set([
   "tk_gestion_session",
   "tk_gestion_cloud_token",
   "tk_gestion_cloud_email",
+  "tk_gestion_auth_token",
+  "tk_gestion_auth_email",
 ]);
 
 export function isAllowedSyncKey(key: string): boolean {

@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
 import { useBiens } from "../context/BiensContext";
 import { useFinance } from "../context/FinanceContext";
@@ -9,16 +10,8 @@ import {
   estimateTkGestionBackupWriteBytes,
   parseTkGestionBackupJson,
 } from "../lib/appDataBackup";
-import {
-  applyCloudPullEntries,
-  clearCloudSession,
-  cloudPull,
-  cloudPush,
-  cloudSignin,
-  cloudSignup,
-  getCloudEmail,
-  getCloudToken,
-} from "../lib/cloudSync";
+import { useAuth } from "../context/AuthContext";
+import { applyCloudPullEntries, cloudPull, cloudPush } from "../lib/cloudSync";
 import { nomCompletLocataire } from "../lib/locataireUi";
 import {
   DEFAULT_EMETTEUR_DOCUMENTS_PDF,
@@ -30,67 +23,27 @@ import styles from "./Reglages.module.css";
 
 type TabId = "parametres" | "finances" | "profil" | "sauvegarde" | "nuage";
 
+const TAB_IDS: TabId[] = [
+  "parametres",
+  "finances",
+  "profil",
+  "sauvegarde",
+  "nuage",
+];
+
+function tabFromSearchParams(sp: URLSearchParams): TabId | null {
+  const t = sp.get("tab");
+  if (t && (TAB_IDS as string[]).includes(t)) return t as TabId;
+  return null;
+}
+
 function CloudSyncPanel() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [linked, setLinked] = useState(() => Boolean(getCloudToken()));
-  const [linkedEmail, setLinkedEmail] = useState<string | null>(() =>
-    getCloudEmail(),
-  );
+  const { isAuthenticated, profileEmail } = useAuth();
   const [busy, setBusy] = useState(false);
   const [cloudMsg, setCloudMsg] = useState<{
     type: "ok" | "err";
     text: string;
   } | null>(null);
-
-  function refreshLinkedState() {
-    setLinked(Boolean(getCloudToken()));
-    setLinkedEmail(getCloudEmail());
-  }
-
-  async function onSignup(e: FormEvent) {
-    e.preventDefault();
-    setCloudMsg(null);
-    if (!email.trim() || password.length < 8) {
-      setCloudMsg({
-        type: "err",
-        text: "E-mail requis et mot de passe d’au moins 8 caractères.",
-      });
-      return;
-    }
-    setBusy(true);
-    const r = await cloudSignup(email.trim(), password);
-    setBusy(false);
-    if (!r.ok) {
-      setCloudMsg({ type: "err", text: r.error });
-      return;
-    }
-    setPassword("");
-    refreshLinkedState();
-    setCloudMsg({
-      type: "ok",
-      text: "Compte nuage créé. Utilisez « Envoyer vers le nuage » pour publier vos données.",
-    });
-  }
-
-  async function onSigninCloud(e: FormEvent) {
-    e.preventDefault();
-    setCloudMsg(null);
-    if (!email.trim() || !password) {
-      setCloudMsg({ type: "err", text: "Renseignez l’e-mail et le mot de passe nuage." });
-      return;
-    }
-    setBusy(true);
-    const r = await cloudSignin(email.trim(), password);
-    setBusy(false);
-    if (!r.ok) {
-      setCloudMsg({ type: "err", text: r.error });
-      return;
-    }
-    setPassword("");
-    refreshLinkedState();
-    setCloudMsg({ type: "ok", text: "Connecté au nuage." });
-  }
 
   async function onPull() {
     setCloudMsg(null);
@@ -104,13 +57,13 @@ function CloudSyncPanel() {
     if (r.version === 0 || Object.keys(r.entries).length === 0) {
       setCloudMsg({
         type: "ok",
-        text: "Aucune donnée sur le nuage — envoyez d’abord depuis un appareil (PC ou autre).",
+        text: "Aucune donnée sur le serveur pour ce compte — utilisez « Envoyer » depuis un appareil à jour.",
       });
       return;
     }
     if (
       !window.confirm(
-        "Remplacer toutes les données TK Gestion sur CET appareil par la copie stockée dans le nuage ? Votre session de connexion locale (écran de connexion) sera conservée.",
+        "Remplacer toutes les données TK Gestion sur CET appareil par la copie du serveur ? Vous restez connecté avec le même compte.",
       )
     ) {
       return;
@@ -134,16 +87,7 @@ function CloudSyncPanel() {
     }
     setCloudMsg({
       type: "ok",
-      text: "Copie envoyée. Sur un autre appareil, connectez-vous au même compte nuage puis « Récupérer depuis le nuage ».",
-    });
-  }
-
-  function onDisconnectCloud() {
-    clearCloudSession();
-    refreshLinkedState();
-    setCloudMsg({
-      type: "ok",
-      text: "Déconnecté du nuage (les données locales ne sont pas modifiées).",
+      text: "Copie enregistrée pour ce compte. Sur un autre appareil, connectez-vous avec le même e-mail puis « Récupérer ».",
     });
   }
 
@@ -165,115 +109,49 @@ function CloudSyncPanel() {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Synchronisation entre appareils</h2>
         <p className={styles.hint}>
-          Compte <strong>nuage</strong> distinct du couple e-mail / mot de passe
-          de la page <strong>Connexion</strong> (accès à l’app sur cet appareil).
-          Même e-mail possible, mais le mot de passe nuage est celui défini
-          ici pour Neon. Dernière copie envoyée gagne (pas de fusion ligne à ligne).
-          Les données « Rapports » (souvent lourdes à cause des photos) sont incluses ;
-          si le total dépasse la limite par envoi, plusieurs envois sont enchaînés
-          automatiquement. Si un message d’erreur de taille apparaît, allégez les images
-          ou passez par une sauvegarde fichier.
+          <strong>Un compte = un espace de données.</strong> Chaque utilisateur
+          s’inscrit ou se connecte depuis la page d’accueil ; les données sont
+          séparées sur le serveur. La synchronisation utilise{" "}
+          <strong>le même identifiant</strong> que la connexion. Dernière copie
+          envoyée gagne (pas de fusion détaillée). Cela inclut les{" "}
+          <strong>projets et rapports d’activité</strong> (textes et photos
+          embarquées dans les brouillons). Les rapports très lourds peuvent
+          exiger plusieurs envois ; si une erreur de taille apparaît, allégez les
+          images ou utilisez une sauvegarde fichier.
         </p>
-        {linked && linkedEmail ? (
-          <p className={styles.hint}>
-            Connecté en tant que <strong>{linkedEmail}</strong>
+        {!isAuthenticated ? (
+          <p className={styles.backupBannerErr} role="status">
+            Connectez-vous depuis la page <strong>Connexion</strong> pour accéder
+            à l’envoi et à la récupération sur le serveur.
           </p>
-        ) : null}
-
-        {!linked ? (
+        ) : (
           <>
-            <form className={styles.field} onSubmit={onSignup}>
-              <h3 className={styles.subsectionTitle}>Créer un compte nuage</h3>
-              <label className={styles.field}>
-                <span className={styles.label}>E-mail</span>
-                <input
-                  className={styles.textInput}
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(ev) => setEmail(ev.target.value)}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Mot de passe (8 caractères min.)</span>
-                <input
-                  className={styles.textInput}
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(ev) => setPassword(ev.target.value)}
-                />
-              </label>
+            <p className={styles.hint}>
+              Compte actuel : <strong>{profileEmail}</strong>
+            </p>
+            <div className={styles.cloudActions}>
               <button
-                type="submit"
+                type="button"
                 className={styles.primaryBtn}
                 disabled={busy}
+                onClick={() => void onPush()}
               >
-                Créer le compte
+                Envoyer vers le serveur (données locales → nuage)
               </button>
-            </form>
-            <form
-              className={styles.field}
-              style={{ marginTop: "1.25rem" }}
-              onSubmit={onSigninCloud}
-            >
-              <h3 className={styles.subsectionTitle}>Se connecter (compte existant)</h3>
-              <label className={styles.field}>
-                <span className={styles.label}>E-mail</span>
-                <input
-                  className={styles.textInput}
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(ev) => setEmail(ev.target.value)}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Mot de passe</span>
-                <input
-                  className={styles.textInput}
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(ev) => setPassword(ev.target.value)}
-                />
-              </label>
               <button
-                type="submit"
+                type="button"
                 className={styles.secondaryBtn}
                 disabled={busy}
+                onClick={() => void onPull()}
               >
-                Connexion nuage
+                Récupérer depuis le serveur (nuage → cet appareil)
               </button>
-            </form>
+            </div>
+            <p className={styles.hint} style={{ marginTop: "0.75rem" }}>
+              Pour utiliser un <strong>autre utilisateur</strong>, déconnectez-vous
+              via le menu (bouton en bas à gauche), puis reconnectez-vous.
+            </p>
           </>
-        ) : (
-          <div className={styles.cloudActions}>
-            <button
-              type="button"
-              className={styles.primaryBtn}
-              disabled={busy}
-              onClick={() => void onPush()}
-            >
-              Envoyer vers le nuage (PC → serveur)
-            </button>
-            <button
-              type="button"
-              className={styles.secondaryBtn}
-              disabled={busy}
-              onClick={() => void onPull()}
-            >
-              Récupérer depuis le nuage (serveur → cet appareil)
-            </button>
-            <button
-              type="button"
-              className={styles.dangerBtn}
-              disabled={busy}
-              onClick={onDisconnectCloud}
-            >
-              Se déconnecter du nuage
-            </button>
-          </div>
         )}
       </section>
     </div>
@@ -357,17 +235,25 @@ function ServerHealthCard() {
 }
 
 export function Reglages() {
+  const [searchParams] = useSearchParams();
   const { settings, setSettings, updateSettings, resetSettings } =
     useThemeSettings();
   const finance = useFinance();
   const { locataires } = useBiens();
-  const [tab, setTab] = useState<TabId>("parametres");
+  const [tab, setTab] = useState<TabId>(
+    () => tabFromSearchParams(searchParams) ?? "parametres",
+  );
   const [draft, setDraft] = useState<ThemeSettings>(() => ({ ...settings }));
   const [backupMsg, setBackupMsg] = useState<{
     type: "ok" | "err";
     text: string;
   } | null>(null);
   const backupFileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const t = tabFromSearchParams(searchParams);
+    if (t) setTab(t);
+  }, [searchParams]);
 
   function syncDraftFromContext() {
     setDraft({ ...settings });

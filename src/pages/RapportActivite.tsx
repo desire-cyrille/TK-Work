@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Link,
   Navigate,
   useNavigate,
   useParams,
@@ -370,7 +371,7 @@ export function RapportActivite() {
     setRapportEditeId(row.id);
     setListeVersion((v) => v + 1);
     setProvenanceSynthese(
-      "Brouillon enregistré localement — vous pouvez le recharger depuis le tableau « Chaîne de rapports ».",
+      "Brouillon enregistré sur cet appareil — rechargez-le depuis « Chaîne de rapports ». Pour le voir sur un autre téléphone ou ordinateur : même compte, puis Réglages → Nuage (envoyer ici, récupérer ailleurs).",
     );
   }
 
@@ -796,6 +797,16 @@ export function RapportActivite() {
       }
     >
       <div className={styles.page}>
+        <p className={styles.syncHint}>
+          <strong>Autres appareils :</strong> vos projets et rapports (textes et
+          photos) font partie de la copie synchronisée. Avec le{" "}
+          <strong>même compte</strong>, ouvrez{" "}
+          <Link className={styles.syncHintLink} to="/biens/reglages?tab=nuage">
+            Réglages → Nuage
+          </Link>{" "}
+          : envoyez depuis l’appareil où vous travaillez, récupérez sur mobile ou
+          un autre poste.
+        </p>
         <div className={styles.editionTopTabs}>
           <button
             type="button"

@@ -24,6 +24,8 @@ export const TK_GESTION_MANAGED_STORAGE_KEYS = [
   "tk-gestion-theme-v1",
   "tk_gestion_session",
   "tk_gestion_profile",
+  "tk_gestion_auth_token",
+  "tk_gestion_auth_email",
 ] as const;
 
 export type TkGestionManagedStorageKey =

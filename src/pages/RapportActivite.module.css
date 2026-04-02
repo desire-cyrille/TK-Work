@@ -18,6 +18,27 @@
   line-height: 1.55;
 }
 
+.syncHint {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--workspace-muted);
+  background: rgba(94, 234, 212, 0.08);
+  border: 1px solid rgba(94, 234, 212, 0.28);
+  border-radius: 12px;
+}
+
+.syncHintLink {
+  color: #5eead4;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.syncHintLink:hover {
+  text-decoration: underline;
+}
+
 .modeRow {
   display: flex;
   flex-wrap: wrap;
@@ -167,6 +188,7 @@
 
 .tableWrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 12px;
   border: 1px solid var(--border-on-light);
 }

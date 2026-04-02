@@ -8,22 +8,22 @@ type Props = {
 };
 
 export function ProfileDialog({ open, onClose }: Props) {
-  const { profileEmail, updateProfileCredentials } = useAuth();
-  const [email, setEmail] = useState(profileEmail);
+  const { profileEmail, updatePassword } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNew, setConfirmNew] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setEmail(profileEmail);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmNew("");
       setError(null);
+      setBusy(false);
     }
-  }, [open, profileEmail]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -34,15 +34,16 @@ export function ProfileDialog({ open, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const res = updateProfileCredentials(
-      email,
+    setBusy(true);
+    const res = await updatePassword(
       currentPassword,
       newPassword,
       confirmNew,
     );
+    setBusy(false);
     if (!res.ok) {
       setError(res.error);
       return;
@@ -66,23 +67,16 @@ export function ProfileDialog({ open, onClose }: Props) {
         onClick={(ev) => ev.stopPropagation()}
       >
         <h2 id="profil-titre" className={styles.title}>
-          Profil administrateur
+          Votre compte
         </h2>
         <p className={styles.subtitle}>
-          Compte unique (application locale). Modifiez l’e-mail et, si vous le
-          souhaitez, le mot de passe.
+          Compte serveur unique : même identifiant que la connexion et la
+          synchronisation (Réglages → Nuage). L’e-mail n’est pas modifiable ici.
         </p>
-        <form className={styles.form} onSubmit={onSubmit}>
-          <label className={styles.label}>
-            <span>E-mail</span>
-            <input
-              className={styles.input}
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(ev) => setEmail(ev.target.value)}
-            />
-          </label>
+        <p className={styles.emailLine}>
+          <strong>E-mail :</strong> {profileEmail}
+        </p>
+        <form className={styles.form} onSubmit={(e) => void onSubmit(e)}>
           <label className={styles.label}>
             <span>Mot de passe actuel</span>
             <input
@@ -94,7 +88,7 @@ export function ProfileDialog({ open, onClose }: Props) {
             />
           </label>
           <label className={styles.label}>
-            <span>Nouveau mot de passe (optionnel)</span>
+            <span>Nouveau mot de passe (8 caractères min.)</span>
             <input
               className={styles.input}
               type="password"
@@ -119,11 +113,16 @@ export function ProfileDialog({ open, onClose }: Props) {
               type="button"
               className={styles.btnSecondary}
               onClick={onClose}
+              disabled={busy}
             >
               Annuler
             </button>
-            <button type="submit" className={styles.btnPrimary}>
-              Enregistrer
+            <button
+              type="submit"
+              className={styles.btnPrimary}
+              disabled={busy}
+            >
+              {busy ? "Enregistrement…" : "Mettre à jour le mot de passe"}
             </button>
           </div>
         </form>

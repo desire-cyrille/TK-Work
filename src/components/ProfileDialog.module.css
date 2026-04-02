@@ -29,10 +29,18 @@
 }
 
 .subtitle {
-  margin: 0 0 1.15rem;
+  margin: 0 0 0.65rem;
   font-size: 0.8rem;
   color: var(--workspace-muted);
   line-height: 1.5;
+}
+
+.emailLine {
+  margin: 0 0 1.1rem;
+  font-size: 0.85rem;
+  color: var(--workspace-text);
+  line-height: 1.4;
+  word-break: break-all;
 }
 
 .form {

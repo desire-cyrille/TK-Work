@@ -4,59 +4,51 @@ import {
   TK_GESTION_BACKUP_FORMAT,
   TK_GESTION_BACKUP_VERSION,
 } from "./appDataBackup";
+import {
+  AUTH_EMAIL_KEY,
+  AUTH_TOKEN_KEY,
+  getAuthToken,
+} from "./authToken";
 
-export const CLOUD_TOKEN_KEY = "tk_gestion_cloud_token";
-export const CLOUD_EMAIL_KEY = "tk_gestion_cloud_email";
+const LEGACY_CLOUD_TOKEN = "tk_gestion_cloud_token";
+const LEGACY_CLOUD_EMAIL = "tk_gestion_cloud_email";
 
-export function getCloudToken(): string | null {
-  try {
-    return localStorage.getItem(CLOUD_TOKEN_KEY);
-  } catch {
-    return null;
-  }
+function isAuthOrSessionKey(key: string): boolean {
+  return (
+    key === "tk_gestion_session" ||
+    key === AUTH_TOKEN_KEY ||
+    key === AUTH_EMAIL_KEY ||
+    key === LEGACY_CLOUD_TOKEN ||
+    key === LEGACY_CLOUD_EMAIL
+  );
 }
 
-export function getCloudEmail(): string | null {
-  try {
-    return localStorage.getItem(CLOUD_EMAIL_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setCloudSession(token: string, email: string) {
-  localStorage.setItem(CLOUD_TOKEN_KEY, token);
-  localStorage.setItem(CLOUD_EMAIL_KEY, email.trim().toLowerCase());
-}
-
-export function clearCloudSession() {
-  localStorage.removeItem(CLOUD_TOKEN_KEY);
-  localStorage.removeItem(CLOUD_EMAIL_KEY);
-}
-
-/** Données à envoyer au nuage (sans la session navigateur). */
+/** Données à envoyer au serveur (sans jeton ni session). */
 export function collectEntriesForCloudPush(): Record<string, string> {
   const entries: Record<string, string> = {};
   for (let i = 0; i < localStorage.length; i += 1) {
     const key = localStorage.key(i);
     if (!key || !isTkGestionStorageKey(key)) continue;
-    if (key === "tk_gestion_session") continue;
-    if (key === CLOUD_TOKEN_KEY || key === CLOUD_EMAIL_KEY) continue;
+    if (isAuthOrSessionKey(key)) continue;
     const v = localStorage.getItem(key);
     if (v !== null) entries[key] = v;
   }
   return entries;
 }
 
-/** Applique une copie nuage en gardant la session de connexion locale actuelle. */
+/** Applique une copie serveur en conservant connexion et jeton sur cet appareil. */
 export function applyCloudPullEntries(entries: Record<string, string>) {
   const sessionKeep = localStorage.getItem("tk_gestion_session");
-  const tokenKeep = localStorage.getItem(CLOUD_TOKEN_KEY);
-  const emailKeep = localStorage.getItem(CLOUD_EMAIL_KEY);
+  const tokenKeep = localStorage.getItem(AUTH_TOKEN_KEY);
+  const emailKeep = localStorage.getItem(AUTH_EMAIL_KEY);
+  const legacyTok = localStorage.getItem(LEGACY_CLOUD_TOKEN);
+  const legacyEm = localStorage.getItem(LEGACY_CLOUD_EMAIL);
   const safe: Record<string, string> = { ...entries };
   delete safe["tk_gestion_session"];
-  delete safe[CLOUD_TOKEN_KEY];
-  delete safe[CLOUD_EMAIL_KEY];
+  delete safe[AUTH_TOKEN_KEY];
+  delete safe[AUTH_EMAIL_KEY];
+  delete safe[LEGACY_CLOUD_TOKEN];
+  delete safe[LEGACY_CLOUD_EMAIL];
   const data = {
     format: TK_GESTION_BACKUP_FORMAT,
     version: TK_GESTION_BACKUP_VERSION,
@@ -73,14 +65,28 @@ export function applyCloudPullEntries(entries: Record<string, string>) {
   }
   if (tokenKeep != null) {
     try {
-      localStorage.setItem(CLOUD_TOKEN_KEY, tokenKeep);
+      localStorage.setItem(AUTH_TOKEN_KEY, tokenKeep);
     } catch {
       /* ignore */
     }
   }
   if (emailKeep != null) {
     try {
-      localStorage.setItem(CLOUD_EMAIL_KEY, emailKeep);
+      localStorage.setItem(AUTH_EMAIL_KEY, emailKeep);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (legacyTok != null) {
+    try {
+      localStorage.setItem(LEGACY_CLOUD_TOKEN, legacyTok);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (legacyEm != null) {
+    try {
+      localStorage.setItem(LEGACY_CLOUD_EMAIL, legacyEm);
     } catch {
       /* ignore */
     }
@@ -100,48 +106,6 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-export async function cloudSignup(
-  email: string,
-  password: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const r = await fetch("/api/auth/signup", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-    cache: "no-store",
-  });
-  const data = (await readJson(r)) as ApiErr & { token?: string; email?: string };
-  if (!r.ok) {
-    return { ok: false, error: data?.error ?? `Erreur ${r.status}` };
-  }
-  if (typeof data?.token !== "string" || typeof data?.email !== "string") {
-    return { ok: false, error: "Réponse serveur inattendue." };
-  }
-  setCloudSession(data.token, data.email);
-  return { ok: true };
-}
-
-export async function cloudSignin(
-  email: string,
-  password: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const r = await fetch("/api/auth/signin", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-    cache: "no-store",
-  });
-  const data = (await readJson(r)) as ApiErr & { token?: string; email?: string };
-  if (!r.ok) {
-    return { ok: false, error: data?.error ?? `Erreur ${r.status}` };
-  }
-  if (typeof data?.token !== "string" || typeof data?.email !== "string") {
-    return { ok: false, error: "Réponse serveur inattendue." };
-  }
-  setCloudSession(data.token, data.email);
-  return { ok: true };
-}
-
 export async function cloudPull(): Promise<
   | {
       ok: true;
@@ -151,9 +115,9 @@ export async function cloudPull(): Promise<
     }
   | { ok: false; error: string }
 > {
-  const token = getCloudToken();
+  const token = getAuthToken();
   if (!token) {
-    return { ok: false, error: "Non connecté au nuage." };
+    return { ok: false, error: "Non connecté." };
   }
   const r = await fetch("/api/sync/pull", {
     headers: { Authorization: `Bearer ${token}` },
@@ -186,10 +150,6 @@ export async function cloudPull(): Promise<
 /** Aligné sur api/_lib/syncPayload.ts (plafond corps HTTP Vercel ~4,5 Mo). */
 const CLOUD_ENTRIES_MAX_JSON_BYTES = 3 * 1024 * 1024;
 
-/**
- * Découpe les entrées en plusieurs objets dont le JSON ne dépasse pas maxBytes,
- * pour enchaîner reset + merge côté API.
- */
 function chunkEntriesByJsonSize(
   entries: Record<string, string>,
   maxBytes: number,
@@ -224,9 +184,9 @@ function chunkEntriesByJsonSize(
 export async function cloudPush(): Promise<
   { ok: true } | { ok: false; error: string }
 > {
-  const token = getCloudToken();
+  const token = getAuthToken();
   if (!token) {
-    return { ok: false, error: "Non connecté au nuage." };
+    return { ok: false, error: "Non connecté." };
   }
   const entries = collectEntriesForCloudPush();
   const headers = {
@@ -236,7 +196,7 @@ export async function cloudPush(): Promise<
 
   async function pushBody(
     body: unknown,
-  ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
     const r = await fetch("/api/sync/push", {
       method: "POST",
       headers: { ...headers },
@@ -248,7 +208,6 @@ export async function cloudPush(): Promise<
       return {
         ok: false,
         error: data?.error ?? `Erreur ${r.status}`,
-        status: r.status,
       };
     }
     return { ok: true };
@@ -264,10 +223,7 @@ export async function cloudPush(): Promise<
   const chunks = chunkEntriesByJsonSize(entries, CLOUD_ENTRIES_MAX_JSON_BYTES);
   const reset = await pushBody({ reset: true });
   if (!reset.ok) {
-    return {
-      ok: false,
-      error: reset.error,
-    };
+    return { ok: false, error: reset.error };
   }
 
   for (const chunk of chunks) {
@@ -276,7 +232,7 @@ export async function cloudPush(): Promise<
     if (!part.ok) {
       return {
         ok: false,
-        error: `${part.error} Envoi partiel sur le serveur — refaites « Envoyer vers le nuage » depuis ce poste.`,
+        error: `${part.error} Envoi partiel sur le serveur — refaites « Envoyer vers le serveur » depuis cet appareil.`,
       };
     }
   }

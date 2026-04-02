@@ -43,6 +43,37 @@
   line-height: 1.5;
 }
 
+.modeRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.15rem;
+}
+
+.modeBtn,
+.modeBtnActive {
+  flex: 1;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid var(--border-on-light);
+  background: var(--workspace-bg);
+  color: var(--workspace-muted);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.modeBtn:hover {
+  color: var(--workspace-text);
+}
+
+.modeBtnActive {
+  background: var(--surface-elevated);
+  color: var(--workspace-text);
+  border-color: var(--brand-pink);
+}
+
 .form {
   display: flex;
   flex-direction: column;
@@ -101,4 +132,10 @@
 
 .submit:active {
   transform: scale(0.98);
+}
+
+.submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
 }

@@ -3,39 +3,81 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./Connexion.module.css";
 
+type Mode = "login" | "signup";
+
 export function Connexion() {
-  const { login } = useAuth();
+  const { login, signup } = useAuth();
   const navigate = useNavigate();
 
+  const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(false);
+    setErrorMsg(null);
     if (!email.trim() || !password) {
-      setError(true);
+      setErrorMsg("Renseignez l’e-mail et le mot de passe.");
       return;
     }
-    if (login(email, password)) {
-      navigate("/fonctions", { replace: true });
+    if (mode === "signup" && password.length < 8) {
+      setErrorMsg("Le mot de passe doit contenir au moins 8 caractères.");
       return;
     }
-    setError(true);
+    setLoading(true);
+    const res =
+      mode === "signup"
+        ? await signup(email.trim(), password)
+        : await login(email.trim(), password);
+    setLoading(false);
+    if (!res.ok) {
+      setErrorMsg(res.error);
+      return;
+    }
+    navigate("/fonctions", { replace: true });
   }
 
   return (
     <div className={styles.shell}>
       <div className={styles.card}>
-        <h1 className={styles.title}>Connexion</h1>
+        <h1 className={styles.title}>
+          {mode === "login" ? "Connexion" : "Créer un compte"}
+        </h1>
         <p className={styles.hint}>
-          Compte administrateur local unique. Première connexion par défaut :
-          <strong> admin@local</strong> / <strong>admin</strong> (modifiable
-          depuis le profil après connexion). Vous accéderez au choix de
-          l&apos;activité.
+          Chaque compte dispose de <strong>ses propres données</strong> sur le
+          serveur (biens, finances, rapports, etc.). La même connexion sert à
+          ouvrir l’application et à synchroniser entre vos appareils (Réglages
+          → Nuage).
         </p>
-        <form className={styles.form} onSubmit={onSubmit}>
+        <div className={styles.modeRow}>
+          <button
+            type="button"
+            className={
+              mode === "login" ? styles.modeBtnActive : styles.modeBtn
+            }
+            onClick={() => {
+              setMode("login");
+              setErrorMsg(null);
+            }}
+          >
+            J’ai un compte
+          </button>
+          <button
+            type="button"
+            className={
+              mode === "signup" ? styles.modeBtnActive : styles.modeBtn
+            }
+            onClick={() => {
+              setMode("signup");
+              setErrorMsg(null);
+            }}
+          >
+            Première utilisation
+          </button>
+        </div>
+        <form className={styles.form} onSubmit={(e) => void onSubmit(e)}>
           <label className={styles.label}>
             <span>E-mail</span>
             <input
@@ -47,23 +89,24 @@ export function Connexion() {
             />
           </label>
           <label className={styles.label}>
-            <span>Mot de passe</span>
+            <span>Mot de passe {mode === "signup" ? "(8 caractères min.)" : ""}</span>
             <input
               className={styles.input}
               type="password"
-              autoComplete="current-password"
+              autoComplete={
+                mode === "signup" ? "new-password" : "current-password"
+              }
               value={password}
               onChange={(ev) => setPassword(ev.target.value)}
             />
           </label>
-          {error ? (
-            <p className={styles.error}>
-              Renseignez l&apos;e-mail et le mot de passe, ou vérifiez qu’ils
-              correspondent au profil enregistré sur cet appareil.
-            </p>
-          ) : null}
-          <button type="submit" className={styles.submit}>
-            Se connecter
+          {errorMsg ? <p className={styles.error}>{errorMsg}</p> : null}
+          <button type="submit" className={styles.submit} disabled={loading}>
+            {loading
+              ? "Patientez…"
+              : mode === "signup"
+                ? "Créer le compte et se connecter"
+                : "Se connecter"}
           </button>
         </form>
       </div>
