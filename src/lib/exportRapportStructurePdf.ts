@@ -124,6 +124,10 @@ function drawTableauSuiviPdf(
   const nc = colonnes.length;
   if (!nc || !blocs.length) return yStart;
 
+  /** Toujours une page dédiée (ne pas enchaîner après le texte des domaines). */
+  doc.addPage();
+  let y = MARGE;
+
   const x0 = MARGE;
   const wTot = MAX_TXT;
   const wLead =
@@ -168,28 +172,9 @@ function drawTableauSuiviPdf(
   }
 
   const extent = hauteurTableauDessinee();
-  /** Comme l’ancien pageBreakIf(14) avant le titre. */
-  const headroomDebut = 14;
-  const fitsOnFreshPage = MARGE + extent <= TABLEAU_PAGE_BOTTOM;
-  const fitsHere =
-    yStart + headroomDebut <= TABLEAU_PAGE_BOTTOM &&
-    yStart + extent <= TABLEAU_PAGE_BOTTOM;
-
-  let y: number;
-  /** Si true, couper entre blocs / légende comme avant (tableau plus haut qu’une page). */
-  let splitMode: boolean;
-
-  if (fitsHere) {
-    y = yStart;
-    splitMode = false;
-  } else if (fitsOnFreshPage) {
-    doc.addPage();
-    y = MARGE;
-    splitMode = false;
-  } else {
-    y = yStart;
-    splitMode = true;
-  }
+  const fitsOnUnePage = MARGE + extent <= TABLEAU_PAGE_BOTTOM;
+  /** Si false, tableau plus haut qu’une A4 : sauts entre blocs / légende. */
+  const splitMode = !fitsOnUnePage;
 
   function pageBreakIf(needLocal: number) {
     if (!splitMode) return;
