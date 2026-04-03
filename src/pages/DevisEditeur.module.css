@@ -2,24 +2,25 @@
   max-width: 58rem;
   margin: 0 auto;
   padding-bottom: 2rem;
+  color: var(--workspace-text, #fff);
 }
 
 .hint {
   margin: 0 0 1rem;
   font-size: 0.92rem;
   line-height: 1.5;
-  color: var(--tk-text-muted, #5c5c5c);
+  color: var(--workspace-muted, #a8a8b8);
 }
 
 .okMsg {
   margin: 0.5rem 0;
-  color: #0d6d3b;
+  color: #4ade80;
   font-size: 0.9rem;
 }
 
 .errMsg {
   margin: 0.5rem 0;
-  color: #b30000;
+  color: #f87171;
   font-size: 0.9rem;
 }
 
@@ -37,21 +38,28 @@
   border-radius: 8px;
   font: inherit;
   cursor: pointer;
-  border: 1px solid var(--tk-border, #ccc);
+  border: 1px solid var(--border, #3d3d48);
 }
 
 .btnPrimary {
-  background: var(--tk-accent, #1a5fb4);
+  background: linear-gradient(
+    to right,
+    var(--brand-orange, #ff4b2b),
+    var(--brand-pink, #ff416c)
+  );
   color: #fff;
   border-color: transparent;
 }
 
 .btnSecondary {
-  background: var(--tk-surface, #fff);
+  background: var(--surface, #252525);
+  color: var(--workspace-text, #fff);
 }
 
 .btnGhost {
   background: transparent;
+  color: var(--workspace-text, #fff);
+  border-color: var(--border, #3d3d48);
 }
 
 .budgetSticky {
@@ -60,10 +68,11 @@
   z-index: 2;
   margin: 1.5rem -0.5rem 0;
   padding: 1rem 1rem 1.25rem;
-  background: var(--tk-surface, #fff);
-  border: 1px solid var(--tk-border, #ddd);
+  background: var(--surface-elevated, #2e2e2e);
+  border: 1px solid var(--border, #3d3d48);
   border-radius: 10px;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4);
+  color: var(--workspace-text, #fff);
 }
 
 .budgetSticky h3 {
@@ -90,7 +99,7 @@
 .budgetTotal {
   margin-top: 0.5rem;
   padding-top: 0.5rem;
-  border-top: 1px solid var(--tk-border, #eee);
+  border-top: 1px solid var(--border, #3d3d48);
   font-weight: 700;
   display: flex;
   justify-content: space-between;
@@ -99,14 +108,16 @@
 .section {
   margin: 1.75rem 0;
   padding: 1.15rem;
-  border: 1px solid var(--tk-border, #e5e5e5);
+  border: 1px solid var(--border, #3d3d48);
   border-radius: 10px;
-  background: var(--tk-surface-2, #fafafa);
+  background: var(--surface-elevated, #2e2e2e);
+  color: var(--workspace-text, #fff);
 }
 
 .section h2 {
   margin: 0 0 0.85rem;
   font-size: 1.05rem;
+  color: var(--workspace-text, #fff);
 }
 
 .fieldset {
@@ -118,6 +129,7 @@
 .legend {
   font-weight: 600;
   margin-bottom: 0.5rem;
+  color: var(--workspace-muted, #a8a8b8);
 }
 
 .grid2 {
@@ -131,15 +143,18 @@
   flex-direction: column;
   gap: 0.3rem;
   font-size: 0.88rem;
+  color: var(--workspace-text, #fff);
 }
 
 .input,
 .textarea,
 .select {
   padding: 0.45rem 0.55rem;
-  border: 1px solid var(--tk-border, #ccc);
+  border: 1px solid var(--border, #3d3d48);
   border-radius: 6px;
   font: inherit;
+  background: var(--surface, #252525);
+  color: var(--workspace-text, #fff);
 }
 
 .textarea {
@@ -153,6 +168,7 @@
   gap: 0.75rem 1.25rem;
   margin: 0.5rem 0;
   font-size: 0.9rem;
+  color: var(--workspace-text, #fff);
 }
 
 .checkRow label {
@@ -166,27 +182,29 @@
   overflow-x: auto;
   margin: 0.5rem 0;
   border-radius: 8px;
-  border: 1px solid var(--tk-border, #ddd);
-  background: var(--tk-surface, #fff);
+  border: 1px solid var(--border, #3d3d48);
+  background: var(--surface, #252525);
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.82rem;
+  color: var(--workspace-text, #fff);
 }
 
 .table th,
 .table td {
   padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid var(--tk-border, #eee);
+  border-bottom: 1px solid var(--border, #3d3d48);
   text-align: left;
   vertical-align: middle;
 }
 
 .table th {
-  background: var(--tk-surface-2, #f4f4f4);
+  background: rgba(0, 0, 0, 0.25);
   font-weight: 600;
+  color: var(--workspace-muted, #a8a8b8);
 }
 
 .table input {
@@ -194,9 +212,11 @@
   min-width: 3rem;
   box-sizing: border-box;
   padding: 0.25rem 0.35rem;
-  border: 1px solid var(--tk-border, #ccc);
+  border: 1px solid var(--border, #3d3d48);
   border-radius: 4px;
   font: inherit;
+  background: var(--surface-elevated, #2e2e2e);
+  color: var(--workspace-text, #fff);
 }
 
 .tableMini {
@@ -211,12 +231,13 @@
   margin: 1rem 0 0.35rem;
   font-size: 0.95rem;
   font-weight: 600;
+  color: var(--workspace-text, #fff);
 }
 
 .lockWait {
   padding: 1rem;
   text-align: center;
-  color: var(--tk-text-muted, #666);
+  color: var(--workspace-muted, #a8a8b8);
 }
 
 .rgbRow {
@@ -231,15 +252,21 @@
   flex-direction: column;
   gap: 0.25rem;
   font-size: 0.85rem;
+  color: var(--workspace-text, #fff);
 }
 
 .rgbRow input[type="number"] {
   width: 4.5rem;
+  background: var(--surface, #252525);
+  color: var(--workspace-text, #fff);
+  border: 1px solid var(--border, #3d3d48);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
 }
 
 .previewSwatch {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 6px;
-  border: 1px solid var(--tk-border, #ccc);
+  border: 1px solid var(--border, #3d3d48);
 }

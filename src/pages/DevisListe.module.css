@@ -1,20 +1,23 @@
 .page {
   max-width: 52rem;
   margin: 0 auto;
+  /* Évite d’hériter du texte blanc sur panneaux à fond clair */
+  color: var(--workspace-text, #fff);
 }
 
 .lockWait {
   margin: 0 0 1rem;
   padding: 0.75rem 1rem;
   border-radius: 8px;
-  background: var(--tk-surface-2, #f4f4f4);
-  color: var(--tk-text-muted, #5c5c5c);
+  background: var(--surface-elevated, #2e2e2e);
+  border: 1px solid var(--border, #3d3d48);
+  color: var(--workspace-muted, #a8a8b8);
 }
 
 .intro {
   margin: 0 0 1.25rem;
   line-height: 1.5;
-  color: var(--tk-text-muted, #5c5c5c);
+  color: var(--workspace-muted, #a8a8b8);
 }
 
 .filtres {
@@ -28,24 +31,27 @@
 .filtreBtnActive {
   padding: 0.35rem 0.75rem;
   border-radius: 6px;
-  border: 1px solid var(--tk-border, #ccc);
-  background: var(--tk-surface, #fff);
+  border: 1px solid var(--border, #3d3d48);
+  background: var(--surface, #252525);
+  color: var(--workspace-text, #fff);
   cursor: pointer;
   font-size: 0.9rem;
 }
 
 .filtreBtnActive {
-  border-color: var(--tk-accent, #1a5fb4);
-  background: rgba(26, 95, 180, 0.08);
+  border-color: rgba(255, 65, 108, 0.55);
+  background: rgba(255, 65, 108, 0.14);
+  color: #fff;
   font-weight: 600;
 }
 
 .formCard {
-  border: 1px solid var(--tk-border, #ddd);
+  border: 1px solid var(--border, #3d3d48);
   border-radius: 8px;
   padding: 1.25rem;
   margin-bottom: 1.5rem;
-  background: var(--tk-surface-2, #fafafa);
+  background: var(--surface-elevated, #2e2e2e);
+  color: var(--workspace-text, #fff);
 }
 
 .formTitle {
@@ -64,9 +70,11 @@
 .input,
 .textarea {
   padding: 0.5rem 0.65rem;
-  border: 1px solid var(--tk-border, #ccc);
+  border: 1px solid var(--border, #3d3d48);
   border-radius: 6px;
   font: inherit;
+  background: var(--surface, #252525);
+  color: var(--workspace-text, #fff);
 }
 
 .formActions {
@@ -83,10 +91,11 @@
 .btnDelete {
   padding: 0.45rem 0.85rem;
   border-radius: 6px;
-  border: 1px solid var(--tk-border, #ccc);
+  border: 1px solid var(--border, #3d3d48);
   cursor: pointer;
   font: inherit;
-  background: var(--tk-surface, #fff);
+  background: var(--surface, #252525);
+  color: var(--workspace-text, #fff);
 }
 
 .btnPrimary {
@@ -102,7 +111,7 @@
 
 .empty {
   margin: 2rem 0;
-  color: var(--tk-text-muted, #666);
+  color: var(--workspace-muted, #a8a8b8);
 }
 
 .list {
@@ -115,10 +124,11 @@
 }
 
 .card {
-  border: 1px solid var(--tk-border, #ddd);
+  border: 1px solid var(--border, #3d3d48);
   border-radius: 8px;
   padding: 1rem 1.15rem;
-  background: var(--tk-surface, #fff);
+  background: var(--surface-elevated, #2e2e2e);
+  color: var(--workspace-text, #fff);
 }
 
 .cardHead {
@@ -143,13 +153,13 @@
 }
 
 .badge {
-  background: #e8f0fe;
-  color: #1a5fb4;
+  background: rgba(255, 65, 108, 0.18);
+  color: #fda4af;
 }
 
 .badgeArchive {
-  background: #eee;
-  color: #444;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--workspace-muted, #a8a8b8);
 }
 
 .dl {
@@ -164,19 +174,20 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.02em;
-  color: var(--tk-text-muted, #666);
+  color: var(--workspace-muted, #a8a8b8);
 }
 
 .dl dd {
   margin: 0.15rem 0 0;
   font-size: 0.9rem;
+  color: var(--workspace-text, #fff);
 }
 
 .notes {
   margin: 0 0 0.75rem;
   font-size: 0.9rem;
   line-height: 1.45;
-  color: var(--tk-text-muted, #444);
+  color: var(--workspace-muted, #a8a8b8);
 }
 
 .actions {
@@ -192,8 +203,9 @@
   margin-bottom: 1.25rem;
   padding: 1rem 1.15rem;
   border-radius: 10px;
-  border: 1px solid var(--tk-border, #ddd);
-  background: var(--tk-surface-2, #f8f8f8);
+  border: 1px solid var(--border, #3d3d48);
+  background: var(--surface-elevated, #2e2e2e);
+  color: var(--workspace-text, #fff);
 }
 
 .statsLabel {
@@ -201,13 +213,14 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--tk-text-muted, #666);
+  color: var(--workspace-muted, #a8a8b8);
   margin-bottom: 0.35rem;
 }
 
 .statsValue {
   font-size: 1.35rem;
   font-weight: 700;
+  color: var(--workspace-text, #fff);
 }
 
 .modalBackdrop {
@@ -226,15 +239,49 @@
   max-width: 26rem;
   max-height: 90vh;
   overflow: auto;
-  background: var(--tk-surface, #fff);
+  background: #f1f5f9;
   border-radius: 12px;
   padding: 1.25rem 1.35rem;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  border: 1px solid #94a3b8;
+  color: #0f172a;
 }
 
 .modalTitle {
   margin: 0 0 1rem;
   font-size: 1.15rem;
+  color: #0f172a;
+}
+
+/* Champs du modal : fond clair explicite (pas d’héritage du thème sombre) */
+.modal .label {
+  color: #334155;
+}
+
+.modal .input,
+.modal select {
+  background: #ffffff;
+  color: #0f172a;
+  border: 2px solid #64748b;
+}
+
+.modal .input:focus,
+.modal select:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #2563eb;
+}
+
+.modal .btnSecondary {
+  background: #ffffff;
+  color: #334155;
+  border: 2px solid #64748b;
+}
+
+.modal .btnPrimary {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: transparent;
 }
 
 .modalActions {
