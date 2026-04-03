@@ -6,8 +6,9 @@ import {
   type TableauSuiviColonne,
 } from "./tableauSuivi";
 
-/** Bandeau type pièce jointe (bleu nuit). */
-const NAVY: [number, number, number] = [31, 59, 102];
+/** Style TK Pro (rouge + bandeau sombre), aligné sur l’app et tkpro.fr */
+const BRAND_RED: [number, number, number] = [229, 57, 53];
+const HERO_DARK: [number, number, number] = [26, 26, 28];
 const MARGE = 15;
 const PAGE_W = 210;
 const MAX_TXT = 180;
@@ -252,7 +253,7 @@ function drawTableauSuiviPdf(
   pageBreakIf(14);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.setTextColor(...NAVY);
+  doc.setTextColor(...BRAND_RED);
   doc.text("Tableau de suivi", x0, y);
   y += 8;
 
@@ -276,7 +277,7 @@ function drawTableauSuiviPdf(
   doc.setFontSize(7);
   for (let i = 0; i < nc; i++) {
     const cw = colW(i);
-    doc.setFillColor(...NAVY);
+    doc.setFillColor(...BRAND_RED);
     doc.rect(x, y, cw, TABLEAU_HDR_H, "F");
     doc.setDrawColor(255, 255, 255);
     doc.setLineWidth(0.1);
@@ -308,7 +309,7 @@ function drawTableauSuiviPdf(
     doc.rect(x, y, w0, blockH, "S");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
-    doc.setTextColor(...NAVY);
+    doc.setTextColor(...BRAND_RED);
     const domLines = doc.splitTextToSize(bloc.domaineLabel, w0 - 3);
     let dy = y + blockH / 2 - (Math.min(domLines.length, 3) * 3) / 2;
     for (let li = 0; li < Math.min(domLines.length, 4); li++) {
@@ -346,7 +347,7 @@ function drawTableauSuiviPdf(
     y += 3;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
-    doc.setTextColor(...NAVY);
+    doc.setTextColor(...BRAND_RED);
     doc.text("Légende — colonne État", x0, y);
     y += 5;
     doc.setFont("helvetica", "normal");
@@ -402,9 +403,10 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     /* réservé si besoin d’entête répétée ; le pied global est appliqué à la fin */
   }
 
-  // —— Page de garde ——
-  doc.setFillColor(...NAVY);
-  doc.rect(0, 0, PAGE_W, 40, "F");
+  // —— Page de garde : bandeau sombre + accent rouge + pastille (comme l’app) ——
+  const BAND_H = 40;
+  doc.setFillColor(...HERO_DARK);
+  doc.rect(0, 0, PAGE_W, BAND_H, "F");
 
   if (input.logoDataUrl?.trim()) {
     addImageFit(doc, input.logoDataUrl, 12, 8, 24, 16);
@@ -413,25 +415,49 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     addImageAlignedRight(doc, input.logoClientDataUrl, 8, 12, 26, 18);
   }
 
-  const lxBandeau = MARGE + (input.logoDataUrl ? 28 : 0);
-  const reserveDroiteBandeau = input.logoClientDataUrl?.trim() ? 34 : MARGE;
-  const largeurTexteBandeau = Math.max(
-    60,
-    PAGE_W - lxBandeau - reserveDroiteBandeau,
-  );
-  let tyBandeau = 14;
+  const accentBarX = input.logoDataUrl?.trim() ? 40 : 14;
+  const textStart = accentBarX + 2.8;
+  const pillX = 118;
+  const pillRightPad = input.logoClientDataUrl?.trim() ? 38 : 11;
+  const maxTitleW = Math.max(34, pillX - textStart - 4);
+
+  doc.setFillColor(...BRAND_RED);
+  doc.rect(accentBarX, 11, 1.35, 18, "F");
+
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  for (const ln of doc.splitTextToSize(input.titreBandeau, largeurTexteBandeau)) {
-    if (tyBandeau > 36) break;
-    doc.text(ln, lxBandeau, tyBandeau);
-    tyBandeau += 6;
+  doc.setFontSize(11);
+  let tyBandeau = 16;
+  for (const ln of doc.splitTextToSize(input.titreBandeau, maxTitleW)) {
+    if (tyBandeau > 29) break;
+    doc.text(ln, textStart, tyBandeau);
+    tyBandeau += 5.4;
   }
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.5);
-  doc.text(input.typeRapportLibelle, lxBandeau, Math.min(tyBandeau + 2, 36));
+  doc.setFontSize(8.5);
+  doc.setTextColor(232, 232, 236);
+  doc.text(
+    input.typeRapportLibelle,
+    textStart,
+    Math.min(tyBandeau + 1.2, 34),
+  );
+
+  const pillW = PAGE_W - pillX - pillRightPad;
+  const pillH = 24;
+  const pillY = (BAND_H - pillH) / 2;
+  doc.setFillColor(...BRAND_RED);
+  doc.roundedRect(pillX, pillY, pillW, pillH, 11, 11, "F");
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(9);
+  doc.setTextColor(255, 255, 255);
+  const pillLines = doc.splitTextToSize(input.titreBandeau, pillW - 8);
+  let py = pillY + pillH / 2 - (Math.min(pillLines.length, 2) * 4) / 2 + 3;
+  for (let pi = 0; pi < Math.min(pillLines.length, 2); pi++) {
+    doc.text(pillLines[pi] as string, pillX + 4, py);
+    py += 4.1;
+  }
   doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "normal");
 
   let y = 46;
   if (input.couvertureDataUrl?.trim()) {
@@ -439,11 +465,11 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     y += hIm + 8;
   }
 
-  doc.setFillColor(240, 245, 250);
+  doc.setFillColor(252, 248, 247);
   const boxH = Math.min(70, 278 - y - 30);
   if (boxH > 18) {
     doc.roundedRect(MARGE, y, MAX_TXT, boxH, 2, 2, "F");
-    doc.setDrawColor(...NAVY);
+    doc.setDrawColor(...BRAND_RED);
     doc.setLineWidth(0.35);
     doc.roundedRect(MARGE, y, MAX_TXT, boxH, 2, 2, "S");
   }
@@ -451,7 +477,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
   let yi = y + 7;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.setTextColor(...NAVY);
+  doc.setTextColor(...BRAND_RED);
   for (const part of doc.splitTextToSize(input.titreDocument, MAX_TXT - 10)) {
     doc.text(part, MARGE + 4, yi);
     yi += 6;
@@ -465,7 +491,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
   yi += 8;
 
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...NAVY);
+  doc.setTextColor(...BRAND_RED);
   doc.text("Sites", MARGE + 4, yi);
   yi += 5;
   doc.setFont("helvetica", "normal");
@@ -482,7 +508,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     if (!lines.filter((l) => l.trim()).length) return;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.setTextColor(...NAVY);
+    doc.setTextColor(...BRAND_RED);
     doc.text(titre, MARGE, y);
     y += 6;
     doc.setFont("helvetica", "normal");
@@ -534,8 +560,10 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     doc.addPage();
     y = MARGE;
 
-    doc.setFillColor(...NAVY);
+    doc.setFillColor(...HERO_DARK);
     doc.rect(0, 0, PAGE_W, 16, "F");
+    doc.setFillColor(...BRAND_RED);
+    doc.rect(12, 4.5, 1.2, 7, "F");
     if (input.logoClientDataUrl?.trim()) {
       addImageAlignedRight(doc, input.logoClientDataUrl, 2.5, 10, 22, 11);
     }
@@ -546,7 +574,8 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
       ? PAGE_W - MARGE - 40 - MARGE
       : MAX_TXT;
     const lignesSite = doc.splitTextToSize(section.siteNom, titreSiteW);
-    if (lignesSite[0]) doc.text(lignesSite[0], MARGE, 10);
+    const txSite = 16;
+    if (lignesSite[0]) doc.text(lignesSite[0], txSite, 10);
     doc.setTextColor(0, 0, 0);
     y = 24;
 
@@ -558,7 +587,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     for (const dom of section.domaines) {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
-      doc.setTextColor(...NAVY);
+      doc.setTextColor(...BRAND_RED);
       doc.text(dom.titre, MARGE, y);
       y += 7;
       doc.setTextColor(30);
@@ -618,7 +647,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     y = MARGE;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
-    doc.setTextColor(...NAVY);
+    doc.setTextColor(...BRAND_RED);
     doc.text("Synthèse", MARGE, y);
     y += 10;
     doc.setFont("helvetica", "normal");

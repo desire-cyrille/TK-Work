@@ -1,75 +1,112 @@
-.topBar {
+/* Bandeau type tkpro.fr : photo assombrie, titre blanc + barre rouge, pastille rouge à droite */
+.hero {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14);
+}
+
+.heroBackdrop {
+  position: absolute;
+  inset: 0;
+  background-color: #1a1a1c;
+  background-image: linear-gradient(
+      105deg,
+      rgba(10, 10, 12, 0.94) 0%,
+      rgba(14, 14, 18, 0.86) 38%,
+      rgba(8, 8, 10, 0.78) 100%
+    ),
+    var(
+      --page-hero-photo,
+      url("https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1800&q=65")
+    );
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  padding: 1rem 0 1rem 1.5rem;
+  min-height: 5.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.heroContentSolo {
+  padding-right: 1.5rem;
+}
+
+.heroRow {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 0.75rem 1rem;
-  padding: 0.85rem 0 0.85rem 1.5rem;
-  background: var(--topbar-bg);
-  border-bottom: 1px solid var(--chrome-divider);
-  flex-shrink: 0;
+  align-items: center;
+  gap: 0.85rem 1rem;
 }
 
-.topBar:not(:has(.topBarActions)) {
-  padding-right: 1.5rem;
-}
-
-.topBarLead {
-  flex: 1;
-  display: flex;
-  align-items: stretch;
-  gap: 0;
+.heroTitleWrap {
+  flex: 0 1 auto;
+  max-width: min(36rem, 100%);
   min-width: 0;
+  padding-left: 0.85rem;
+  border-left: 4px solid var(--tk-red, #e53935);
 }
 
-.topBarTitle {
+.heroTitle {
   margin: 0;
-  align-self: center;
-  padding: 0.35rem 0 0.35rem 0.85rem;
-  border-left: 4px solid var(--tk-red, #e53935);
-  font-size: 1.35rem;
+  font-size: clamp(1.05rem, 2.2vw, 1.4rem);
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--workspace-text);
-  line-height: 1.2;
-}
-
-/* Barre rouge arrondie à gauche (rappel du bandeau tkpro.fr), texte italique */
-.topBarPill {
-  flex: 1;
-  display: flex;
-  justify-content: flex-end;
-  align-items: stretch;
-  min-width: 0;
-  margin: -0.85rem 0;
-}
-
-.topBarPillText {
-  display: inline-flex;
-  align-items: center;
-  max-width: min(420px, 52vw);
-  padding: 0.5rem 1.75rem 0.5rem 1.35rem;
-  margin-right: -1px;
-  background: var(--gradient-brand);
   color: #ffffff;
+  line-height: 1.25;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* Espace dédié entre le titre et les actions : la pastille rouge s’étire ici sans écraser le titre */
+.heroRedTrack {
+  flex: 1 1 12rem;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
+.heroRedBar {
+  width: 100%;
+  min-height: 2.65rem;
+  display: flex;
+  align-items: center;
+  padding: 0.45rem 0.85rem 0.45rem 1.1rem;
+  background: var(--gradient-brand);
+  border-radius: 999px 0 0 999px;
+  box-shadow: -4px 0 20px rgba(229, 57, 53, 0.35);
+}
+
+.heroRedBarText {
   font-family: "Montserrat", "Poppins", system-ui, sans-serif;
-  font-size: clamp(0.78rem, 1.5vw, 0.92rem);
+  font-size: clamp(0.72rem, 1.35vw, 0.88rem);
   font-weight: 500;
   font-style: italic;
-  letter-spacing: 0.02em;
-  border-radius: 999px 0 0 999px;
-  box-shadow: -6px 0 22px rgba(229, 57, 53, 0.2);
-  white-space: nowrap;
+  color: #ffffff;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.2);
 }
 
-.topBarActions {
+.heroActions {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.65rem;
   padding-right: 1.5rem;
-  align-self: center;
 }
 
 .workspace {
@@ -85,7 +122,7 @@
   color: var(--workspace-text);
 }
 
-/* Bouton d’action type « + Nouveau logement » dans le bandeau */
+/* Boutons du bandeau : lisibles sur fond sombre */
 .headerCta {
   display: inline-flex;
   align-items: center;
@@ -102,7 +139,7 @@
 }
 
 .headerCta:hover {
-  filter: brightness(1.04);
+  filter: brightness(1.06);
 }
 
 .headerCta:active {
@@ -121,48 +158,65 @@
   justify-content: center;
   gap: 0.45rem;
   padding: 0.55rem 1.15rem;
-  background: transparent;
-  color: var(--workspace-text);
-  border: 1px solid var(--border-on-light);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 9999px;
   font-weight: 600;
   font-size: 0.88rem;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .headerCtaSecondary:hover {
-  background: var(--glass-fill);
-  border-color: rgba(0, 0, 0, 0.14);
-  color: var(--tk-red, #e53935);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .headerCtaSecondary:active {
   transform: scale(0.98);
 }
 
-@media (max-width: 720px) {
-  .topBar {
-    padding: 0.75rem 0 0.75rem 1rem;
-    align-items: flex-start;
+@media (max-width: 900px) {
+  .heroRow {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .topBarTitle {
-    font-size: clamp(1.05rem, 4.5vw, 1.25rem);
-    line-height: 1.25;
-    word-break: break-word;
+  .heroTitleWrap {
+    max-width: 100%;
   }
 
-  .topBarPill {
-    display: none;
+  .heroRedTrack {
+    flex: 1 1 auto;
+    order: 3;
   }
 
-  .topBarActions {
+  .heroRedBar {
+    border-radius: 10px;
+  }
+
+  .heroActions {
+    order: 2;
     width: 100%;
+    padding-right: 0;
+    padding-left: 0.15rem;
+  }
+
+  .heroContent {
     padding-right: 1rem;
-    justify-content: flex-start;
-    flex-wrap: wrap;
+  }
+
+  .heroContentSolo {
+    padding-right: 1rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .heroContent {
+    padding: 0.85rem 0 0.85rem 1rem;
+    min-height: unset;
   }
 
   .workspace {

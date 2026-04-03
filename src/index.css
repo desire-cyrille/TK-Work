@@ -25,6 +25,7 @@
   --border-on-light: rgba(0, 0, 0, 0.1);
   --card-on-light: #ffffff;
   --shadow-card-light: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --page-hero-photo: url("https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1800&q=65");
 
   /* Surfaces « verre » sur fond clair (remplace les rgba blancs du thème sombre) */
   --glass-fill: rgba(0, 0, 0, 0.035);

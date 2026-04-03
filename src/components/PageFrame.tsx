@@ -10,16 +10,25 @@ type Props = {
 export function PageFrame({ title, actions, children }: Props) {
   return (
     <>
-      <header className={styles.topBar}>
-        <div className={styles.topBarLead}>
-          <h1 className={styles.topBarTitle}>{title}</h1>
-          <div className={styles.topBarPill} aria-hidden="true">
-            <span className={styles.topBarPillText}>{title}</span>
+      <header className={styles.hero}>
+        <div className={styles.heroBackdrop} aria-hidden="true" />
+        <div
+          className={`${styles.heroContent} ${actions ? "" : styles.heroContentSolo}`}
+        >
+          <div className={styles.heroRow}>
+            <div className={styles.heroTitleWrap}>
+              <h1 className={styles.heroTitle}>{title}</h1>
+            </div>
+            <div className={styles.heroRedTrack}>
+              <div className={styles.heroRedBar}>
+                <span className={styles.heroRedBarText}>{title}</span>
+              </div>
+            </div>
+            {actions ? (
+              <div className={styles.heroActions}>{actions}</div>
+            ) : null}
           </div>
         </div>
-        {actions ? (
-          <div className={styles.topBarActions}>{actions}</div>
-        ) : null}
       </header>
       <div className={styles.workspace}>{children}</div>
     </>
