@@ -229,6 +229,15 @@ export function RapportActivite() {
   >(null);
   /** Inclure le tableau de suivi dans le PDF exporté. */
   const [inclureTableauSuiviPdf, setInclureTableauSuiviPdf] = useState(true);
+  const [confirmationSauvegarde, setConfirmationSauvegarde] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    if (!confirmationSauvegarde) return;
+    const t = window.setTimeout(() => setConfirmationSauvegarde(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [confirmationSauvegarde]);
 
   useEffect(() => {
     if (!pidBrut) return;
@@ -244,6 +253,7 @@ export function RapportActivite() {
     setSourceIdsSynthese(undefined);
     setMensuelPhotoKeysIncluded(null);
     setInclureTableauSuiviPdf(true);
+    setConfirmationSauvegarde(null);
   }, [pidBrut]);
 
   /** Brouillon quotidien : reprendre les tableaux de suivi de la veille (sans toucher au texte / photos). */
@@ -457,8 +467,8 @@ export function RapportActivite() {
     });
     setRapportEditeId(row.id);
     setListeVersion((v) => v + 1);
-    setProvenanceSynthese(
-      "Brouillon enregistré sur cet appareil — rechargez-le depuis « Chaîne de rapports ». Pour le voir sur un autre téléphone ou ordinateur : même compte, puis page Fonctions → Nuage (envoyer ici, récupérer ailleurs).",
+    setConfirmationSauvegarde(
+      "Brouillon enregistré — le fichier est bien sauvegardé sur cet appareil. Il apparaît dans la liste « Chaîne de rapports » ci-dessous.",
     );
   }
 
@@ -2419,22 +2429,33 @@ export function RapportActivite() {
                 <strong>tableau de suivi</strong> suit le réglage Oui/Non au-dessus des domaines.
               </p>
               <div className={styles.redactionBottomActions}>
-                <button
-                  type="button"
-                  className={frameStyles.headerCtaSecondary}
-                  onClick={enregistrerDansLaChaine}
-                  disabled={mode === "fin_mission" && !missionOrdreOk}
-                >
-                  Enregistrer
-                </button>
-                <button
-                  type="button"
-                  className={frameStyles.headerCta}
-                  onClick={ouvrirApercuValidation}
-                  disabled={mode === "fin_mission" && !missionOrdreOk}
-                >
-                  Valider
-                </button>
+                <div className={styles.redactionBottomActionsRow}>
+                  <button
+                    type="button"
+                    className={frameStyles.headerCtaSecondary}
+                    onClick={enregistrerDansLaChaine}
+                    disabled={mode === "fin_mission" && !missionOrdreOk}
+                  >
+                    Enregistrer
+                  </button>
+                  <button
+                    type="button"
+                    className={frameStyles.headerCta}
+                    onClick={ouvrirApercuValidation}
+                    disabled={mode === "fin_mission" && !missionOrdreOk}
+                  >
+                    Valider
+                  </button>
+                </div>
+                {confirmationSauvegarde ? (
+                  <p
+                    className={styles.saveConfirmBanner}
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {confirmationSauvegarde}
+                  </p>
+                ) : null}
               </div>
             </div>
 
