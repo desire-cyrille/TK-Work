@@ -150,7 +150,7 @@
   padding: 0.35rem 0.65rem;
   border-radius: 8px;
   border: 1px solid var(--border-on-light);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-fill-3);
   color: var(--workspace-text);
   cursor: pointer;
   align-self: center;

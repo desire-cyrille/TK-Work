@@ -61,7 +61,7 @@
 .beneficeKpi {
   padding: 0.65rem 0.75rem;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-fill);
   border: 1px solid var(--border-on-light);
 }
 
@@ -147,7 +147,7 @@
 }
 
 .rowBtn:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-fill);
 }
 
 .rowBtnActive {
@@ -222,7 +222,7 @@
 .table th {
   font-weight: 600;
   color: var(--workspace-muted);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-fill);
 }
 
 .statut {
@@ -257,13 +257,13 @@
   padding: 0.25rem 0.45rem;
   border-radius: 6px;
   border: 1px solid var(--border-on-light);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-fill-2);
   color: var(--workspace-text);
   cursor: pointer;
 }
 
 .monthActions button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--glass-fill-3);
 }
 
 .monthActions button:disabled {
@@ -272,14 +272,49 @@
 }
 
 .monthActions button:disabled:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-fill-2);
+}
+
+.monthActions .btnAnnulerPaiement {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fca5a5;
+}
+
+.monthActions .btnAnnulerPaiement:hover {
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.datePaiementCell {
+  min-width: 8.25rem;
+}
+
+.datePaiementInput {
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-on-light);
+  background: var(--workspace-elevated, #252525);
+  color: var(--workspace-text);
+  max-width: 100%;
+}
+
+.datePaiementLu {
+  font-size: 0.78rem;
+  color: var(--workspace-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.datePaiementDash {
+  color: var(--workspace-muted);
+  font-size: 0.78rem;
 }
 
 .expand {
   margin-top: 0.65rem;
   padding: 0.65rem;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-fill);
   border: 1px dashed var(--border-on-light);
 }
 
@@ -314,7 +349,7 @@
   padding: 0.4rem 0.65rem;
   border-radius: 8px;
   border: none;
-  background: linear-gradient(135deg, #f97316, #ec4899);
+  background: var(--gradient-brand);
   color: #fff;
   font-weight: 600;
   cursor: pointer;

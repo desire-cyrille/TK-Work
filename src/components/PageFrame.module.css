@@ -1,27 +1,75 @@
 .topBar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
+  gap: 0.75rem 1rem;
+  padding: 0.85rem 0 0.85rem 1.5rem;
   background: var(--topbar-bg);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--chrome-divider);
   flex-shrink: 0;
+}
+
+.topBar:not(:has(.topBarActions)) {
+  padding-right: 1.5rem;
+}
+
+.topBarLead {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
 }
 
 .topBarTitle {
   margin: 0;
+  align-self: center;
+  padding: 0.35rem 0 0.35rem 0.85rem;
+  border-left: 4px solid var(--tk-red, #e53935);
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+  color: var(--workspace-text);
+  line-height: 1.2;
+}
+
+/* Barre rouge arrondie à gauche (rappel du bandeau tkpro.fr), texte italique */
+.topBarPill {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  min-width: 0;
+  margin: -0.85rem 0;
+}
+
+.topBarPillText {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(420px, 52vw);
+  padding: 0.5rem 1.75rem 0.5rem 1.35rem;
+  margin-right: -1px;
+  background: var(--gradient-brand);
   color: #ffffff;
+  font-family: "Montserrat", "Poppins", system-ui, sans-serif;
+  font-size: clamp(0.78rem, 1.5vw, 0.92rem);
+  font-weight: 500;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  border-radius: 999px 0 0 999px;
+  box-shadow: -6px 0 22px rgba(229, 57, 53, 0.2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .topBarActions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  padding-right: 1.5rem;
+  align-self: center;
 }
 
 .workspace {
@@ -54,7 +102,7 @@
 }
 
 .headerCta:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.04);
 }
 
 .headerCta:active {
@@ -74,19 +122,20 @@
   gap: 0.45rem;
   padding: 0.55rem 1.15rem;
   background: transparent;
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.38);
+  color: var(--workspace-text);
+  border: 1px solid var(--border-on-light);
   border-radius: 9999px;
   font-weight: 600;
   font-size: 0.88rem;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .headerCtaSecondary:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.55);
+  background: var(--glass-fill);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: var(--tk-red, #e53935);
 }
 
 .headerCtaSecondary:active {
@@ -95,7 +144,7 @@
 
 @media (max-width: 720px) {
   .topBar {
-    padding: 0.75rem 1rem;
+    padding: 0.75rem 0 0.75rem 1rem;
     align-items: flex-start;
   }
 
@@ -105,8 +154,13 @@
     word-break: break-word;
   }
 
+  .topBarPill {
+    display: none;
+  }
+
   .topBarActions {
     width: 100%;
+    padding-right: 1rem;
     justify-content: flex-start;
     flex-wrap: wrap;
   }

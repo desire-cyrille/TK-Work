@@ -222,7 +222,7 @@ select option {
   gap: 0.65rem 1rem;
   padding: 0.5rem 0.65rem;
   border-radius: 10px;
-  background: var(--surface-elevated, rgba(255, 255, 255, 0.04));
+  background: var(--surface-elevated, var(--glass-fill));
   border: 1px solid var(--border-on-light);
 }
 

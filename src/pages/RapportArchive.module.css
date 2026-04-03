@@ -14,7 +14,7 @@
   margin: 0;
   padding: 1.25rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-fill);
   border: 1px dashed var(--border-on-light);
   color: var(--workspace-muted);
   font-size: 0.9rem;

@@ -13,7 +13,7 @@
   gap: 1rem;
   padding: 1rem 1.5rem;
   background: var(--topbar-bg);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--chrome-divider);
   flex-shrink: 0;
 }
 
@@ -35,16 +35,16 @@
   font-weight: 600;
   padding: 0.45rem 1rem;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 65, 108, 0.45);
-  background: rgba(255, 65, 108, 0.12);
-  color: #fda4af;
+  border: 1px solid rgba(229, 57, 53, 0.45);
+  background: rgba(229, 57, 53, 0.08);
+  color: var(--tk-red, #e53935);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .profil:hover {
-  background: rgba(255, 65, 108, 0.2);
-  border-color: rgba(255, 65, 108, 0.55);
+  background: rgba(229, 57, 53, 0.14);
+  border-color: rgba(229, 57, 53, 0.6);
 }
 
 .logout {
@@ -53,16 +53,16 @@
   font-weight: 600;
   padding: 0.45rem 1rem;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: transparent;
-  color: #ffffff;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-fill);
+  color: var(--workspace-text);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .logout:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.45);
+  background: var(--glass-fill-2);
+  border-color: rgba(0, 0, 0, 0.14);
 }
 
 .body {

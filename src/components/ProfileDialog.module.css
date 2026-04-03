@@ -123,11 +123,11 @@
   padding: 0.55rem 1.15rem;
   border-radius: 9999px;
   cursor: pointer;
-  color: #ffffff;
+  color: var(--workspace-text);
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(0, 0, 0, 0.2);
 }
 
 .btnSecondary:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-fill-3);
 }

@@ -125,6 +125,10 @@ export function Finance() {
     null
   );
   const [moisOuvertId, setMoisOuvertId] = useState<string | null>(null);
+  /** Clé `${contratId}\t${moisCle}` — date utilisée par « Payer » sans ouvrir le détail. */
+  const [datePaiementRapide, setDatePaiementRapide] = useState<
+    Record<string, string>
+  >({});
   const [apercuPdf, setApercuPdf] = useState<PdfApercu | null>(null);
   const apercuPdfRef = useRef<PdfApercu | null>(null);
   apercuPdfRef.current = apercuPdf;
@@ -216,6 +220,11 @@ export function Finance() {
     contratActif && moisCles.length
       ? calculerSuiteMois(contratActif, moisCles, moisRows)
       : [];
+  /** Affichage : mois les plus récents en haut (le calcul des reports reste chronologique). */
+  const moisCalcAffiche = useMemo(
+    () => [...moisCalc].reverse(),
+    [moisCalc],
+  );
 
   useEffect(() => {
     if (
@@ -236,6 +245,39 @@ export function Finance() {
       throw new Error(`Mois ${moisCle} introuvable pour le contrat.`);
     }
     return found;
+  }
+
+  const aujourdhuiIso = useMemo(
+    () => new Date().toISOString().slice(0, 10),
+    [],
+  );
+
+  function cleDateRapide(contratId: string, moisCle: string) {
+    return `${contratId}\t${moisCle}`;
+  }
+
+  function datePaiementPourAction(contratId: string, moisCle: string) {
+    const k = cleDateRapide(contratId, moisCle);
+    const v = datePaiementRapide[k]?.trim();
+    if (v && v.length >= 10) return v.slice(0, 10);
+    return aujourdhuiIso;
+  }
+
+  function annulerPaiementsMois(moisCle: string) {
+    if (!contratActif) return;
+    const data = getMoisData(moisCle);
+    const n = data.paiements.length;
+    if (n === 0) return;
+    if (
+      !window.confirm(
+        `Retirer ${n} paiement${n > 1 ? "s" : ""} enregistré${n > 1 ? "s" : ""} pour ${moisCle} ? Le solde du mois sera recalculé.`,
+      )
+    ) {
+      return;
+    }
+    for (const p of [...data.paiements]) {
+      finance.removePaiementMois(contratActif.id, moisCle, p.id);
+    }
   }
 
   function openMois(moisCle: string | null) {
@@ -517,13 +559,16 @@ export function Finance() {
                         <th>Dû</th>
                         <th>Payé</th>
                         <th>Solde</th>
+                        <th>Date paiement</th>
                         <th />
                       </tr>
                     </thead>
                     <tbody>
-                      {moisCalc.map((row) => {
+                      {moisCalcAffiche.map((row) => {
                         const data = getMoisData(row.moisCle);
                         const ouvert = moisOuvertId === row.moisCle;
+                        const kDate = cleDateRapide(contratActif.id, row.moisCle);
+                        const derniere = derniereDatePaiementMois(data);
                         return (
                           <Fragment key={row.moisCle}>
                             <tr>
@@ -534,6 +579,41 @@ export function Finance() {
                               <td>{formatEuro(row.totalDu)}</td>
                               <td>{formatEuro(row.totalPaye)}</td>
                               <td>{formatEuro(row.solde)}</td>
+                              <td className={styles.datePaiementCell}>
+                                {row.statut === "annule" ? (
+                                  <span className={styles.datePaiementDash}>
+                                    —
+                                  </span>
+                                ) : row.solde > 0.005 ? (
+                                  <input
+                                    type="date"
+                                    className={styles.datePaiementInput}
+                                    value={
+                                      datePaiementRapide[kDate] ?? aujourdhuiIso
+                                    }
+                                    onChange={(e) =>
+                                      setDatePaiementRapide((prev) => ({
+                                        ...prev,
+                                        [kDate]: e.target.value,
+                                      }))
+                                    }
+                                    aria-label={`Date de paiement pour ${row.moisCle}`}
+                                  />
+                                ) : derniere ? (
+                                  <span
+                                    className={styles.datePaiementLu}
+                                    title="Dernière date enregistrée sur un paiement de ce mois"
+                                  >
+                                    {derniere.length >= 10
+                                      ? `${derniere.slice(8, 10)}/${derniere.slice(5, 7)}/${derniere.slice(0, 4)}`
+                                      : derniere}
+                                  </span>
+                                ) : (
+                                  <span className={styles.datePaiementDash}>
+                                    —
+                                  </span>
+                                )}
+                              </td>
                               <td>
                                 <div className={styles.monthActions}>
                                   <button
@@ -548,9 +628,10 @@ export function Finance() {
                                         contratActif.id,
                                         row.moisCle,
                                         {
-                                          date: new Date()
-                                            .toISOString()
-                                            .slice(0, 10),
+                                          date: datePaiementPourAction(
+                                            contratActif.id,
+                                            row.moisCle,
+                                          ),
                                           montant: montantPourSaisiePaiement(
                                             row.solde
                                           ),
@@ -561,6 +642,18 @@ export function Finance() {
                                   >
                                     Payer
                                   </button>
+                                  {row.statut !== "annule" &&
+                                  row.totalPaye > 0.005 ? (
+                                    <button
+                                      type="button"
+                                      className={styles.btnAnnulerPaiement}
+                                      onClick={() =>
+                                        annulerPaiementsMois(row.moisCle)
+                                      }
+                                    >
+                                      Annuler paiement
+                                    </button>
+                                  ) : null}
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -601,7 +694,7 @@ export function Finance() {
                             </tr>
                             {ouvert ? (
                               <tr key={`${row.moisCle}-detail`}>
-                                <td colSpan={6}>
+                                <td colSpan={7}>
                                   <MoisDetailPanel
                                     key={row.moisCle}
                                     data={data}

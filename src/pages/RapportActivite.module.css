@@ -53,13 +53,13 @@
   border-radius: 9999px;
   cursor: pointer;
   border: 1px solid var(--border-on-light);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-fill);
   color: var(--workspace-muted);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .modeBtn:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-on-light);
   color: var(--workspace-text);
 }
 
@@ -155,7 +155,7 @@
 .stat {
   padding: 0.85rem 0.9rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-fill);
   border: 1px solid var(--border-on-light);
 }
 
@@ -324,7 +324,7 @@
   margin: 0;
   font-size: 0.86rem;
   line-height: 1.5;
-  color: #cbd5e1;
+  color: var(--workspace-text);
   flex: 1;
   min-width: 12rem;
 }
@@ -335,15 +335,15 @@
   font-weight: 600;
   padding: 0.35rem 0.75rem;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--border-on-light);
   background: transparent;
-  color: #ffffff;
+  color: var(--workspace-text);
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .provenanceClose:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-fill-2);
 }
 
 .chainBar {
@@ -355,7 +355,7 @@
   margin-bottom: 1rem;
   padding: 0.85rem 1rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-fill);
   border: 1px dashed var(--border-on-light);
 }
 
@@ -482,7 +482,7 @@
 }
 
 .editionTabOff {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-fill);
   color: var(--workspace-muted);
 }
 
@@ -508,7 +508,7 @@
   padding: 0.75rem 0.85rem;
   border-radius: 12px;
   border: 1px solid var(--border-on-light);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-fill);
 }
 
 .rapportVisuelStripIntro {
@@ -619,7 +619,7 @@
 }
 
 .siteTab {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-fill);
   color: var(--workspace-muted);
 }
 
@@ -828,7 +828,7 @@
   padding: 0.35rem 0.75rem;
   border-radius: 8px;
   border: 1px solid var(--border-on-light);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-fill-2);
   color: var(--workspace-text);
   cursor: pointer;
 }
@@ -845,7 +845,7 @@
   padding: 1rem 1.05rem;
   border-radius: 12px;
   border: 1px solid var(--border-on-light);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-fill);
 }
 
 .mensuelPhotosTitle {
@@ -907,13 +907,13 @@
   border-radius: 8px;
   cursor: pointer;
   border: 1px solid var(--border-on-light);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-fill-2);
   color: var(--workspace-muted);
 }
 
 .mensuelPhotosDomainBtn:hover {
   color: var(--workspace-text);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-on-light);
 }
 
 .mensuelPhotosGrid {
@@ -1006,14 +1006,14 @@
   padding: 0.42rem 1rem;
   border: none;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-fill-2);
   color: var(--workspace-muted);
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .yesNoBtn:hover {
   color: var(--workspace-text);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-fill-3);
 }
 
 .yesNoBtnActive {
@@ -1031,7 +1031,7 @@
   padding: 1rem 1rem 1.1rem;
   border-radius: 14px;
   border: 1px solid var(--border-on-light);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-fill);
   box-shadow: var(--shadow-card-light);
   min-width: 0;
 }
@@ -1115,7 +1115,7 @@
 }
 
 .tableauSuiviTable tbody tr:nth-child(even) td:not(.tableauSuiviTdAction) {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--glass-fill);
 }
 
 .tableauSuiviTdDomaine {
@@ -1232,7 +1232,7 @@
   min-width: 1.4rem;
   min-height: 1.4rem;
   border-radius: 5px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
+  border: 2px solid rgba(0, 0, 0, 0.2);
   cursor: pointer;
   padding: 0;
   box-sizing: border-box;
@@ -1246,7 +1246,7 @@
 .tableauEtatSwatch[aria-pressed="true"] {
   outline: 2px solid rgba(94, 234, 212, 0.85);
   outline-offset: 2px;
-  border-color: rgba(255, 255, 255, 0.65);
+  border-color: rgba(0, 0, 0, 0.35);
 }
 
 .tableauEtatClear {
@@ -1255,7 +1255,7 @@
   min-width: 1.4rem;
   border-radius: 5px;
   border: 2px dashed var(--border-on-light);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-fill);
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;

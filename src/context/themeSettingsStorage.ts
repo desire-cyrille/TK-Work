@@ -1,4 +1,4 @@
-export const THEME_STORAGE_KEY = "tk-gestion-theme-v1";
+export const THEME_STORAGE_KEY = "tk-gestion-theme-v2";
 
 /** Nom affiché en pied de page des PDF (quittances, avis, baux…) si non renseigné dans les réglages. */
 export const DEFAULT_EMETTEUR_DOCUMENTS_PDF = "TK PRO SYNERGIE";
@@ -33,12 +33,12 @@ export const DEFAULT_THEME: ThemeSettings = {
   brandName: "TK Pro Gestion",
   emetteurDocumentsPdf: DEFAULT_EMETTEUR_DOCUMENTS_PDF,
   logoDocumentsPdf: "",
-  sidebarBg: "",
-  navInactiveBg: "",
-  navActiveMode: "gradient",
-  navActiveSolid: "#ff416c",
+  sidebarBg: "#ffffff",
+  navInactiveBg: "rgba(0, 0, 0, 0.04)",
+  navActiveMode: "solid",
+  navActiveSolid: "#e53935",
   workspaceMode: "color",
-  workspaceColor: "#1a1a1a",
+  workspaceColor: "#f4f4f6",
   workspaceImage: "",
 };
 

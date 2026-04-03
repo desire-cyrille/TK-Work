@@ -1,55 +1,68 @@
 /**
- * Thème sombre (couleurs d’origine) + même mise en page qu’actuellement.
+ * Thème clair inspiré de tkpro.fr : blanc / gris très clair, rouge #e53935,
+ * cartes avec ombre légère. Les réglages utilisateur peuvent surcharger via
+ * applyThemeToDocument (variables --app-*).
  */
 :root {
-  --brand-orange: #ff4b2b;
-  --brand-pink: #ff416c;
+  --tk-red: #e53935;
+  --tk-red-dark: #c62828;
+  --brand-orange: var(--tk-red);
+  --brand-pink: var(--tk-red-dark);
   --gradient-brand: linear-gradient(
-    to right,
-    var(--brand-orange) 0%,
-    var(--brand-pink) 100%
+    105deg,
+    var(--tk-red) 0%,
+    var(--tk-red-dark) 100%
   );
-  --gradient-navy: linear-gradient(
-    137deg,
-    #11104d 0%,
-    #060534 100%
-  );
+  /* Fond barre latérale par défaut (clair) — remplace l’ancien dégradé nuit */
+  --gradient-navy: #ffffff;
 
-  --sidebar-panel-bg: #141414;
-  --topbar-bg: #1a1a1a;
-  --workspace-bg: #1a1a1a;
-  --workspace-text: #ffffff;
-  --workspace-muted: #a8a8b8;
-  --border-on-light: #3d3d48;
-  --card-on-light: #252525;
-  --shadow-card-light: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --sidebar-panel-bg: #ffffff;
+  --topbar-bg: #ffffff;
+  --workspace-bg: #f4f4f6;
+  --workspace-text: #1a1a1a;
+  --workspace-muted: #5c5c66;
+  --workspace-elevated: #fafafa;
+  --border-on-light: rgba(0, 0, 0, 0.1);
+  --card-on-light: #ffffff;
+  --shadow-card-light: 0 4px 24px rgba(0, 0, 0, 0.08);
+
+  /* Surfaces « verre » sur fond clair (remplace les rgba blancs du thème sombre) */
+  --glass-fill: rgba(0, 0, 0, 0.035);
+  --glass-fill-2: rgba(0, 0, 0, 0.055);
+  --glass-fill-3: rgba(0, 0, 0, 0.09);
+  --glass-border: rgba(0, 0, 0, 0.08);
 
   --sidebar-width: 200px;
   --sidebar-bg: var(--sidebar-panel-bg);
+  --sidebar-text: #1a1a1a;
+  --sidebar-text-muted: #5c5c66;
+  --sidebar-accent-line: var(--tk-red);
 
-  --page-bg: #1a1a1a;
-  --surface: #252525;
-  --surface-elevated: #2e2e2e;
-  --border: #3d3d48;
+  --page-bg: #f4f4f6;
+  --surface: #ffffff;
+  --surface-elevated: #fafafa;
+  --border: var(--border-on-light);
 
-  --text-primary: #ffffff;
-  --text-muted: #a8a8b8;
-  --text-heading: #ffffff;
+  --text-primary: #1a1a1a;
+  --text-muted: #5c5c66;
+  --text-heading: #1a1a1a;
 
   --muted: var(--text-muted);
-  --accent: var(--text-primary);
+  --accent: var(--tk-red);
   --black: var(--text-primary);
-  --focus-ring: var(--brand-pink);
+  --focus-ring: var(--tk-red);
 
   --shadow-card: var(--shadow-card-light);
-  --shadow-cta: 0 4px 20px rgba(255, 75, 43, 0.35);
+  --shadow-cta: 0 4px 18px rgba(229, 57, 53, 0.28);
 
-  --sp-primary: var(--brand-pink);
+  --sp-primary: var(--tk-red);
   --sp-secondary: var(--text-heading);
-  --sp-primary-light: rgba(255, 65, 108, 0.12);
+  --sp-primary-light: rgba(229, 57, 53, 0.1);
 
-  font-family: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto,
-    sans-serif;
+  --chrome-divider: rgba(0, 0, 0, 0.08);
+
+  font-family: "Montserrat", "Poppins", system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   color: var(--workspace-text);
@@ -92,7 +105,7 @@ table {
 }
 
 .btn-primary-fill:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.04);
 }
 
 .btn-primary-fill:active {

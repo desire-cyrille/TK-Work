@@ -1,6 +1,7 @@
 import type { ThemeSettings } from "./themeSettingsStorage";
 
-const BRAND_GRADIENT = "linear-gradient(to right, #ff4b2b, #ff416c)";
+const BRAND_GRADIENT =
+  "linear-gradient(105deg, #e53935 0%, #c62828 100%)";
 
 /** Écrit les variables CSS sur :root pour le menu, les onglets et la zone droite */
 export function applyThemeToDocument(s: ThemeSettings) {
@@ -23,7 +24,7 @@ export function applyThemeToDocument(s: ThemeSettings) {
   } else {
     r.style.setProperty(
       "--app-nav-active",
-      s.navActiveSolid.trim() || "#ff416c"
+      s.navActiveSolid.trim() || "#e53935"
     );
   }
 
@@ -33,11 +34,11 @@ export function applyThemeToDocument(s: ThemeSettings) {
     r.style.setProperty("--app-workspace-bg", "transparent");
     r.style.setProperty(
       "--app-main-bg",
-      s.workspaceColor.trim() || "#1a1a1a"
+      s.workspaceColor.trim() || "#f4f4f6"
     );
   } else {
     r.style.removeProperty("--app-workspace-image");
-    const c = s.workspaceColor.trim() || "#1a1a1a";
+    const c = s.workspaceColor.trim() || "#f4f4f6";
     r.style.setProperty("--app-workspace-bg", c);
     r.style.setProperty("--app-main-bg", c);
   }

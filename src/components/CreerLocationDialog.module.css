@@ -63,7 +63,7 @@
 
 .btnClose:hover {
   color: var(--workspace-text);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-fill-3);
 }
 
 .tabRow {
@@ -261,7 +261,7 @@
 
 .btnGhost:hover:not(:disabled) {
   color: var(--workspace-text);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-on-light);
 }
 
 .btnGhost:disabled {

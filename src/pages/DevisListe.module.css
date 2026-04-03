@@ -158,7 +158,7 @@
 }
 
 .badgeArchive {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-fill-3);
   color: var(--workspace-muted, #a8a8b8);
 }
 
