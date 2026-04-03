@@ -1,6 +1,7 @@
 import {
   type DevisParametresGlobaux,
   type TarifsZone,
+  PIED_PAGE_PDF_DEFAUT,
   parametresGlobauxDefaut,
 } from "./devisTypes";
 
@@ -39,9 +40,18 @@ function mergeWithDefaut(
   p: Partial<DevisParametresGlobaux>,
 ): DevisParametresGlobaux {
   const d = parametresGlobauxDefaut();
+  const pied =
+    typeof p.piedPagePdf === "string" && p.piedPagePdf.trim()
+      ? p.piedPagePdf
+      : d.piedPagePdf;
   return {
     idf: mergeTarifs(p.idf, d.idf),
     horsIdf: mergeTarifs(p.horsIdf, d.horsIdf),
+    logoPdfDataUrl:
+      typeof p.logoPdfDataUrl === "string" && p.logoPdfDataUrl.trim().length > 0
+        ? p.logoPdfDataUrl
+        : undefined,
+    piedPagePdf: pied || PIED_PAGE_PDF_DEFAUT,
   };
 }
 

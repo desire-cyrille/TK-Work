@@ -102,9 +102,20 @@ export type TarifsZone = {
   tarifMois: number;
 };
 
+/** Texte du pied de page PDF (une ligne par ligne). */
+export const PIED_PAGE_PDF_DEFAUT = [
+  "TK PRO GESTION — 84 RUE VICTOR HUGO, 60160 MONTATAIRE",
+  "SIRET 911 303 204 00018 — RCS COMPIÈGNE — APE 8211Z — TVA FR29 911 303 204",
+  "RC Pro souscrite auprès de CRCAM BRIE PICARDIE",
+].join("\n");
+
 export type DevisParametresGlobaux = {
   idf: TarifsZone;
   horsIdf: TarifsZone;
+  /** Data URL (PNG ou JPEG) affiché en haut à gauche sur chaque page du PDF. */
+  logoPdfDataUrl?: string;
+  /** Lignes du pied de page (séparées par des retours à la ligne). */
+  piedPagePdf: string;
 };
 
 export function newId(): string {
@@ -126,7 +137,36 @@ export function parametresGlobauxDefaut(): DevisParametresGlobaux {
   return {
     idf: tarifsZoneDefaut(),
     horsIdf: { ...tarifsZoneDefaut(), tarifKm: 0.35 },
+    piedPagePdf: PIED_PAGE_PDF_DEFAUT,
   };
+}
+
+const LIBELLES_ACTIONS_PREPARATION_DEFAUT: string[] = [
+  "COMMANDE MAIN COURANTE WEB",
+  "COMMANDE/STOCKAGE MATERIEL",
+  "REUNION DE TRAVAIL",
+  "ETUDE ET REALISATION DES PLANS DE RONDES POINTEES",
+  "ETUDE DU MARCHE (CCTP / SIGNALITIQUE / REGLEMENT INTERIEUR / TARIFICATION)",
+  "CREATION QUESTIONNAIRE CONTROL MASTER",
+  "VISITE DIVERS / REPRESENTATION CLIENT",
+];
+
+const LIBELLES_ACTIONS_MISE_EN_PLACE_DEFAUT: string[] = [
+  "CONFIGURATION / FORMATION MAIN COURANTE WEB",
+  "MISE EN PLACE SUR SITES DES COMMANDES",
+  "CREATION DES ACCES ET FORMATION CONTROLMASTER",
+  "MISE EN PLACE / FORMATION RONDES POINTEES",
+  "FORMATION / ACCOMPAGNEMENT DES AGENTS",
+  "ORGANISATION / LOGISTIQUE DU SITE",
+];
+
+function lignesActionsDefaut(libelles: string[]): LigneActionTemps[] {
+  return libelles.map((libelle) => ({
+    id: newId(),
+    libelle,
+    quantite: 0,
+    unite: "heure" as const,
+  }));
 }
 
 export function themeDefaut(): DevisTheme {
@@ -147,14 +187,6 @@ export function domainesActifsDefaut(): DevisDomainesActifs {
   };
 }
 
-function blocVide(titre: string): BlocActions {
-  return {
-    id: newId(),
-    titre,
-    lignes: [],
-  };
-}
-
 export function contenuDevisVide(): DevisContenu {
   return {
     titrePageGarde: "PROPOSITION",
@@ -167,18 +199,20 @@ export function contenuDevisVide(): DevisContenu {
     restauration: { lignes: [] },
     preparationMiseEnPlace: {
       blocs: [
-        blocVide("Coordination & documents"),
-        blocVide("Logistique"),
-        blocVide("Réunions"),
-        blocVide("Autres actions"),
+        {
+          id: newId(),
+          titre: "Préparation de la mise en place",
+          lignes: lignesActionsDefaut(LIBELLES_ACTIONS_PREPARATION_DEFAUT),
+        },
       ],
     },
     miseEnPlaceTerrain: {
       blocs: [
-        blocVide("Installation"),
-        blocVide("Essais & réglages"),
-        blocVide("Formation"),
-        blocVide("Soutien terrain"),
+        {
+          id: newId(),
+          titre: "Mise en place terrain",
+          lignes: lignesActionsDefaut(LIBELLES_ACTIONS_MISE_EN_PLACE_DEFAUT),
+        },
       ],
     },
     permanence: {
