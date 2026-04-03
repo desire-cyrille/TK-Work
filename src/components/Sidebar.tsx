@@ -18,6 +18,7 @@ const IMMOBILIER_PREFIXES = [
   "/biens/logement",
   "/biens/bailleur",
   "/biens/locataire",
+  "/biens/location",
   "/biens/finance",
 ] as const;
 
@@ -116,6 +117,9 @@ export function Sidebar() {
               <NavLink to="/biens/locataire" className={navSubClass}>
                 Locataire
               </NavLink>
+              <NavLink to="/biens/location" className={navSubClass}>
+                Location
+              </NavLink>
               <NavLink to="/biens/finance" className={navSubClass}>
                 Finance
               </NavLink>
@@ -123,9 +127,6 @@ export function Sidebar() {
           ) : null}
         </div>
 
-        <NavLink to="/biens/location" className={navClass}>
-          Location
-        </NavLink>
         <NavLink to="/biens/airbnb" className={navClass}>
           Airbnb
         </NavLink>

@@ -107,9 +107,9 @@ export default function App() {
               path="proprietaire"
               element={<Navigate to="/biens/bailleur" replace />}
             />
+            <Route path="location" element={<Locations />} />
             <Route path="finance" element={<Finance />} />
           </Route>
-          <Route path="location" element={<Locations />} />
           <Route
             element={
               <BiensSectionLockLayout
