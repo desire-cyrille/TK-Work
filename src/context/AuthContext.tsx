@@ -2,7 +2,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -42,6 +44,10 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/** Déconnexion automatique après ce délai sans interaction utilisateur. */
+const SESSION_IDLE_MS = 10 * 60 * 1000;
+const IDLE_CHECK_INTERVAL_MS = 15 * 1000;
 
 function readInitialSession(): {
   auth: boolean;
@@ -88,21 +94,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const r = await fetch("/api/auth/signin", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim(), password }),
-      cache: "no-store",
-    });
+    let r: Response;
+    try {
+      r = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password }),
+        cache: "no-store",
+      });
+    } catch {
+      return {
+        ok: false as const,
+        error:
+          import.meta.env.DEV
+            ? "Connexion au serveur impossible. Lancez l’API locale : dans un terminal, npm run dev:api (port 3000), en plus de npm run dev — ou une seule commande : npm run dev:full."
+            : "Connexion au serveur impossible. Réessayez plus tard.",
+      };
+    }
     const data = (await r.json().catch(() => ({}))) as {
       token?: string;
       email?: string;
       error?: string;
     };
     if (!r.ok) {
+      const fallback =
+        import.meta.env.DEV &&
+        !data.error?.trim() &&
+        (r.status === 500 || r.status >= 502)
+          ? "L’API ne répond pas (souvent : rien n’écoute sur le port 3000). Terminal séparé : npm run dev:api — ou npm run dev:full."
+          : `Erreur ${r.status}`;
       return {
         ok: false as const,
-        error: data.error ?? `Erreur ${r.status}`,
+        error: data.error?.trim() || fallback,
       };
     }
     if (typeof data.token !== "string" || typeof data.email !== "string") {
@@ -113,21 +136,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applySessionToken]);
 
   const signup = useCallback(async (email: string, password: string) => {
-    const r = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim(), password }),
-      cache: "no-store",
-    });
+    let r: Response;
+    try {
+      r = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password }),
+        cache: "no-store",
+      });
+    } catch {
+      return {
+        ok: false as const,
+        error:
+          import.meta.env.DEV
+            ? "Connexion au serveur impossible. Lancez l’API : npm run dev:api ou npm run dev:full."
+            : "Connexion au serveur impossible. Réessayez plus tard.",
+      };
+    }
     const data = (await r.json().catch(() => ({}))) as {
       token?: string;
       email?: string;
       error?: string;
     };
     if (!r.ok) {
+      const fallback =
+        import.meta.env.DEV &&
+        !data.error?.trim() &&
+        (r.status === 500 || r.status >= 502)
+          ? "L’API ne répond pas. Lancez npm run dev:api (port 3000) ou npm run dev:full."
+          : `Erreur ${r.status}`;
       return {
         ok: false as const,
-        error: data.error ?? `Erreur ${r.status}`,
+        error: data.error?.trim() || fallback,
       };
     }
     if (typeof data.token !== "string" || typeof data.email !== "string") {
@@ -156,6 +196,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMustChangePassword(false);
     }
   }, []);
+
+  const logoutRef = useRef(logout);
+  logoutRef.current = logout;
+  const lastActivityRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    lastActivityRef.current = Date.now();
+
+    function bumpActivity() {
+      lastActivityRef.current = Date.now();
+    }
+
+    function checkIdle() {
+      if (Date.now() - lastActivityRef.current >= SESSION_IDLE_MS) {
+        void logoutRef.current();
+      }
+    }
+
+    const events = [
+      "mousedown",
+      "keydown",
+      "touchstart",
+      "click",
+      "wheel",
+      "focusin",
+    ] as const;
+    for (const ev of events) {
+      document.addEventListener(ev, bumpActivity, true);
+    }
+
+    const intervalId = window.setInterval(
+      checkIdle,
+      IDLE_CHECK_INTERVAL_MS,
+    );
+
+    return () => {
+      for (const ev of events) {
+        document.removeEventListener(ev, bumpActivity, true);
+      }
+      window.clearInterval(intervalId);
+    };
+  }, [isAuthenticated]);
 
   const updatePassword = useCallback(
     async (

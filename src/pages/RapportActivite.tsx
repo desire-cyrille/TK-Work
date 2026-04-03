@@ -1536,7 +1536,7 @@ export function RapportActivite() {
             </ul>
             <button
               type="button"
-              className={frameStyles.headerCtaSecondary}
+              className={frameStyles.workspaceCtaSecondary}
               onClick={() => {
                 const id = crypto.randomUUID();
                 majDomainesEtContenu([
@@ -1597,7 +1597,7 @@ export function RapportActivite() {
             </ul>
             <button
               type="button"
-              className={frameStyles.headerCtaSecondary}
+              className={frameStyles.workspaceCtaSecondary}
               onClick={() => {
                 const id = crypto.randomUUID();
                 majColonnesTableauEtContenu([
@@ -1675,7 +1675,7 @@ export function RapportActivite() {
             </ul>
             <button
               type="button"
-              className={frameStyles.headerCtaSecondary}
+              className={frameStyles.workspaceCtaSecondary}
               onClick={() => {
                 const id = crypto.randomUUID();
                 const next: RapportSiteProjet[] = [
@@ -1811,7 +1811,7 @@ export function RapportActivite() {
               </p>
               <button
                 type="button"
-                className={frameStyles.headerCtaSecondary}
+                className={frameStyles.workspaceCtaSecondary}
                 onClick={synthetiserDepuisQuotidiens}
               >
                 Synthétiser depuis les quotidiens du mois
@@ -1832,7 +1832,7 @@ export function RapportActivite() {
               <div className={styles.mensuelPhotosGlobalActions}>
                 <button
                   type="button"
-                  className={frameStyles.headerCtaSecondary}
+                  className={frameStyles.workspaceCtaSecondary}
                   onClick={() => setMensuelPhotoKeysIncluded(null)}
                 >
                   Tout inclure (mois)
@@ -1947,7 +1947,7 @@ export function RapportActivite() {
                   </p>
                   <button
                     type="button"
-                    className={frameStyles.headerCtaSecondary}
+                    className={frameStyles.workspaceCtaSecondary}
                     onClick={synthetiserDepuisMensuels}
                   >
                     Synthétiser depuis les mensuels de la mission
@@ -2191,7 +2191,7 @@ export function RapportActivite() {
                       </label>
                       <button
                         type="button"
-                        className={frameStyles.headerCtaSecondary}
+                        className={frameStyles.workspaceCtaSecondary}
                         disabled={!sid}
                         onClick={() => ajouterColonneEnteteTableau()}
                       >
@@ -2432,7 +2432,7 @@ export function RapportActivite() {
                 <div className={styles.redactionBottomActionsRow}>
                   <button
                     type="button"
-                    className={frameStyles.headerCtaSecondary}
+                    className={frameStyles.workspaceCtaSecondary}
                     onClick={enregistrerDansLaChaine}
                     disabled={mode === "fin_mission" && !missionOrdreOk}
                   >

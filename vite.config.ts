@@ -10,7 +10,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // API Vercel en local : lancer `npx vercel dev` (port 3000 par défaut)
+      // API en local : `npm run dev:api` ou tout-en-un `npm run dev:full` (port 3000)
       "/api": {
         target: "http://127.0.0.1:3000",
         changeOrigin: true,

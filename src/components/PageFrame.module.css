@@ -178,6 +178,39 @@
   transform: scale(0.98);
 }
 
+/* Même forme que le secondaire du bandeau, mais pour fond clair (cartes, formulaires) */
+.workspaceCtaSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.15rem;
+  background: transparent;
+  color: var(--workspace-text);
+  border: 1px solid var(--border-on-light);
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.workspaceCtaSecondary:hover:not(:disabled) {
+  background: var(--glass-fill);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: var(--tk-red, #e53935);
+}
+
+.workspaceCtaSecondary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.workspaceCtaSecondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
   .heroRow {
     flex-direction: column;
@@ -224,7 +257,8 @@
   }
 
   .headerCta,
-  .headerCtaSecondary {
+  .headerCtaSecondary,
+  .workspaceCtaSecondary {
     font-size: 0.82rem;
     padding: 0.5rem 0.95rem;
   }
