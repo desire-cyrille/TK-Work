@@ -22,6 +22,8 @@ export const TK_GESTION_MANAGED_STORAGE_KEYS = [
   "tk-gestion-rapports-projets-v1",
   "tk-gestion-rapports-chain-v1",
   "tk-gestion-devis-v1",
+  "tk-gestion-devis-defaults-v1",
+  "tk-gestion-devis-clients-v1",
   "tk-gestion-theme-v1",
   "tk_gestion_session",
   "tk_gestion_profile",
@@ -160,6 +162,8 @@ const RESTORE_KEY_PRIORITY: readonly string[] = [
   "tk-gestion-finance-v1",
   "tk-gestion-airbnb-ventilation-v1",
   "tk-gestion-devis-v1",
+  "tk-gestion-devis-defaults-v1",
+  "tk-gestion-devis-clients-v1",
   "tk-gestion-rapports-projets-v1",
   "tk-gestion-rapports-chain-v1",
 ];
