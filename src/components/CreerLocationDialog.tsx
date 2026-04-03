@@ -13,7 +13,6 @@ import {
   buildBailPdf,
   libelleTypeBailPourPdf,
   telechargerBailPdf,
-  telechargerProjetEtatDesLieuxPdf,
   type BailPdfOptions,
 } from "../lib/pdfLocatif";
 import {
@@ -593,30 +592,6 @@ export function CreerLocationDialog({
         const principal = addContratLocation(data);
         finance.resynchroniserMoisContrat(principal);
         chainePrincipalContratIdRef.current = principal.id;
-        const logement = getLogement(data.logementId);
-        const bailleur = logement
-          ? getBailleur(logement.bailleurId)
-          : undefined;
-        telechargerBailPdf({
-          titre: `Bail principal — ${logement?.titre ?? "bien"}`,
-          contrat: principal,
-          logement,
-          bailleur,
-          locataire: loc,
-          roleContrat: "principal",
-          emetteurDocuments: settings.emetteurDocumentsPdf,
-          logoDocumentsPdf: settings.logoDocumentsPdf,
-        });
-        telechargerProjetEtatDesLieuxPdf({
-          titre: `État des lieux — bail principal — ${logement?.titre ?? "bien"}`,
-          contrat: principal,
-          logement,
-          locataire: loc,
-          bailleur,
-          notesRemplies: principal.etatDesLieuxRempli,
-          emetteurDocuments: settings.emetteurDocumentsPdf,
-          logoDocumentsPdf: settings.logoDocumentsPdf,
-        });
         setChainePrincipalNom(nomCompletLocataire(loc));
         setDraft({
           ...emptyContrat(),
@@ -659,35 +634,6 @@ export function CreerLocationDialog({
           logementId: data.logementId,
           contratPrincipalId: principalId,
           contratSousLocataireId: sous.id,
-        });
-        const logement = getLogement(data.logementId);
-        const bailleur = logement
-          ? getBailleur(logement.bailleurId)
-          : undefined;
-        const sousBailleur = locataires.find(
-          (l) => l.id === data.locataireSousBailleurId
-        );
-        telechargerBailPdf({
-          titre: `Sous-location — ${logement?.titre ?? "bien"}`,
-          contrat: sous,
-          logement,
-          bailleur,
-          locataire: loc,
-          sousBailleur,
-          roleContrat: "sous_location",
-          emetteurDocuments: settings.emetteurDocumentsPdf,
-          logoDocumentsPdf: settings.logoDocumentsPdf,
-        });
-        telechargerProjetEtatDesLieuxPdf({
-          titre: `État des lieux — sous-location — ${logement?.titre ?? "bien"}`,
-          contrat: sous,
-          logement,
-          locataire: loc,
-          bailleur,
-          sousBailleur,
-          notesRemplies: sous.etatDesLieuxRempli,
-          emetteurDocuments: settings.emetteurDocumentsPdf,
-          logoDocumentsPdf: settings.logoDocumentsPdf,
         });
         chainePrincipalContratIdRef.current = null;
         closeDialog();
