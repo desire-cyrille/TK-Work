@@ -124,6 +124,113 @@
   filter: brightness(1.03);
 }
 
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.navGroupToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.62rem 0.65rem;
+  background: var(
+    --app-nav-inactive,
+    rgba(255, 255, 255, 0.06)
+  );
+  color: #ffffff;
+  border-radius: 9999px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.76rem;
+  line-height: 1.2;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.navGroupToggle:hover {
+  filter: brightness(1.12);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.navGroupToggle:active {
+  transform: scale(0.98);
+}
+
+.navGroupToggleOpen {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.navGroupToggleActive {
+  border-color: rgba(255, 140, 66, 0.45);
+  box-shadow: 0 0 0 1px rgba(255, 140, 66, 0.2);
+}
+
+.navGroupChevron {
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  opacity: 0.85;
+  transition: transform 0.2s ease;
+}
+
+.navGroupChevronExpanded {
+  transform: rotate(90deg);
+}
+
+.navSubList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.15rem 0 0.2rem 0.65rem;
+  margin-left: 0.35rem;
+  border-left: 2px solid rgba(255, 255, 255, 0.12);
+}
+
+.navBtnSub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.52rem 0.55rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.95);
+  border-radius: 9999px;
+  font-weight: 500;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  text-align: center;
+  hyphens: auto;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.navBtnSub:hover {
+  filter: brightness(1.12);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.navBtnSub:active {
+  transform: scale(0.98);
+}
+
+.navBtnSubActive {
+  background: var(--app-nav-active, var(--gradient-brand));
+  border-color: transparent;
+  font-weight: 700;
+  color: #ffffff;
+  box-shadow: var(--shadow-cta);
+}
+
+.navBtnSubActive:hover {
+  filter: brightness(1.03);
+}
+
 .footer {
   margin-top: auto;
   padding-top: 0.75rem;
