@@ -6,15 +6,20 @@ export const LOCK_STALE_MS = 120_000;
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Sections « gestion de biens » verrouillées séparément (plus de verrou global biens). */
+const BIENS_LOCK_SECTIONS = new Set(["immobilier", "airbnb", "reglages"]);
+
 export function isValidResourceKey(k: string): boolean {
   const t = k.trim();
-  if (t === "biens") return true;
   const i = t.indexOf(":");
   if (i <= 0) return false;
   const kind = t.slice(0, i).toLowerCase();
-  const id = t.slice(i + 1);
+  const rest = t.slice(i + 1);
+  if (kind === "biens") {
+    return BIENS_LOCK_SECTIONS.has(rest.toLowerCase());
+  }
   if (kind !== "devis" && kind !== "projet") return false;
-  return UUID.test(id);
+  return UUID.test(rest);
 }
 
 export function displayLabelFromEmail(email: string): string {

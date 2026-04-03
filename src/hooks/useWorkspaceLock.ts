@@ -9,7 +9,7 @@ import {
 type Options = { enabled?: boolean };
 
 /**
- * Verrou serveur pour une ressource (biens, devis:id, projet:id).
+ * Verrou serveur pour une ressource (biens:immobilier | biens:airbnb | biens:reglages, devis:uuid, projet:uuid).
  * Sans authentification : pas de verrou, édition libre (comportement local).
  */
 export function useWorkspaceLock(

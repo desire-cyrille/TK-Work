@@ -4,6 +4,7 @@ import {
   LegacyLocataireModifierRedirect,
   LegacyLogementModifierRedirect,
 } from "./components/LegacyPathRedirects";
+import { BiensSectionLockLayout } from "./components/BiensSectionLockLayout";
 import { Layout } from "./components/Layout";
 import { ModuleShell } from "./components/ModuleShell";
 import { RedirectIfAuthed } from "./components/RedirectIfAuthed";
@@ -87,21 +88,48 @@ export default function App() {
 
         <Route path="/biens" element={<Layout />}>
           <Route index element={<Home />} />
-          <Route path="logement" element={<Logements />} />
-          <Route path="logement/nouveau" element={<NouveauLogement />} />
-          <Route path="logement/:id/modifier" element={<EditionLogement />} />
-          <Route path="locataire" element={<Locataires />} />
-          <Route path="locataire/nouveau" element={<NouveauLocataire />} />
-          <Route path="locataire/:id/modifier" element={<NouveauLocataire />} />
-          <Route path="bailleur" element={<Bailleurs />} />
           <Route
-            path="proprietaire"
-            element={<Navigate to="/biens/bailleur" replace />}
-          />
+            element={
+              <BiensSectionLockLayout
+                resourceKey="biens:immobilier"
+                sectionLabel="Immobilier"
+              />
+            }
+          >
+            <Route path="logement" element={<Logements />} />
+            <Route path="logement/nouveau" element={<NouveauLogement />} />
+            <Route path="logement/:id/modifier" element={<EditionLogement />} />
+            <Route path="locataire" element={<Locataires />} />
+            <Route path="locataire/nouveau" element={<NouveauLocataire />} />
+            <Route path="locataire/:id/modifier" element={<NouveauLocataire />} />
+            <Route path="bailleur" element={<Bailleurs />} />
+            <Route
+              path="proprietaire"
+              element={<Navigate to="/biens/bailleur" replace />}
+            />
+            <Route path="finance" element={<Finance />} />
+          </Route>
           <Route path="location" element={<Locations />} />
-          <Route path="airbnb" element={<Airbnb />} />
-          <Route path="finance" element={<Finance />} />
-          <Route path="reglages" element={<Reglages />} />
+          <Route
+            element={
+              <BiensSectionLockLayout
+                resourceKey="biens:airbnb"
+                sectionLabel="Airbnb"
+              />
+            }
+          >
+            <Route path="airbnb" element={<Airbnb />} />
+          </Route>
+          <Route
+            element={
+              <BiensSectionLockLayout
+                resourceKey="biens:reglages"
+                sectionLabel="Réglages"
+              />
+            }
+          >
+            <Route path="reglages" element={<Reglages />} />
+          </Route>
           <Route path="*" element={<Navigate to="/biens" replace />} />
         </Route>
 
