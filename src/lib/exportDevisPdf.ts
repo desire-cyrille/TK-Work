@@ -6,7 +6,7 @@ import {
   type LigneBudget,
 } from "./devisCalcul";
 import { lireParametresDevisDefaut } from "./devisDefaultsStorage";
-import { formatEuro } from "./money";
+import { formatEuroPdf } from "./money";
 import type { Devis } from "./devisStorage";
 import { PIED_PAGE_PDF_DEFAUT, type TarifsZone } from "./devisTypes";
 
@@ -144,6 +144,14 @@ function ensureSpace(doc: jsPDF, y: number, need: number): number {
   return y;
 }
 
+/** Remplace espaces insécables / fins souvent mal rendus en PDF. */
+function textePdfSafe(s: string): string {
+  return s
+    .replace(/\u202f|\u00a0|\u2009|\u2007/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function createDonutDataUrl(
   slices: { value: number; color: string }[],
   sizePx: number,
@@ -161,20 +169,42 @@ function createDonutDataUrl(
   const r = sizePx * 0.4;
   const rIn = sizePx * 0.22;
   let ang = -Math.PI / 2;
+  const sliceInfos: { start: number; sweep: number; pct: number }[] = [];
   for (const s of slices) {
-    const slice = (s.value / total) * 2 * Math.PI;
+    const sweep = (s.value / total) * 2 * Math.PI;
+    const pct = Math.round((s.value / total) * 100);
+    sliceInfos.push({ start: ang, sweep, pct });
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, ang, ang + slice);
+    ctx.arc(cx, cy, r, ang, ang + sweep);
     ctx.closePath();
     ctx.fillStyle = s.color;
     ctx.fill();
-    ang += slice;
+    ang += sweep;
   }
   ctx.beginPath();
   ctx.arc(cx, cy, rIn, 0, 2 * Math.PI);
   ctx.fillStyle = "#ffffff";
   ctx.fill();
+
+  const midR = (r + rIn) / 2;
+  const fsBase = Math.max(13, Math.floor(sizePx * 0.068));
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const inf of sliceInfos) {
+    if (inf.pct < 4) continue;
+    const mid = inf.start + inf.sweep / 2;
+    const tx = cx + Math.cos(mid) * midR;
+    const ty = cy + Math.sin(mid) * midR;
+    const fs = inf.pct < 10 ? Math.floor(fsBase * 0.82) : fsBase;
+    ctx.font = `bold ${fs}px Helvetica, Arial, sans-serif`;
+    const label = `${inf.pct} %`;
+    ctx.strokeStyle = "rgba(255,255,255,0.92)";
+    ctx.lineWidth = Math.max(2.2, fs * 0.18);
+    ctx.strokeText(label, tx, ty);
+    ctx.fillStyle = "#121212";
+    ctx.fillText(label, tx, ty);
+  }
   return canvas.toDataURL("image/png");
 }
 
@@ -209,11 +239,15 @@ function pageTarificationDetaillee(
 
   const tableLeft = M + 2;
   const tableW = 100;
+  const tableRight = tableLeft + tableW;
+  const tarRightX = tableRight - 3;
   const colCat = tableLeft + 4;
-  const colQty = tableLeft + 62;
-  const colTar = tableLeft + 86;
-  const rowH = 9;
+  const colQty = tableLeft + 56;
   const stripeW = 3.2;
+  /** Séparateurs verticaux (bordures fermées). */
+  const vAfterCat = tableLeft + 52;
+  const vBeforeTarif = tableLeft + 74;
+  const rowH = 9;
 
   const chartX = tableLeft + tableW + 12;
   const chartMm = 56;
@@ -227,22 +261,29 @@ function pageTarificationDetaillee(
         value: l.montant,
         color: rgbToHex(...PDF_CATEGORIE_COULEUR[l.cle]),
       })),
-      240,
+      280,
     );
     if (donut) {
       doc.addImage(donut, "PNG", chartX, chartY, chartMm, chartMm);
     }
-    let ly = chartY + chartMm + 8;
+    let ly = chartY + chartMm + 6;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
+    doc.setFontSize(6.8);
     for (const l of actifsChart) {
-      const pct = Math.round((l.montant / sumChart) * 100);
       const [r, g, b] = PDF_CATEGORIE_COULEUR[l.cle];
       doc.setFillColor(r, g, b);
-      doc.rect(chartX, ly - 3, 3, 3, "F");
+      doc.rect(chartX, ly - 2.8, 2.8, 2.8, "F");
       setText(doc, [40, 40, 40]);
-      doc.text(`${l.libelle} ${pct} %`, chartX + 5, ly);
-      ly += 5.5;
+      const legendLines = doc.splitTextToSize(
+        textePdfSafe(l.libelle),
+        chartMm + 8,
+      );
+      let yy = ly;
+      for (const line of legendLines) {
+        doc.text(line, chartX + 4.5, yy);
+        yy += 3.6;
+      }
+      ly = yy + 1.2;
     }
   } else {
     doc.setFontSize(8.5);
@@ -250,97 +291,138 @@ function pageTarificationDetaillee(
     doc.text("Répartition : aucun montant", chartX, chartY + 20);
   }
 
+  const yGridTop = y;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   setText(doc, [45, 45, 45]);
   doc.setFillColor(235, 235, 237);
   const headerH = 7.5;
   doc.rect(tableLeft, y, tableW, headerH, "F");
+  doc.setDrawColor(72, 72, 78);
+  doc.setLineWidth(0.28);
+  doc.rect(tableLeft, y, tableW, headerH, "S");
   doc.text("CATÉGORIES", colCat, y + 5.2);
   doc.text("QUANTITÉ", colQty, y + 5.2);
-  doc.text("TARIF HT", colTar + 12, y + 5.2, { align: "right" });
-  y += headerH + 4;
+  doc.text("TARIF HT", tarRightX, y + 5.2, { align: "right" });
+  y += headerH;
 
   doc.setFont("helvetica", "normal");
   for (const l of lignesPdf) {
-    y = ensureSpace(doc, y, rowH + 8);
+    const libLines = doc.splitTextToSize(
+      textePdfSafe(l.libelle),
+      vAfterCat - colCat - stripeW - 3,
+    );
+    const detailLines =
+      l.actif && l.detailLigne
+        ? doc.splitTextToSize(textePdfSafe(l.detailLigne), tableW - 10)
+        : [];
+    const hDetail =
+      detailLines.length > 0 ? 2 + detailLines.length * 3.65 : 0;
+    const hMain = Math.max(rowH + 1.5, 5 + libLines.length * 3.85);
+    const hCell = hMain + hDetail;
+    y = ensureSpace(doc, y, hCell + 4);
     const [r, g, b] = PDF_CATEGORIE_COULEUR[l.cle];
     doc.setFillColor(252, 252, 254);
-    doc.rect(tableLeft, y, tableW, rowH + 1.5, "F");
+    doc.rect(tableLeft, y, tableW, hCell, "F");
     doc.setFillColor(r, g, b);
-    doc.rect(tableLeft, y, stripeW, rowH + 1.5, "F");
-    doc.setDrawColor(200, 200, 204);
-    doc.rect(tableLeft, y, tableW, rowH + 1.5, "S");
+    doc.rect(tableLeft, y, stripeW, hCell, "F");
+    doc.setDrawColor(72, 72, 78);
+    doc.rect(tableLeft, y, tableW, hCell, "S");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.2);
     setText(doc, [22, 22, 28]);
-    doc.text(l.libelle, colCat + stripeW + 2, y + 6);
+    let yyRow = y + 5;
+    for (const line of libLines) {
+      doc.text(line, colCat + stripeW + 2, yyRow);
+      yyRow += 3.85;
+    }
     doc.setFont("helvetica", "normal");
     setText(doc, [l.actif ? 45 : 140, l.actif ? 45 : 140, l.actif ? 50 : 140]);
-    doc.text(l.actif ? l.quantiteLibelle : "—", colQty, y + 6);
+    const qtyStr = l.actif ? textePdfSafe(l.quantiteLibelle) : "—";
+    const qtyTarY = y + hMain / 2 + 1.5;
+    doc.text(qtyStr, colQty, qtyTarY, {
+      maxWidth: vBeforeTarif - colQty - 2,
+    });
     doc.text(
-      l.actif ? formatEuro(l.montant) : "Hors budget",
-      colTar + 12,
-      y + 6,
+      l.actif ? formatEuroPdf(l.montant) : "Hors budget",
+      tarRightX,
+      qtyTarY,
       { align: "right" },
     );
-    y += rowH + 2;
-    if (l.actif && l.detailLigne) {
+    if (detailLines.length > 0) {
       doc.setFontSize(7);
       setText(doc, [95, 95, 100]);
-      doc.text(l.detailLigne, colCat + 1, y + 4);
-      y += 6;
+      let yd = y + hMain + 1;
+      for (const dl of detailLines) {
+        doc.text(dl, colCat + 1, yd);
+        yd += 3.65;
+      }
       doc.setFontSize(8.2);
     }
+    y += hCell + 2;
   }
 
-  y += 6;
-  y = ensureSpace(doc, y, 36);
-  doc.setDrawColor(160, 160, 168);
-  doc.line(tableLeft, y, tableLeft + tableW, y);
-  y += 8;
+  y += 4;
+  y = ensureSpace(doc, y, 40);
+  doc.setDrawColor(72, 72, 78);
+  doc.line(tableLeft, y, tableRight, y);
+  y += 7;
   doc.setFont("helvetica", "bold");
   setText(doc, [30, 30, 30]);
   doc.text("MONTANT LA PRESTATION HT", colCat, y);
-  doc.text(formatEuro(totaux.sousTotalHt), colTar + 12, y, { align: "right" });
+  doc.text(formatEuroPdf(totaux.sousTotalHt), tarRightX, y, {
+    align: "right",
+  });
   y += rowH;
   doc.setFont("helvetica", "normal");
   doc.text(
     `Frais de gestion (${d.contenu.fraisGestionPourcent} %)`,
     colCat,
     y,
+    { maxWidth: vBeforeTarif - colCat - 2 },
   );
-  doc.text(formatEuro(totaux.fraisGestion), colTar + 12, y, {
+  doc.text(formatEuroPdf(totaux.fraisGestion), tarRightX, y, {
     align: "right",
   });
   y += rowH + 2;
+  const totalBarH = rowH + 2.5;
   doc.setFillColor(55, 55, 62);
-  doc.rect(tableLeft, y - 1, tableW, rowH + 2, "F");
+  doc.rect(tableLeft, y - 0.5, tableW, totalBarH, "F");
+  doc.setDrawColor(72, 72, 78);
+  doc.rect(tableLeft, y - 0.5, tableW, totalBarH, "S");
   doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.8);
   setText(doc, [255, 255, 255]);
   doc.text("MONTANT TOTAL HT", colCat, y + 5);
-  doc.text(formatEuro(totaux.totalHt), colTar + 12, y + 5, {
+  doc.text(formatEuroPdf(totaux.totalHt), tarRightX, y + 5, {
     align: "right",
   });
-  y += rowH + 12;
+  const yGridBottom = y - 0.5 + totalBarH;
 
-  y = ensureSpace(doc, y, 48);
+  doc.setDrawColor(55, 55, 62);
+  doc.setLineWidth(0.35);
+  doc.rect(tableLeft, yGridTop, tableW, yGridBottom - yGridTop, "S");
+  doc.setLineWidth(0.22);
+  doc.setDrawColor(88, 88, 96);
+  doc.line(vAfterCat, yGridTop, vAfterCat, yGridBottom);
+  doc.line(vBeforeTarif, yGridTop, vBeforeTarif, yGridBottom);
+
+  y = yGridBottom + 22;
+
+  const grilleW = 78;
+  const gCol1 = tableLeft + 2;
+  const gCol2 = tableLeft + 30;
+  const gCol3 = tableLeft + 52;
+  const gRowH = 5.2;
+  const grilleHeadH = 5.8;
+
+  y = ensureSpace(doc, y, 42);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
+  doc.setFontSize(8.5);
   setText(doc, [30, 30, 30]);
   doc.text("GRILLE TARIFAIRE", tableLeft, y);
-  y += 9;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setFillColor(240, 240, 242);
-  const grilleHeadH = 6.5;
-  doc.rect(tableLeft, y, tableW + 28, grilleHeadH, "F");
-  setText(doc, [45, 45, 45]);
-  doc.text("Catégorie", colCat, y + 4.5);
-  doc.text("Quotation", colCat + 50, y + 4.5);
-  doc.text("Tarif", colCat + 104, y + 4.5);
-  y += grilleHeadH + 3;
-  doc.setFont("helvetica", "normal");
+  y += 8;
+
   const grille: [string, string, string][] = [
     ["Déplacement", "Kilomètre", `${tarifs.tarifKm.toFixed(2).replace(".", ",")} €`],
     ["Exploitation", "Heure", `${tarifs.tarifHeure.toFixed(2).replace(".", ",")} €`],
@@ -356,20 +438,41 @@ function pageTarificationDetaillee(
     ],
     [
       "Frais de gestion",
-      `${d.contenu.fraisGestionPourcent} % du montant HT`,
-      formatEuro(totaux.fraisGestion),
+      `${d.contenu.fraisGestionPourcent} % du HT`,
+      formatEuroPdf(totaux.fraisGestion),
     ],
   ];
+  const grilleBodyH = grille.length * gRowH;
+  const grilleBoxH = grilleHeadH + grilleBodyH;
+
+  doc.setDrawColor(72, 72, 78);
+  doc.setLineWidth(0.28);
+  doc.rect(tableLeft, y, grilleW, grilleBoxH, "S");
+  doc.setFillColor(240, 240, 242);
+  doc.rect(tableLeft, y, grilleW, grilleHeadH, "F");
+  doc.rect(tableLeft, y, grilleW, grilleHeadH, "S");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.3);
+  setText(doc, [45, 45, 45]);
+  doc.text("Catégorie", gCol1, y + 4.2);
+  doc.text("Quotation", gCol2, y + 4.2);
+  doc.text("Tarif", gCol3, y + 4.2);
+  y += grilleHeadH;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.2);
   for (const [cat, quot, tar] of grille) {
-    y = ensureSpace(doc, y, 8);
-    doc.setDrawColor(210, 210, 215);
-    doc.line(tableLeft, y, tableLeft + tableW + 28, y);
+    doc.setDrawColor(200, 200, 206);
+    doc.line(tableLeft, y, tableLeft + grilleW, y);
     setText(doc, [40, 40, 45]);
-    doc.text(cat, colCat, y + 5.5);
-    doc.text(quot, colCat + 50, y + 5.5);
-    doc.text(tar, colCat + 104, y + 5.5);
-    y += 7;
+    doc.text(textePdfSafe(cat), gCol1, y + 4, { maxWidth: 25 });
+    doc.text(textePdfSafe(quot), gCol2, y + 4, { maxWidth: 20 });
+    doc.text(textePdfSafe(tar), gCol3, y + 4, { maxWidth: 24 });
+    y += gRowH;
   }
+  doc.line(tableLeft, y, tableLeft + grilleW, y);
+  doc.line(gCol2 - 1.5, y - grilleBodyH, gCol2 - 1.5, y);
+  doc.line(gCol3 - 1.5, y - grilleBodyH, gCol3 - 1.5, y);
+
   setText(doc, [0, 0, 0]);
 }
 

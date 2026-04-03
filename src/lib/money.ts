@@ -10,3 +10,16 @@ export function formatEuro(n: number): string {
     maximumFractionDigits: 2,
   }).format(n);
 }
+
+/**
+ * Montants pour PDF jsPDF : espaces normaux entre milliers (évite les U+202F
+ * ou symboles mal rendus type « / » à la place du séparateur).
+ */
+export function formatEuroPdf(amount: number): string {
+  const n = Number.isFinite(amount) ? amount : 0;
+  const neg = n < 0;
+  const v = Math.abs(n);
+  const [intRaw, frac] = v.toFixed(2).split(".");
+  const intGrouped = intRaw.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${neg ? "-" : ""}${intGrouped},${frac} €`;
+}
