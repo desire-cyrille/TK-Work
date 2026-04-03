@@ -109,6 +109,19 @@ export const PIED_PAGE_PDF_DEFAUT = [
   "RC Pro souscrite auprès de CRCAM BRIE PICARDIE",
 ].join("\n");
 
+/** Client enregistré dans les paramètres (sélection lors de la création d’un devis). */
+export type DevisClientFiche = {
+  id: string;
+  /** Personne physique : nom ; société : raison sociale */
+  raisonOuNom: string;
+  estSociete: boolean;
+  adresse: string;
+  siren: string;
+  tva: string;
+  /** Si société : nom du contact / interlocuteur */
+  contact: string;
+};
+
 export type DevisParametresGlobaux = {
   idf: TarifsZone;
   horsIdf: TarifsZone;
@@ -116,6 +129,8 @@ export type DevisParametresGlobaux = {
   logoPdfDataUrl?: string;
   /** Lignes du pied de page (séparées par des retours à la ligne). */
   piedPagePdf: string;
+  /** Répertoire clients pour préremplir les devis. */
+  clientsFiches: DevisClientFiche[];
 };
 
 export function newId(): string {
@@ -138,6 +153,7 @@ export function parametresGlobauxDefaut(): DevisParametresGlobaux {
     idf: tarifsZoneDefaut(),
     horsIdf: { ...tarifsZoneDefaut(), tarifKm: 0.35 },
     piedPagePdf: PIED_PAGE_PDF_DEFAUT,
+    clientsFiches: [],
   };
 }
 

@@ -7,9 +7,11 @@ import {
   lireParametresDevisDefaut,
 } from "../lib/devisDefaultsStorage";
 import {
+  type DevisClientFiche,
   type DevisParametresGlobaux,
   type TarifsZone,
   PIED_PAGE_PDF_DEFAUT,
+  newId,
 } from "../lib/devisTypes";
 import styles from "./DevisEditeur.module.css";
 
@@ -55,6 +57,18 @@ function TarifsForm({
   );
 }
 
+function ficheVide(): DevisClientFiche {
+  return {
+    id: newId(),
+    raisonOuNom: "",
+    estSociete: false,
+    adresse: "",
+    siren: "",
+    tva: "",
+    contact: "",
+  };
+}
+
 export function DevisParametresGlobaux() {
   const initial = useMemo(() => lireParametresDevisDefaut(), []);
   const [idf, setIdf] = useState<TarifsZone>(initial.idf);
@@ -65,8 +79,21 @@ export function DevisParametresGlobaux() {
   const [logoPdfDataUrl, setLogoPdfDataUrl] = useState(
     initial.logoPdfDataUrl ?? "",
   );
+  const [clientsFiches, setClientsFiches] = useState<DevisClientFiche[]>(
+    () => initial.clientsFiches ?? [],
+  );
   const [msg, setMsg] = useState<string | null>(null);
   const [errLogo, setErrLogo] = useState<string | null>(null);
+
+  function majFiche(id: string, patch: Partial<DevisClientFiche>) {
+    setClientsFiches((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    );
+  }
+
+  function supprimerFiche(id: string) {
+    setClientsFiches((prev) => prev.filter((c) => c.id !== id));
+  }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -75,6 +102,7 @@ export function DevisParametresGlobaux() {
       horsIdf: hors,
       piedPagePdf: piedPagePdf.trim() || PIED_PAGE_PDF_DEFAUT,
       logoPdfDataUrl: logoPdfDataUrl.trim() || undefined,
+      clientsFiches: clientsFiches.filter((c) => c.raisonOuNom.trim().length > 0),
     };
     enregistrerParametresDevisDefaut(data);
     setMsg("Paramètres enregistrés.");
@@ -128,6 +156,105 @@ export function DevisParametresGlobaux() {
           value={hors}
           onChange={setHors}
         />
+
+        <fieldset className={styles.fieldset}>
+          <legend className={styles.legend}>Clients enregistrés</legend>
+          <p className={styles.hint}>
+            Utilisés dans la boîte <strong>Nouveau devis</strong> : suggestions
+            lisibles et préremplissage de l’onglet <strong>Projet &amp; client</strong>{" "}
+            (adresse, SIREN, TVA, contact). Les fiches vides ne sont pas enregistrées.
+          </p>
+          <div className={styles.clientsList}>
+            {clientsFiches.map((c) => (
+              <div key={c.id} className={styles.clientCard}>
+                <label className={styles.label}>
+                  <input
+                    type="checkbox"
+                    checked={c.estSociete}
+                    onChange={(e) =>
+                      majFiche(c.id, { estSociete: e.target.checked })
+                    }
+                  />{" "}
+                  Société
+                </label>
+                <label className={styles.label}>
+                  {c.estSociete ? "Raison sociale" : "Nom du client"}
+                  <input
+                    className={styles.input}
+                    value={c.raisonOuNom}
+                    onChange={(e) =>
+                      majFiche(c.id, { raisonOuNom: e.target.value })
+                    }
+                    placeholder={
+                      c.estSociete ? "Ex. Facility Park SAS" : "Ex. Dupont Jean"
+                    }
+                  />
+                </label>
+                {c.estSociete ? (
+                  <label className={styles.label}>
+                    Contact (optionnel)
+                    <input
+                      className={styles.input}
+                      value={c.contact}
+                      onChange={(e) =>
+                        majFiche(c.id, { contact: e.target.value })
+                      }
+                      placeholder="Nom du contact"
+                    />
+                  </label>
+                ) : null}
+                <label className={styles.label}>
+                  Adresse
+                  <textarea
+                    className={styles.textarea}
+                    rows={2}
+                    value={c.adresse}
+                    onChange={(e) =>
+                      majFiche(c.id, { adresse: e.target.value })
+                    }
+                    placeholder="Adresse postale complète"
+                  />
+                </label>
+                <div className={styles.grid2}>
+                  <label className={styles.label}>
+                    SIREN
+                    <input
+                      className={styles.input}
+                      value={c.siren}
+                      onChange={(e) =>
+                        majFiche(c.id, { siren: e.target.value })
+                      }
+                      placeholder="9 chiffres"
+                    />
+                  </label>
+                  <label className={styles.label}>
+                    N° TVA
+                    <input
+                      className={styles.input}
+                      value={c.tva}
+                      onChange={(e) => majFiche(c.id, { tva: e.target.value })}
+                      placeholder="Ex. FR12…"
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  className={styles.btnGhost}
+                  onClick={() => supprimerFiche(c.id)}
+                >
+                  Retirer ce client
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            onClick={() => setClientsFiches((p) => [...p, ficheVide()])}
+          >
+            Ajouter un client
+          </button>
+        </fieldset>
 
         <fieldset className={styles.fieldset}>
           <legend className={styles.legend}>PDF — logo (haut gauche)</legend>

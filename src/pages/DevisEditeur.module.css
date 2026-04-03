@@ -292,3 +292,17 @@
   border-radius: 6px;
   border: 1px solid var(--border, #3d3d48);
 }
+
+.clientsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.clientCard {
+  padding: 1rem 1.1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border, #3d3d48);
+  background: var(--surface-elevated, #2e2e2e);
+}

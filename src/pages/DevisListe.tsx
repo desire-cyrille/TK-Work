@@ -24,6 +24,7 @@ import {
   nomFichierPdfDevis,
 } from "../lib/exportDevisPdf";
 import { formatEuro } from "../lib/money";
+import type { DevisClientFiche } from "../lib/devisTypes";
 import { withResourceLock } from "../lib/workspaceLockApi";
 import styles from "./DevisListe.module.css";
 
@@ -47,6 +48,15 @@ async function blobPdfPourDevis(d: Devis): Promise<Blob> {
   const tarifs = tarifsPourZone(d.zone, g);
   const totaux = totauxBudget(d.contenu, tarifs);
   return genererDevisPdfBlob(d, totaux, tarifs);
+}
+
+function ficheCorrespondRecherche(q: string, f: DevisClientFiche): boolean {
+  const s = q.trim().toLowerCase();
+  if (!s) return true;
+  const parts = [f.raisonOuNom, f.contact, f.adresse, f.siren, f.tva]
+    .filter(Boolean)
+    .map((x) => x.toLowerCase());
+  return parts.some((p) => p.includes(s));
 }
 
 export function DevisListe() {
@@ -81,9 +91,46 @@ export function DevisListe() {
   const [draftSociete, setDraftSociete] = useState("");
   const [draftEstSociete, setDraftEstSociete] = useState(false);
   const [draftZone, setDraftZone] = useState<"idf" | "hors_idf">("idf");
+  const [draftFicheId, setDraftFicheId] = useState<string | null>(null);
+  const [clientSuggestOuvert, setClientSuggestOuvert] = useState(false);
 
   const [pdfApercu, setPdfApercu] = useState<PdfApercu | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  const clientsCatalog = useMemo(() => {
+    if (!modalCreer) return [];
+    return lireParametresDevisDefaut().clientsFiches;
+  }, [modalCreer, version]);
+
+  const rechercheClient = useMemo(() => {
+    const a = draftSociete.trim().toLowerCase();
+    const b = draftClient.trim().toLowerCase();
+    if (draftEstSociete) return `${a} ${b}`.trim();
+    return b;
+  }, [draftEstSociete, draftSociete, draftClient]);
+
+  const fichesFiltrees = useMemo(() => {
+    return clientsCatalog
+      .filter((f) => ficheCorrespondRecherche(rechercheClient, f))
+      .slice(0, 16);
+  }, [clientsCatalog, rechercheClient]);
+
+  const legacyFiltres = useMemo(() => {
+    return clientsConnus
+      .filter(
+        (c) =>
+          !rechercheClient ||
+          c.nom.toLowerCase().includes(rechercheClient),
+      )
+      .filter(
+        (c) =>
+          !clientsCatalog.some(
+            (f) =>
+              f.raisonOuNom.trim().toLowerCase() === c.nom.trim().toLowerCase(),
+          ),
+      )
+      .slice(0, 10);
+  }, [clientsConnus, clientsCatalog, rechercheClient]);
 
   function openModalCreer() {
     setDraftTitre("");
@@ -91,7 +138,22 @@ export function DevisListe() {
     setDraftSociete("");
     setDraftEstSociete(false);
     setDraftZone("idf");
+    setDraftFicheId(null);
+    setClientSuggestOuvert(false);
     setModalCreer(true);
+  }
+
+  function appliquerFicheClient(f: DevisClientFiche) {
+    setDraftFicheId(f.id);
+    setDraftEstSociete(f.estSociete);
+    if (f.estSociete) {
+      setDraftSociete(f.raisonOuNom);
+      setDraftClient(f.contact);
+    } else {
+      setDraftSociete("");
+      setDraftClient(f.raisonOuNom);
+    }
+    setClientSuggestOuvert(false);
   }
 
   function onCreerDevis(e: FormEvent) {
@@ -103,11 +165,18 @@ export function DevisListe() {
         : draftClient.trim(),
       draftEstSociete,
     );
+    const glob = lireParametresDevisDefaut();
+    const fiche = draftFicheId
+      ? glob.clientsFiches.find((x) => x.id === draftFicheId)
+      : undefined;
     const d = ajouterDevis({
       titre,
       client: draftEstSociete ? draftClient.trim() : draftClient.trim(),
       clientSociete: draftEstSociete ? draftSociete.trim() : undefined,
       clientEstSociete: draftEstSociete,
+      clientAdresse: fiche?.adresse.trim() || undefined,
+      clientSiren: fiche?.siren.trim() || undefined,
+      clientTva: fiche?.tva.trim() || undefined,
       zone: draftZone,
       montantHt: "",
       notes: "",
@@ -268,35 +337,136 @@ export function DevisListe() {
                     <input
                       type="checkbox"
                       checked={draftEstSociete}
-                      onChange={(e) => setDraftEstSociete(e.target.checked)}
+                      onChange={(e) => {
+                        setDraftEstSociete(e.target.checked);
+                        setDraftFicheId(null);
+                      }}
                     />{" "}
                     Société
                   </label>
-                  {draftEstSociete ? (
+                  <p className={styles.modalHint}>
+                    Clients enregistrés :{" "}
+                    <Link to="/devis/parametres" style={{ color: "#1d4ed8" }}>
+                      Paramètres des devis
+                    </Link>
+                    . Cliquez dans un champ ci-dessous pour afficher les
+                    suggestions.
+                  </p>
+                  <div className={styles.clientSuggestAnchor}>
+                    {draftEstSociete ? (
+                      <label className={styles.label}>
+                        Raison sociale
+                        <input
+                          className={styles.input}
+                          value={draftSociete}
+                          onChange={(e) => {
+                            setDraftSociete(e.target.value);
+                            setDraftFicheId(null);
+                          }}
+                          onFocus={() => setClientSuggestOuvert(true)}
+                          onBlur={() => {
+                            window.setTimeout(
+                              () => setClientSuggestOuvert(false),
+                              200,
+                            );
+                          }}
+                          autoComplete="off"
+                        />
+                      </label>
+                    ) : null}
                     <label className={styles.label}>
-                      Raison sociale
+                      {draftEstSociete ? "Contact (optionnel)" : "Client"}
                       <input
                         className={styles.input}
-                        value={draftSociete}
-                        onChange={(e) => setDraftSociete(e.target.value)}
-                        list="devis-clients-datalist"
+                        value={draftClient}
+                        onChange={(e) => {
+                          setDraftClient(e.target.value);
+                          setDraftFicheId(null);
+                        }}
+                        onFocus={() => setClientSuggestOuvert(true)}
+                        onBlur={() => {
+                          window.setTimeout(
+                            () => setClientSuggestOuvert(false),
+                            200,
+                          );
+                        }}
+                        autoComplete="off"
                       />
                     </label>
-                  ) : null}
-                  <label className={styles.label}>
-                    {draftEstSociete ? "Contact (optionnel)" : "Client"}
-                    <input
-                      className={styles.input}
-                      value={draftClient}
-                      onChange={(e) => setDraftClient(e.target.value)}
-                      list="devis-clients-datalist"
-                    />
-                  </label>
-                  <datalist id="devis-clients-datalist">
-                    {clientsConnus.map((c) => (
-                      <option key={c.id} value={c.nom} />
-                    ))}
-                  </datalist>
+                    {clientSuggestOuvert ? (
+                      <div className={styles.suggestPanel} role="listbox">
+                        {fichesFiltrees.length > 0 ? (
+                          <>
+                            <p className={styles.suggestSectionLabel}>
+                              Clients enregistrés (paramètres)
+                            </p>
+                            {fichesFiltrees.map((f) => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                className={styles.suggestItem}
+                                onMouseDown={(ev) => ev.preventDefault()}
+                                onClick={() => appliquerFicheClient(f)}
+                              >
+                                <span>{f.raisonOuNom}</span>
+                                {f.estSociete && f.contact ? (
+                                  <span className={styles.suggestItemSub}>
+                                    Contact : {f.contact}
+                                  </span>
+                                ) : null}
+                                {f.adresse.trim() ? (
+                                  <span className={styles.suggestItemSub}>
+                                    {f.adresse.trim().slice(0, 72)}
+                                    {f.adresse.trim().length > 72 ? "…" : ""}
+                                  </span>
+                                ) : null}
+                              </button>
+                            ))}
+                          </>
+                        ) : null}
+                        {legacyFiltres.length > 0 ? (
+                          <>
+                            <p className={styles.suggestSectionLabel}>
+                              Saisies précédentes
+                            </p>
+                            {legacyFiltres.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                className={styles.suggestItem}
+                                onMouseDown={(ev) => ev.preventDefault()}
+                                onClick={() => {
+                                  setDraftFicheId(null);
+                                  setDraftEstSociete(c.estSociete);
+                                  if (c.estSociete) {
+                                    setDraftSociete(c.nom);
+                                    setDraftClient("");
+                                  } else {
+                                    setDraftSociete("");
+                                    setDraftClient(c.nom);
+                                  }
+                                  setClientSuggestOuvert(false);
+                                }}
+                              >
+                                {c.nom}
+                                <span className={styles.suggestItemSub}>
+                                  {c.estSociete ? "Société" : "Particulier"}
+                                </span>
+                              </button>
+                            ))}
+                          </>
+                        ) : null}
+                        {fichesFiltrees.length === 0 &&
+                        legacyFiltres.length === 0 ? (
+                          <p className={styles.suggestEmpty}>
+                            Aucune suggestion pour « {rechercheClient || "…"} ».
+                            Saisissez un nom ou ajoutez des fiches dans les
+                            paramètres.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
                   <label className={styles.label}>
                     Zone tarifaire
                     <select

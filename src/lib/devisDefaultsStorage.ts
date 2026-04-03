@@ -1,4 +1,5 @@
 import {
+  type DevisClientFiche,
   type DevisParametresGlobaux,
   type TarifsZone,
   PIED_PAGE_PDF_DEFAUT,
@@ -36,6 +37,26 @@ function mergeTarifs(z: Partial<TarifsZone> | undefined, def: TarifsZone): Tarif
   };
 }
 
+function mergeClientsFiches(raw: unknown): DevisClientFiche[] {
+  if (!Array.isArray(raw)) return [];
+  const out: DevisClientFiche[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    if (typeof o.id !== "string" || typeof o.raisonOuNom !== "string") continue;
+    out.push({
+      id: o.id,
+      raisonOuNom: String(o.raisonOuNom).trim(),
+      estSociete: Boolean(o.estSociete),
+      adresse: typeof o.adresse === "string" ? o.adresse : "",
+      siren: typeof o.siren === "string" ? o.siren : "",
+      tva: typeof o.tva === "string" ? o.tva : "",
+      contact: typeof o.contact === "string" ? o.contact : "",
+    });
+  }
+  return out;
+}
+
 function mergeWithDefaut(
   p: Partial<DevisParametresGlobaux>,
 ): DevisParametresGlobaux {
@@ -52,6 +73,7 @@ function mergeWithDefaut(
         ? p.logoPdfDataUrl
         : undefined,
     piedPagePdf: pied || PIED_PAGE_PDF_DEFAUT,
+    clientsFiches: mergeClientsFiches(p.clientsFiches),
   };
 }
 
