@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
 import { PdfPreviewDialog, type PdfApercu } from "../components/PdfPreviewDialog";
@@ -48,6 +48,31 @@ const MODES_PERM: { v: ModePermanence; l: string }[] = [
   { v: "horaire", l: "Horaire (semaines × jours × h/j × tarif horaire)" },
 ];
 
+type OngletDevis =
+  | "infos"
+  | "garde"
+  | "preparation"
+  | "mise"
+  | "permanence"
+  | "deplacement"
+  | "restauration"
+  | "annexe"
+  | "notes"
+  | "synthese";
+
+const ONGLETS: { id: OngletDevis; label: string }[] = [
+  { id: "infos", label: "Projet & client" },
+  { id: "garde", label: "Garde & textes" },
+  { id: "preparation", label: "Préparation" },
+  { id: "mise", label: "Mise en place" },
+  { id: "permanence", label: "Permanence" },
+  { id: "deplacement", label: "Déplacement" },
+  { id: "restauration", label: "Restauration" },
+  { id: "annexe", label: "Annexe PDF" },
+  { id: "notes", label: "Notes" },
+  { id: "synthese", label: "Synthèse budget" },
+];
+
 export function DevisEditeur() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -55,6 +80,7 @@ export function DevisEditeur() {
   const [devis, setDevis] = useState<Devis | null>(null);
   const [pdfApercu, setPdfApercu] = useState<PdfApercu | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [onglet, setOnglet] = useState<OngletDevis>("infos");
 
   const lock = useWorkspaceLock(
     id && id.length > 0 ? `devis:${id}` : null,
@@ -139,7 +165,7 @@ export function DevisEditeur() {
     if (!devis || !totaux) return;
     setErr(null);
     try {
-      const blob = await genererDevisPdfBlob(devis, totaux);
+      const blob = await genererDevisPdfBlob(devis, totaux, tarifs);
       const prev = pdfApercu?.blobUrl;
       if (prev) URL.revokeObjectURL(prev);
       const blobUrl = URL.createObjectURL(blob);
@@ -156,7 +182,7 @@ export function DevisEditeur() {
   async function partagerPdf() {
     if (!devis || !totaux) return;
     try {
-      const blob = await genererDevisPdfBlob(devis, totaux);
+      const blob = await genererDevisPdfBlob(devis, totaux, tarifs);
       const name = nomFichierPdfDevis(devis);
       const file = new File([blob], name, { type: "application/pdf" });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
@@ -277,8 +303,26 @@ export function DevisEditeur() {
           </div>
           {err ? <p className={styles.errMsg}>{err}</p> : null}
 
+          <div className={styles.tabs} role="tablist">
+            {ONGLETS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={onglet === t.id}
+                className={
+                  onglet === t.id ? `${styles.tab} ${styles.tabActive}` : styles.tab
+                }
+                onClick={() => setOnglet(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {onglet === "infos" ? (
           <section className={styles.section}>
-            <h2>En-tête</h2>
+            <h2>Projet & client</h2>
             <div className={styles.grid2}>
               <label className={styles.label}>
                 Titre du devis
@@ -333,9 +377,49 @@ export function DevisEditeur() {
                   onChange={(e) => patchDevis({ client: e.target.value })}
                 />
               </label>
+              <label className={styles.label} style={{ gridColumn: "1 / -1" }}>
+                Adresse (ligne affichée sur la page de garde du PDF)
+                <input
+                  className={styles.input}
+                  value={devis.clientAdresse ?? ""}
+                  onChange={(e) =>
+                    patchDevis({ clientAdresse: e.target.value })
+                  }
+                  placeholder="Ex. 12 rue …, 75000 Paris"
+                />
+              </label>
+              {devis.clientEstSociete ? (
+                <>
+                  <label className={styles.label}>
+                    SIREN
+                    <input
+                      className={styles.input}
+                      value={devis.clientSiren ?? ""}
+                      onChange={(e) =>
+                        patchDevis({ clientSiren: e.target.value })
+                      }
+                      placeholder="9 chiffres"
+                    />
+                  </label>
+                  <label className={styles.label}>
+                    N° TVA intracommunautaire
+                    <input
+                      className={styles.input}
+                      value={devis.clientTva ?? ""}
+                      onChange={(e) =>
+                        patchDevis({ clientTva: e.target.value })
+                      }
+                      placeholder="Ex. FR12 123456789"
+                    />
+                  </label>
+                </>
+              ) : null}
             </div>
           </section>
+          ) : null}
 
+          {onglet === "garde" ? (
+          <Fragment>
           <section className={styles.section}>
             <h2>Page de garde</h2>
             <div className={styles.grid2}>
@@ -439,51 +523,10 @@ export function DevisEditeur() {
               />
             </label>
           </section>
+          </Fragment>
+          ) : null}
 
-          <section className={styles.section}>
-            <h2>Domaines inclus dans le budget</h2>
-            <div className={styles.checkRow}>
-              {(
-                Object.keys(c.domainesActifs) as (keyof DevisDomainesActifs)[]
-              ).map((k) => (
-                <label key={k}>
-                  <input
-                    type="checkbox"
-                    checked={c.domainesActifs[k]}
-                    onChange={(e) =>
-                      setActifs({ ...c.domainesActifs, [k]: e.target.checked })
-                    }
-                  />
-                  {k === "deplacement"
-                    ? "Déplacement"
-                    : k === "restauration"
-                      ? "Restauration"
-                      : k === "preparationMiseEnPlace"
-                        ? "Préparation mise en place"
-                        : k === "miseEnPlaceTerrain"
-                          ? "Mise en place terrain"
-                          : "Permanence"}
-                </label>
-              ))}
-            </div>
-            <label className={styles.label}>
-              Frais de gestion (% du sous-total HT domaines inclus)
-              <input
-                type="number"
-                step="0.01"
-                className={styles.input}
-                style={{ maxWidth: "8rem" }}
-                value={c.fraisGestionPourcent}
-                onChange={(e) =>
-                  patchContenu({
-                    ...c,
-                    fraisGestionPourcent: Number(e.target.value) || 0,
-                  })
-                }
-              />
-            </label>
-          </section>
-
+          {onglet === "deplacement" ? (
           <section className={styles.section}>
             <h2>Déplacement</h2>
             <p className={styles.hint}>
@@ -620,7 +663,9 @@ export function DevisEditeur() {
               + Ligne
             </button>
           </section>
+          ) : null}
 
+          {onglet === "restauration" ? (
           <section className={styles.section}>
             <h2>Restauration</h2>
             <p className={styles.hint}>
@@ -775,13 +820,20 @@ export function DevisEditeur() {
               + Ligne
             </button>
           </section>
+          ) : null}
 
           {(
             [
-              ["preparationMiseEnPlace", "Préparation de la mise en place"],
-              ["miseEnPlaceTerrain", "Mise en place terrain"],
+              [
+                "preparationMiseEnPlace",
+                "Préparation de la mise en place",
+                "preparation",
+              ],
+              ["miseEnPlaceTerrain", "Mise en place terrain", "mise"],
             ] as const
-          ).map(([cle, titre]) => (
+          )
+            .filter(([, , tab]) => onglet === tab)
+            .map(([cle, titre]) => (
             <section key={cle} className={styles.section}>
               <h2>{titre}</h2>
               <p className={styles.hint}>
@@ -977,6 +1029,7 @@ export function DevisEditeur() {
             </section>
           ))}
 
+          {onglet === "permanence" ? (
           <section className={styles.section}>
             <h2>Permanence</h2>
             <label className={styles.label}>
@@ -1117,7 +1170,9 @@ export function DevisEditeur() {
               )}
             </div>
           </section>
+          ) : null}
 
+          {onglet === "annexe" ? (
           <section className={styles.section}>
             <h2>PDF logiciel de comptabilité (annexe)</h2>
             <p className={styles.hint}>
@@ -1146,7 +1201,9 @@ export function DevisEditeur() {
               </p>
             ) : null}
           </section>
+          ) : null}
 
+          {onglet === "notes" ? (
           <section className={styles.section}>
             <h2>Notes internes</h2>
             <textarea
@@ -1156,37 +1213,89 @@ export function DevisEditeur() {
               onChange={(e) => patchDevis({ notes: e.target.value })}
             />
           </section>
+          ) : null}
 
-          <div className={styles.budgetSticky}>
-            <h3>Synthèse budget (aperçu)</h3>
-            <div className={styles.budgetRows}>
-              {totaux.lignes.map((l) => (
-                <div
-                  key={l.cle}
-                  className={
-                    l.actif ? styles.budgetRow : `${styles.budgetRow} ${styles.budgetRowMuted}`
-                  }
-                >
-                  <span>{l.libelle}</span>
-                  <span>
-                    {l.actif ? formatEuro(l.montant) : "— (exclu)"}
-                  </span>
-                </div>
+          {onglet === "synthese" ? (
+          <section className={styles.section}>
+            <h2>Domaines inclus dans le budget</h2>
+            <p className={styles.hint}>
+              Décochez un domaine pour l’exclure du total et du PDF (ligne
+              « Hors budget »).
+            </p>
+            <div className={styles.checkRow}>
+              {(
+                Object.keys(c.domainesActifs) as (keyof DevisDomainesActifs)[]
+              ).map((k) => (
+                <label key={k}>
+                  <input
+                    type="checkbox"
+                    checked={c.domainesActifs[k]}
+                    onChange={(e) =>
+                      setActifs({ ...c.domainesActifs, [k]: e.target.checked })
+                    }
+                  />
+                  {k === "deplacement"
+                    ? "Déplacement"
+                    : k === "restauration"
+                      ? "Restauration"
+                      : k === "preparationMiseEnPlace"
+                        ? "Préparation mise en place"
+                        : k === "miseEnPlaceTerrain"
+                          ? "Mise en place terrain"
+                          : "Permanence"}
+                </label>
               ))}
-              <div className={styles.budgetRow}>
-                <span>Sous-total HT</span>
-                <span>{formatEuro(totaux.sousTotalHt)}</span>
-              </div>
-              <div className={styles.budgetRow}>
-                <span>Frais de gestion</span>
-                <span>{formatEuro(totaux.fraisGestion)}</span>
-              </div>
-              <div className={styles.budgetTotal}>
-                <span>Total HT</span>
-                <span>{formatEuro(totaux.totalHt)}</span>
+            </div>
+            <label className={styles.label}>
+              Frais de gestion (% du sous-total HT domaines inclus)
+              <input
+                type="number"
+                step="0.01"
+                className={styles.input}
+                style={{ maxWidth: "8rem" }}
+                value={c.fraisGestionPourcent}
+                onChange={(e) =>
+                  patchContenu({
+                    ...c,
+                    fraisGestionPourcent: Number(e.target.value) || 0,
+                  })
+                }
+              />
+            </label>
+            <div className={styles.budgetPanel}>
+              <h3 className={styles.budgetPanelTitle}>Synthèse (aperçu)</h3>
+              <div className={styles.budgetRows}>
+                {totaux.lignes.map((l) => (
+                  <div
+                    key={l.cle}
+                    className={
+                      l.actif
+                        ? styles.budgetRow
+                        : `${styles.budgetRow} ${styles.budgetRowMuted}`
+                    }
+                  >
+                    <span>{l.libelle}</span>
+                    <span>
+                      {l.actif ? formatEuro(l.montant) : "— (exclu)"}
+                    </span>
+                  </div>
+                ))}
+                <div className={styles.budgetRow}>
+                  <span>Sous-total HT</span>
+                  <span>{formatEuro(totaux.sousTotalHt)}</span>
+                </div>
+                <div className={styles.budgetRow}>
+                  <span>Frais de gestion</span>
+                  <span>{formatEuro(totaux.fraisGestion)}</span>
+                </div>
+                <div className={styles.budgetTotal}>
+                  <span>Total HT</span>
+                  <span>{formatEuro(totaux.totalHt)}</span>
+                </div>
               </div>
             </div>
-          </div>
+          </section>
+          ) : null}
         </form>
       </PageFrame>
 

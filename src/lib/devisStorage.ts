@@ -16,6 +16,10 @@ export type Devis = {
   client: string;
   clientSociete?: string;
   clientEstSociete?: boolean;
+  clientAdresse?: string;
+  /** Société : SIREN (9 chiffres), distinct du SIRET. */
+  clientSiren?: string;
+  clientTva?: string;
   zone: DevisZone;
   montantHt: string;
   notes: string;
@@ -61,6 +65,11 @@ function migrateLegacyDevis(raw: Record<string, unknown>): Devis | null {
     clientSociete:
       typeof raw.clientSociete === "string" ? raw.clientSociete : undefined,
     clientEstSociete: Boolean(raw.clientEstSociete),
+    clientAdresse:
+      typeof raw.clientAdresse === "string" ? raw.clientAdresse : undefined,
+    clientSiren:
+      typeof raw.clientSiren === "string" ? raw.clientSiren : undefined,
+    clientTva: typeof raw.clientTva === "string" ? raw.clientTva : undefined,
     zone: normalizeZone(raw.zone),
     montantHt: typeof raw.montantHt === "string" ? raw.montantHt : "",
     notes: typeof raw.notes === "string" ? raw.notes : "",

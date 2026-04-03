@@ -179,3 +179,143 @@ export function tarifsPourZone(
 ): TarifsZone {
   return zone === "idf" ? globaux.idf : globaux.horsIdf;
 }
+
+/** Ordre d’affichage type tableau Excel / devis papier. */
+export const ORDRE_LIGNES_PDF: (keyof DevisDomainesActifs)[] = [
+  "preparationMiseEnPlace",
+  "miseEnPlaceTerrain",
+  "permanence",
+  "deplacement",
+  "restauration",
+];
+
+export const PDF_CATEGORIE_LIB: Record<keyof DevisDomainesActifs, string> = {
+  preparationMiseEnPlace: "PRÉPARATION",
+  miseEnPlaceTerrain: "MISE EN PLACE",
+  permanence: "PERMANENCE",
+  deplacement: "DÉPLACEMENT",
+  restauration: "RESTAURATION",
+};
+
+/** Couleurs proches du modèle papier (RVB). */
+export const PDF_CATEGORIE_COULEUR: Record<
+  keyof DevisDomainesActifs,
+  [number, number, number]
+> = {
+  preparationMiseEnPlace: [15, 118, 110],
+  miseEnPlaceTerrain: [22, 163, 74],
+  permanence: [126, 34, 206],
+  deplacement: [5, 150, 105],
+  restauration: [37, 99, 235],
+};
+
+export type LigneBudgetPdf = LigneBudget & {
+  quantiteLibelle: string;
+  detailLigne?: string;
+};
+
+export function quantiteLibelleDomaine(
+  cle: keyof DevisDomainesActifs,
+  contenu: DevisContenu,
+): string {
+  switch (cle) {
+    case "deplacement": {
+      if (contenu.deplacement.lignes.length === 0) return "—";
+      const coef = contenu.deplacement.lignes.reduce(
+        (a, l) => a + Math.max(0, l.coefficientDuree),
+        0,
+      );
+      if (coef > 0) {
+        return `${coef.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} j.`;
+      }
+      const km = contenu.deplacement.lignes.reduce(
+        (a, l) => a + l.nbPersonnes * l.distanceKm,
+        0,
+      );
+      return km > 0 ? `${km.toFixed(0)} km` : "—";
+    }
+    case "restauration": {
+      const n = contenu.restauration.lignes.reduce(
+        (a, l) =>
+          a + l.nbPersonnes * l.joursPresence * l.repasParJour,
+        0,
+      );
+      return n > 0 ? `${Math.round(n)} repas` : "—";
+    }
+    case "preparationMiseEnPlace":
+    case "miseEnPlaceTerrain": {
+      const dom =
+        cle === "preparationMiseEnPlace"
+          ? contenu.preparationMiseEnPlace
+          : contenu.miseEnPlaceTerrain;
+      let h = 0;
+      let j = 0;
+      let s = 0;
+      let m = 0;
+      for (const b of dom.blocs) {
+        for (const l of b.lignes) {
+          if (l.unite === "heure") h += l.quantite;
+          else if (l.unite === "jour") j += l.quantite;
+          else if (l.unite === "semaine") s += l.quantite;
+          else m += l.quantite;
+        }
+      }
+      const parts: string[] = [];
+      if (h) parts.push(`${h} h`);
+      if (j) parts.push(`${j} j`);
+      if (s) parts.push(`${s} sem.`);
+      if (m) parts.push(`${m} m.`);
+      return parts.length ? parts.join(" · ") : "—";
+    }
+    case "permanence": {
+      const p = contenu.permanence;
+      if (p.mode === "forfait_jours") {
+        return p.nombreJoursTotal > 0 ? `${p.nombreJoursTotal} j.` : "—";
+      }
+      const jours = p.nbSemaines * p.nbJoursParSemaine;
+      return jours > 0
+        ? `${jours.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} j.`
+        : "—";
+    }
+    default:
+      return "—";
+  }
+}
+
+export function detailSousLignePdf(
+  cle: keyof DevisDomainesActifs,
+  contenu: DevisContenu,
+): string | undefined {
+  switch (cle) {
+    case "permanence": {
+      const p = contenu.permanence;
+      if (p.nbHeuresParJour > 0) {
+        return `Estimé à ${p.nbHeuresParJour} h / jour`;
+      }
+      return undefined;
+    }
+    case "deplacement":
+      return "Calculé au km (personnes × distance × durée)";
+    case "restauration":
+      return "Repas facturés (personnes × jours × repas/j)";
+    default:
+      return undefined;
+  }
+}
+
+export function lignesBudgetPourPdf(
+  contenu: DevisContenu,
+  tarifs: TarifsZone,
+): LigneBudgetPdf[] {
+  const base = lignesBudget(contenu, tarifs);
+  const map = new Map(base.map((l) => [l.cle, l]));
+  return ORDRE_LIGNES_PDF.map((cle) => {
+    const l = map.get(cle)!;
+    return {
+      ...l,
+      libelle: PDF_CATEGORIE_LIB[cle],
+      quantiteLibelle: quantiteLibelleDomaine(cle, contenu),
+      detailLigne: detailSousLignePdf(cle, contenu),
+    };
+  });
+}

@@ -46,7 +46,7 @@ async function blobPdfPourDevis(d: Devis): Promise<Blob> {
   const g = lireParametresDevisDefaut();
   const tarifs = tarifsPourZone(d.zone, g);
   const totaux = totauxBudget(d.contenu, tarifs);
-  return genererDevisPdfBlob(d, totaux);
+  return genererDevisPdfBlob(d, totaux, tarifs);
 }
 
 export function DevisListe() {

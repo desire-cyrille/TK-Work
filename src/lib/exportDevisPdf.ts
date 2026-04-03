@@ -1,8 +1,13 @@
 import { PDFDocument } from "pdf-lib";
 import { jsPDF } from "jspdf";
+import {
+  PDF_CATEGORIE_COULEUR,
+  lignesBudgetPourPdf,
+  type LigneBudget,
+} from "./devisCalcul";
 import { formatEuro } from "./money";
 import type { Devis } from "./devisStorage";
-import type { LigneBudget } from "./devisCalcul";
+import type { TarifsZone } from "./devisTypes";
 
 type TotauxBudget = {
   lignes: LigneBudget[];
@@ -13,8 +18,14 @@ type TotauxBudget = {
 
 const W = 210;
 const H = 297;
-const M = 18;
+const M = 14;
 const TEXT_W = W - 2 * M;
+
+const FOOTER_LINES = [
+  "TK PRO GESTION — 84 RUE VICTOR HUGO, 60160 MONTATAIRE",
+  "SIRET 911 303 204 00018 — RCS COMPIÈGNE — APE 8211Z — TVA FR29 911 303 204",
+  "RC Pro souscrite auprès de CRCAM BRIE PICARDIE",
+];
 
 function setFill(doc: jsPDF, rgb: [number, number, number]) {
   doc.setFillColor(rgb[0], rgb[1], rgb[2]);
@@ -24,13 +35,18 @@ function setText(doc: jsPDF, rgb: [number, number, number]) {
   doc.setTextColor(rgb[0], rgb[1], rgb[2]);
 }
 
+function remplirPageBlanche(doc: jsPDF) {
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, W, H, "F");
+}
+
 function pageGarde(doc: jsPDF, d: Devis) {
   const { theme, contenu } = d;
   setFill(doc, theme.gardeFond);
   doc.rect(0, 0, W, H, "F");
   setText(doc, theme.gardeTexte);
 
-  let y = H * 0.38;
+  let y = H * 0.36;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
   const titre = contenu.titrePageGarde.trim() || "PROPOSITION";
@@ -48,7 +64,7 @@ function pageGarde(doc: jsPDF, d: Devis) {
       y += 7;
     }
   }
-  y += 20;
+  y += 16;
   doc.setFontSize(11);
   const clientLine = d.clientEstSociete
     ? d.clientSociete?.trim() || d.client.trim()
@@ -56,6 +72,25 @@ function pageGarde(doc: jsPDF, d: Devis) {
   if (clientLine) {
     doc.text(clientLine, W / 2, y, { align: "center" });
     y += 6;
+  }
+  const adr = d.clientAdresse?.trim();
+  if (adr) {
+    for (const line of doc.splitTextToSize(adr, TEXT_W - 20)) {
+      doc.text(line, W / 2, y, { align: "center" });
+      y += 5.5;
+    }
+  }
+  if (d.clientEstSociete) {
+    const siren = d.clientSiren?.trim();
+    const tva = d.clientTva?.trim();
+    if (siren) {
+      doc.text(`SIREN ${siren}`, W / 2, y, { align: "center" });
+      y += 5.5;
+    }
+    if (tva) {
+      doc.text(`N° TVA ${tva}`, W / 2, y, { align: "center" });
+      y += 5.5;
+    }
   }
   doc.text(d.titre.trim() || "Devis", W / 2, y, { align: "center" });
   y += 14;
@@ -74,10 +109,11 @@ function corpsCentre(
   if (options?.nouvellePage !== false) {
     doc.addPage();
   }
+  remplirPageBlanche(doc);
   let y = M + 6;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  setText(doc, [40, 40, 40]);
+  setText(doc, [25, 25, 25]);
   for (const line of doc.splitTextToSize(titre, TEXT_W)) {
     doc.text(line, W / 2, y, { align: "center" });
     y += 7;
@@ -85,11 +121,12 @@ function corpsCentre(
   y += 8;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10.5);
-  setText(doc, [30, 30, 30]);
+  setText(doc, [35, 35, 35]);
   const body = texte.trim() || "—";
   for (const line of doc.splitTextToSize(body, TEXT_W)) {
     if (y > H - M - 8) {
       doc.addPage();
+      remplirPageBlanche(doc);
       y = M + 6;
     }
     doc.text(line, W / 2, y, { align: "center" });
@@ -99,141 +136,245 @@ function corpsCentre(
 }
 
 function ensureSpace(doc: jsPDF, y: number, need: number): number {
-  if (y + need > H - M) {
+  if (y + need > H - M - 22) {
     doc.addPage();
+    remplirPageBlanche(doc);
     return M + 6;
   }
   return y;
 }
 
-function pageBudget(
+function createDonutDataUrl(
+  slices: { value: number; color: string }[],
+  sizePx: number,
+): string | null {
+  if (typeof document === "undefined") return null;
+  const total = slices.reduce((a, s) => a + s.value, 0);
+  if (total <= 0) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = sizePx;
+  canvas.height = sizePx;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const cx = sizePx / 2;
+  const cy = sizePx / 2;
+  const r = sizePx * 0.4;
+  const rIn = sizePx * 0.22;
+  let ang = -Math.PI / 2;
+  for (const s of slices) {
+    const slice = (s.value / total) * 2 * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, ang, ang + slice);
+    ctx.closePath();
+    ctx.fillStyle = s.color;
+    ctx.fill();
+    ang += slice;
+  }
+  ctx.beginPath();
+  ctx.arc(cx, cy, rIn, 0, 2 * Math.PI);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  return canvas.toDataURL("image/png");
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const h = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${h(r)}${h(g)}${h(b)}`;
+}
+
+function pageTarificationDetaillee(
   doc: jsPDF,
   d: Devis,
   totaux: TotauxBudget,
-  accent: [number, number, number],
+  tarifs: TarifsZone,
 ) {
   doc.addPage();
-  let y = M + 4;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(35, 35, 35);
-  doc.text("Synthèse budgétaire", W / 2, y, { align: "center" });
-  y += 12;
+  remplirPageBlanche(doc);
 
-  const rowH = 7;
-  const colLib = M;
-  const colMt = W - M - 42;
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.text("Domaine", colLib, y);
-  doc.text("Montant HT", colMt, y, { align: "right" });
-  y += rowH;
-  doc.setFont("helvetica", "normal");
-  doc.setDrawColor(200, 200, 200);
-  doc.line(M, y, W - M, y);
-  y += 4;
+  const lignesPdf = lignesBudgetPourPdf(d.contenu, tarifs);
 
-  for (const l of totaux.lignes) {
-    y = ensureSpace(doc, y, rowH + 3);
-    if (!l.actif) {
-      doc.setTextColor(160, 160, 160);
-    } else {
-      doc.setTextColor(45, 45, 45);
-    }
-    const label = l.actif ? l.libelle : `${l.libelle} (hors budget)`;
-    const labelLines = doc.splitTextToSize(label, 88);
-    const rowTop = y;
-    doc.text(labelLines[0], colLib, y);
-    doc.text(
-      l.actif ? formatEuro(l.montant) : "—",
-      colMt,
-      rowTop,
-      { align: "right" },
+  let y = M + 2;
+  doc.setDrawColor(55, 55, 55);
+  doc.setLineWidth(0.35);
+  const boxW = 92;
+  doc.rect((W - boxW) / 2, y, boxW, 9);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  setText(doc, [28, 28, 28]);
+  doc.text("TARIFICATION DÉTAILLÉE", W / 2, y + 6.2, { align: "center" });
+  y += 13;
+
+  const tableLeft = M;
+  const tableW = 108;
+  const colCat = tableLeft + 3;
+  const colQty = tableLeft + 68;
+  const colTar = tableLeft + 92;
+  const rowH = 6;
+  const stripeW = 2.8;
+
+  const chartX = tableLeft + tableW + 6;
+  const chartMm = 46;
+  const chartY = y + 4;
+
+  const actifsChart = lignesPdf.filter((l) => l.actif && l.montant > 0);
+  const sumChart = actifsChart.reduce((a, l) => a + l.montant, 0);
+  if (sumChart > 0) {
+    const donut = createDonutDataUrl(
+      actifsChart.map((l) => ({
+        value: l.montant,
+        color: rgbToHex(...PDF_CATEGORIE_COULEUR[l.cle]),
+      })),
+      200,
     );
-    y += 4.5;
-    for (let li = 1; li < labelLines.length; li += 1) {
-      y = ensureSpace(doc, y, 5);
-      doc.text(labelLines[li], colLib, y);
-      y += 4.5;
+    if (donut) {
+      doc.addImage(donut, "PNG", chartX, chartY, chartMm, chartMm);
     }
-    y += 2;
+    let ly = chartY + chartMm + 4;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    for (const l of actifsChart) {
+      const pct = Math.round((l.montant / sumChart) * 100);
+      const [r, g, b] = PDF_CATEGORIE_COULEUR[l.cle];
+      doc.setFillColor(r, g, b);
+      doc.rect(chartX, ly - 2.8, 2.5, 2.5, "F");
+      setText(doc, [40, 40, 40]);
+      doc.text(`${l.libelle} ${pct} %`, chartX + 4, ly);
+      ly += 4.2;
+    }
+  } else {
+    doc.setFontSize(8);
+    setText(doc, [120, 120, 120]);
+    doc.text("Répartition : aucun montant", chartX, chartY + 16);
   }
 
-  y = ensureSpace(doc, y, 28);
-  doc.setDrawColor(180, 180, 180);
-  doc.line(M, y, W - M, y);
-  y += 8;
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(45, 45, 45);
-  doc.text("Sous-total HT", colLib, y);
-  doc.text(formatEuro(totaux.sousTotalHt), colMt, y, { align: "right" });
+  doc.setFontSize(7.5);
+  setText(doc, [45, 45, 45]);
+  doc.setFillColor(235, 235, 237);
+  doc.rect(tableLeft, y, tableW, 5.5, "F");
+  doc.text("CATÉGORIES", colCat, y + 4);
+  doc.text("QUANTITÉ", colQty, y + 4);
+  doc.text("TARIF HT", colTar, y + 4, { align: "right" });
+  y += 6;
+
+  doc.setFont("helvetica", "normal");
+  for (const l of lignesPdf) {
+    y = ensureSpace(doc, y, rowH + 5);
+    const [r, g, b] = PDF_CATEGORIE_COULEUR[l.cle];
+    doc.setFillColor(252, 252, 254);
+    doc.rect(tableLeft, y, tableW, rowH + 1, "F");
+    doc.setFillColor(r, g, b);
+    doc.rect(tableLeft, y, stripeW, rowH + 1, "F");
+    doc.setDrawColor(200, 200, 204);
+    doc.rect(tableLeft, y, tableW, rowH + 1, "S");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.8);
+    setText(doc, [22, 22, 28]);
+    doc.text(l.libelle, colCat + stripeW + 1.5, y + 4.5);
+    doc.setFont("helvetica", "normal");
+    setText(doc, [l.actif ? 45 : 140, l.actif ? 45 : 140, l.actif ? 50 : 140]);
+    doc.text(l.actif ? l.quantiteLibelle : "—", colQty, y + 4.5);
+    doc.text(
+      l.actif ? formatEuro(l.montant) : "Hors budget",
+      colTar + 14,
+      y + 4.5,
+      { align: "right" },
+    );
+    y += rowH + 1.2;
+    if (l.actif && l.detailLigne) {
+      doc.setFontSize(6.5);
+      setText(doc, [95, 95, 100]);
+      doc.text(l.detailLigne, colCat + 1, y + 3);
+      y += 4;
+      doc.setFontSize(7.8);
+    }
+  }
+
+  y += 3;
+  y = ensureSpace(doc, y, 28);
+  doc.setDrawColor(160, 160, 168);
+  doc.line(tableLeft, y, tableLeft + tableW, y);
+  y += 5;
+  doc.setFont("helvetica", "bold");
+  setText(doc, [30, 30, 30]);
+  doc.text("MONTANT LA PRESTATION HT", colCat, y);
+  doc.text(formatEuro(totaux.sousTotalHt), colTar + 14, y, { align: "right" });
   y += rowH;
   doc.setFont("helvetica", "normal");
   doc.text(
     `Frais de gestion (${d.contenu.fraisGestionPourcent} %)`,
-    colLib,
+    colCat,
     y,
   );
-  doc.text(formatEuro(totaux.fraisGestion), colMt, y, { align: "right" });
-  y += rowH + 2;
+  doc.text(formatEuro(totaux.fraisGestion), colTar + 14, y, {
+    align: "right",
+  });
+  y += rowH + 1;
+  doc.setFillColor(55, 55, 62);
+  doc.rect(tableLeft, y - 1, tableW, rowH + 1.5, "F");
   doc.setFont("helvetica", "bold");
-  setText(doc, accent);
-  doc.text("Total HT", colLib, y);
-  doc.text(formatEuro(totaux.totalHt), colMt, y, { align: "right" });
-  setText(doc, [0, 0, 0]);
+  setText(doc, [255, 255, 255]);
+  doc.text("MONTANT TOTAL HT", colCat, y + 4);
+  doc.text(formatEuro(totaux.totalHt), colTar + 14, y + 4, {
+    align: "right",
+  });
+  y += rowH + 8;
 
-  y += 14;
-  y = ensureSpace(doc, y, 40);
+  y = ensureSpace(doc, y, 42);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(45, 45, 45);
-  doc.text("Répartition (domaines inclus)", W / 2, y, { align: "center" });
-  y += 10;
-
-  const actifs = totaux.lignes.filter((l) => l.actif && l.montant > 0);
-  const sum = actifs.reduce((a, l) => a + l.montant, 0);
-  const barW = W - 2 * M;
-  const colors: [number, number, number][] = [
-    accent,
-    [80, 140, 200],
-    [120, 180, 140],
-    [200, 150, 80],
-    [160, 100, 180],
+  doc.setFontSize(9);
+  setText(doc, [30, 30, 30]);
+  doc.text("GRILLE TARIFAIRE", tableLeft, y);
+  y += 6;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  doc.setFillColor(240, 240, 242);
+  doc.rect(tableLeft, y, tableW + 24, 5, "F");
+  setText(doc, [45, 45, 45]);
+  doc.text("Catégorie", colCat, y + 3.8);
+  doc.text("Quotation", colCat + 48, y + 3.8);
+  doc.text("Tarif", colCat + 100, y + 3.8);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  const grille: [string, string, string][] = [
+    ["Déplacement", "Kilomètre", `${tarifs.tarifKm.toFixed(2).replace(".", ",")} €`],
+    ["Exploitation", "Heure", `${tarifs.tarifHeure.toFixed(2).replace(".", ",")} €`],
+    [
+      "Restauration",
+      "Jour (1 repas)",
+      `${tarifs.prixRepasDefaut.toFixed(2).replace(".", ",")} €`,
+    ],
+    [
+      "Permanence",
+      `Jour (${d.contenu.permanence.nbHeuresParJour || 8} h)`,
+      `${d.contenu.permanence.tarifJour.toFixed(2).replace(".", ",")} €`,
+    ],
+    [
+      "Frais de gestion",
+      `${d.contenu.fraisGestionPourcent} % du montant HT`,
+      formatEuro(totaux.fraisGestion),
+    ],
   ];
-  if (sum <= 0 || actifs.length === 0) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text("Aucun montant domaine à représenter.", W / 2, y + 6, {
-      align: "center",
-    });
-  } else {
-    let x0 = M;
-    const barH = 8;
-    for (let i = 0; i < actifs.length; i += 1) {
-      const l = actifs[i];
-      const w = (l.montant / sum) * barW;
-      const c = colors[i % colors.length];
-      doc.setFillColor(c[0], c[1], c[2]);
-      doc.rect(x0, y, w, barH, "F");
-      x0 += w;
-    }
-    doc.setDrawColor(180, 180, 180);
-    doc.rect(M, y, barW, barH, "S");
-    y += barH + 8;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    for (let i = 0; i < actifs.length; i += 1) {
-      y = ensureSpace(doc, y, 6);
-      const l = actifs[i];
-      const c = colors[i % colors.length];
-      doc.setFillColor(c[0], c[1], c[2]);
-      doc.rect(M, y - 3, 3, 3, "F");
-      doc.setTextColor(50, 50, 50);
-      const pct = Math.round((l.montant / sum) * 100);
-      doc.text(`${l.libelle} — ${pct} % (${formatEuro(l.montant)})`, M + 6, y);
-      y += 5;
-    }
+  for (const [cat, quot, tar] of grille) {
+    y = ensureSpace(doc, y, 5.5);
+    doc.setDrawColor(210, 210, 215);
+    doc.line(tableLeft, y, tableLeft + tableW + 24, y);
+    setText(doc, [40, 40, 45]);
+    doc.text(cat, colCat, y + 4);
+    doc.text(quot, colCat + 48, y + 4);
+    doc.text(tar, colCat + 100, y + 4);
+    y += 5.2;
   }
+
+  doc.setFontSize(6.5);
+  setText(doc, [90, 90, 95]);
+  let fy = H - 20;
+  for (const line of FOOTER_LINES) {
+    doc.text(line, W / 2, fy, { align: "center" });
+    fy += 3.6;
+  }
+  setText(doc, [0, 0, 0]);
 }
 
 function pageConclusion(doc: jsPDF, d: Devis) {
@@ -243,6 +384,7 @@ function pageConclusion(doc: jsPDF, d: Devis) {
 }
 
 function pageBandeauAnnexeCompta(doc: jsPDF, d: Devis) {
+  remplirPageBlanche(doc);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.setTextColor(40, 40, 40);
@@ -266,9 +408,8 @@ function pageBandeauAnnexeCompta(doc: jsPDF, d: Devis) {
 export async function genererDevisPdfBlob(
   d: Devis,
   totaux: TotauxBudget,
+  tarifs: TarifsZone,
 ): Promise<Blob> {
-  const accent = d.theme.accent;
-
   const docCorps = new jsPDF({ unit: "mm", format: "a4" });
   pageGarde(docCorps, d);
   corpsCentre(
@@ -276,7 +417,7 @@ export async function genererDevisPdfBlob(
     "Description de la prestation",
     d.contenu.descriptionPrestation,
   );
-  pageBudget(docCorps, d, totaux, accent);
+  pageTarificationDetaillee(docCorps, d, totaux, tarifs);
   const bufCorps = docCorps.output("arraybuffer");
 
   const docFin = new jsPDF({ unit: "mm", format: "a4" });
