@@ -39,6 +39,59 @@ function remplirPageBlanche(doc: jsPDF) {
   doc.rect(0, 0, W, H, "F");
 }
 
+function formatPlagePages(debut: number, fin: number): string {
+  if (debut > fin || debut < 1) return "—";
+  if (debut === fin) return String(debut);
+  return `${debut} – ${fin}`;
+}
+
+/** Page 2 : à remplir après calcul des numéros (setPage 2 + dessin). */
+function reserverPageSommaire(doc: jsPDF) {
+  doc.addPage();
+  remplirPageBlanche(doc);
+}
+
+function remplirPageSommaire(
+  doc: jsPDF,
+  entrees: { libelle: string; debut: number; fin: number }[],
+  topInsetMm: number,
+) {
+  doc.setPage(2);
+  remplirPageBlanche(doc);
+  let y = M + 12 + topInsetMm;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  setText(doc, [28, 28, 28]);
+  doc.text("SOMMAIRE", W / 2, y, { align: "center" });
+  y += 14;
+  doc.setDrawColor(190, 190, 198);
+  doc.setLineWidth(0.3);
+  doc.line(M + 2, y, W - M - 2, y);
+  y += 11;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10.5);
+  setText(doc, [38, 38, 44]);
+  const colDroite = W - M - 4;
+  const maxLib = W - 2 * M - 32;
+  for (const e of entrees) {
+    const plage = formatPlagePages(e.debut, e.fin);
+    const lignes = doc.splitTextToSize(e.libelle, maxLib);
+    const lineH = 5.5;
+    for (let i = 0; i < lignes.length; i++) {
+      doc.text(lignes[i]!, M + 4, y);
+      if (i === 0) {
+        doc.setFont("helvetica", "bold");
+        doc.text(plage, colDroite, y, { align: "right" });
+        doc.setFont("helvetica", "normal");
+      }
+      y += lineH;
+    }
+    y += 3;
+    if (y > H - M - RESERVE_BAS_MM - 20) break;
+  }
+  setText(doc, [0, 0, 0]);
+}
+
 function pageGarde(doc: jsPDF, d: Devis) {
   const { theme, contenu } = d;
   setFill(doc, theme.gardeFond);
@@ -601,18 +654,78 @@ export async function genererDevisPdfBlob(
 
   const docCorps = new jsPDF({ unit: "mm", format: "a4" });
   pageGarde(docCorps, d);
+  reserverPageSommaire(docCorps);
   corpsCentre(
     docCorps,
     "Description de la prestation",
     d.contenu.descriptionPrestation,
     { topInsetMm },
   );
+  const pagesAvantTarif = docCorps.getNumberOfPages();
+  const descDebut = 3;
+  const descFin = pagesAvantTarif;
+
   pageTarificationDetaillee(docCorps, d, totaux, tarifs, topInsetMm);
-  const bufCorps = docCorps.output("arraybuffer");
+  const pagesCorpsTotal = docCorps.getNumberOfPages();
+  const tarifDebut = pagesAvantTarif + 1;
+  const tarifFin = pagesCorpsTotal;
 
   const docFin = new jsPDF({ unit: "mm", format: "a4" });
   pageConclusion(docFin, d, topInsetMm);
+  const nbPagesConclusion = docFin.getNumberOfPages();
   const bufFin = docFin.output("arraybuffer");
+
+  const pdfComptaB64 = d.pdfComptabiliteBase64?.trim() ?? "";
+  const hasCompta = Boolean(pdfComptaB64);
+  let nbPagesAnnexeCompta = 0;
+  if (hasCompta) {
+    try {
+      const raw = pdfComptaB64.replace(
+        /^data:application\/pdf;base64,/,
+        "",
+      );
+      const bin = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
+      const ann = await PDFDocument.load(bin);
+      nbPagesAnnexeCompta = ann.getPageCount();
+    } catch {
+      nbPagesAnnexeCompta = 0;
+    }
+  }
+  const nbPagesBlocCompta = hasCompta ? 1 + nbPagesAnnexeCompta : 0;
+  const conclusionDebut = pagesCorpsTotal + nbPagesBlocCompta + 1;
+  const conclusionFin = conclusionDebut + nbPagesConclusion - 1;
+
+  const entreesSommaire: { libelle: string; debut: number; fin: number }[] = [
+    { libelle: "Page de garde", debut: 1, fin: 1 },
+    {
+      libelle: "Description de la prestation",
+      debut: descDebut,
+      fin: descFin,
+    },
+    {
+      libelle: "Tarification détaillée",
+      debut: tarifDebut,
+      fin: tarifFin,
+    },
+  ];
+  if (hasCompta) {
+    entreesSommaire.push({
+      libelle:
+        nbPagesAnnexeCompta > 0
+          ? "Comptabilité (document d’introduction et annexes)"
+          : "Comptabilité (document d’introduction)",
+      debut: pagesCorpsTotal + 1,
+      fin: pagesCorpsTotal + nbPagesBlocCompta,
+    });
+  }
+  entreesSommaire.push({
+    libelle: "Conclusion",
+    debut: conclusionDebut,
+    fin: conclusionFin,
+  });
+
+  remplirPageSommaire(docCorps, entreesSommaire, topInsetMm);
+  const bufCorps = docCorps.output("arraybuffer");
 
   const merged = await PDFDocument.create();
 
@@ -620,7 +733,7 @@ export async function genererDevisPdfBlob(
   const corpsPages = await merged.copyPages(corpsPdf, corpsPdf.getPageIndices());
   corpsPages.forEach((p) => merged.addPage(p));
 
-  if (d.pdfComptabiliteBase64?.trim()) {
+  if (hasCompta) {
     const docBandeau = new jsPDF({ unit: "mm", format: "a4" });
     pageBandeauAnnexeCompta(docBandeau, d, topInsetMm);
     const bufBandeau = docBandeau.output("arraybuffer");
@@ -630,17 +743,19 @@ export async function genererDevisPdfBlob(
       bandeauPdf.getPageIndices(),
     );
     bandeauPages.forEach((p) => merged.addPage(p));
-    try {
-      const raw = d.pdfComptabiliteBase64.replace(
-        /^data:application\/pdf;base64,/,
-        "",
-      );
-      const bin = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
-      const ann = await PDFDocument.load(bin);
-      const annPages = await merged.copyPages(ann, ann.getPageIndices());
-      annPages.forEach((p) => merged.addPage(p));
-    } catch {
-      /* ignore invalid annex */
+    if (nbPagesAnnexeCompta > 0) {
+      try {
+        const raw = pdfComptaB64.replace(
+          /^data:application\/pdf;base64,/,
+          "",
+        );
+        const bin = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
+        const ann = await PDFDocument.load(bin);
+        const annPages = await merged.copyPages(ann, ann.getPageIndices());
+        annPages.forEach((p) => merged.addPage(p));
+      } catch {
+        /* ignore invalid annex */
+      }
     }
   }
 
