@@ -304,7 +304,9 @@ function pageTarificationDetaillee(
 
   const chartX = tableLeft + tableW + 12;
   const chartMm = 56;
-  const chartY = y + 2;
+  /** Graphique un peu plus bas sous le titre de page / alignement tableau */
+  const chartY = y + 14;
+  const chartCenterX = chartX + chartMm / 2;
 
   const actifsChart = lignesPdf.filter((l) => l.actif && l.montant > 0);
   const sumChart = actifsChart.reduce((a, l) => a + l.montant, 0);
@@ -319,24 +321,33 @@ function pageTarificationDetaillee(
     if (donut) {
       doc.addImage(donut, "PNG", chartX, chartY, chartMm, chartMm);
     }
-    let ly = chartY + chartMm + 6;
+    let ly = chartY + chartMm + 8;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.8);
+    const swatchMm = 2.8;
+    const swatchGap = 1.5;
     for (const l of actifsChart) {
       const [r, g, b] = PDF_CATEGORIE_COULEUR[l.cle];
-      doc.setFillColor(r, g, b);
-      doc.rect(chartX, ly - 2.8, 2.8, 2.8, "F");
-      setText(doc, [40, 40, 40]);
       const legendLines = doc.splitTextToSize(
         textePdfSafe(l.libelle),
-        chartMm + 8,
+        chartMm + 14,
       );
-      let yy = ly;
-      for (const line of legendLines) {
-        doc.text(line, chartX + 4.5, yy);
-        yy += 3.6;
+      const first = (legendLines[0] as string) || "";
+      const wFirst = doc.getTextWidth(first);
+      const row0W = swatchMm + swatchGap + wFirst;
+      const x0 = chartCenterX - row0W / 2;
+      doc.setFillColor(r, g, b);
+      doc.rect(x0, ly - 2.8, swatchMm, swatchMm, "F");
+      setText(doc, [40, 40, 40]);
+      doc.text(first, x0 + swatchMm + swatchGap, ly);
+      ly += 3.6;
+      for (let li = 1; li < legendLines.length; li++) {
+        doc.text(legendLines[li] as string, chartCenterX, ly, {
+          align: "center",
+        });
+        ly += 3.6;
       }
-      ly = yy + 1.2;
+      ly += 1.2;
     }
   } else {
     doc.setFontSize(8.5);
@@ -365,14 +376,9 @@ function pageTarificationDetaillee(
       textePdfSafe(l.libelle),
       vAfterCat - colCat - stripeW - 3,
     );
-    const detailLines =
-      l.actif && l.detailLigne
-        ? doc.splitTextToSize(textePdfSafe(l.detailLigne), tableW - 10)
-        : [];
-    const hDetail =
-      detailLines.length > 0 ? 2 + detailLines.length * 3.65 : 0;
+    /* Pas de sous-texte « méthode de calcul » sur le PDF tarif détaillé */
     const hMain = Math.max(rowH + 1.5, 5 + libLines.length * 3.85);
-    const hCell = hMain + hDetail;
+    const hCell = hMain;
     y = ensureSpace(doc, y, hCell + 4);
     const [r, g, b] = PDF_CATEGORIE_COULEUR[l.cle];
     doc.setFillColor(252, 252, 254);
@@ -402,16 +408,6 @@ function pageTarificationDetaillee(
       qtyTarY,
       { align: "right" },
     );
-    if (detailLines.length > 0) {
-      doc.setFontSize(7);
-      setText(doc, [95, 95, 100]);
-      let yd = y + hMain + 1;
-      for (const dl of detailLines) {
-        doc.text(dl, colCat + 1, yd);
-        yd += 3.65;
-      }
-      doc.setFontSize(8.2);
-    }
     y += hCell + 2;
   }
 
@@ -463,9 +459,10 @@ function pageTarificationDetaillee(
   y = yGridBottom + 22;
 
   const grilleW = 78;
-  const gCol1 = tableLeft + 2;
-  const gCol2 = tableLeft + 30;
-  const gCol3 = tableLeft + 52;
+  const grilleLeft = (W - grilleW) / 2;
+  const gCol1 = grilleLeft + 2;
+  const gCol2 = grilleLeft + 30;
+  const gCol3 = grilleLeft + 52;
   const gRowH = 5.2;
   const grilleHeadH = 5.8;
 
@@ -473,7 +470,7 @@ function pageTarificationDetaillee(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
   setText(doc, [30, 30, 30]);
-  doc.text("GRILLE TARIFAIRE", tableLeft, y);
+  doc.text("GRILLE TARIFAIRE", W / 2, y, { align: "center" });
   y += 8;
 
   const grille: [string, string, string][] = [
@@ -500,10 +497,10 @@ function pageTarificationDetaillee(
 
   doc.setDrawColor(72, 72, 78);
   doc.setLineWidth(0.28);
-  doc.rect(tableLeft, y, grilleW, grilleBoxH, "S");
+  doc.rect(grilleLeft, y, grilleW, grilleBoxH, "S");
   doc.setFillColor(240, 240, 242);
-  doc.rect(tableLeft, y, grilleW, grilleHeadH, "F");
-  doc.rect(tableLeft, y, grilleW, grilleHeadH, "S");
+  doc.rect(grilleLeft, y, grilleW, grilleHeadH, "F");
+  doc.rect(grilleLeft, y, grilleW, grilleHeadH, "S");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6.3);
   setText(doc, [45, 45, 45]);
@@ -515,14 +512,14 @@ function pageTarificationDetaillee(
   doc.setFontSize(6.2);
   for (const [cat, quot, tar] of grille) {
     doc.setDrawColor(200, 200, 206);
-    doc.line(tableLeft, y, tableLeft + grilleW, y);
+    doc.line(grilleLeft, y, grilleLeft + grilleW, y);
     setText(doc, [40, 40, 45]);
     doc.text(textePdfSafe(cat), gCol1, y + 4, { maxWidth: 25 });
     doc.text(textePdfSafe(quot), gCol2, y + 4, { maxWidth: 20 });
     doc.text(textePdfSafe(tar), gCol3, y + 4, { maxWidth: 24 });
     y += gRowH;
   }
-  doc.line(tableLeft, y, tableLeft + grilleW, y);
+  doc.line(grilleLeft, y, grilleLeft + grilleW, y);
   doc.line(gCol2 - 1.5, y - grilleBodyH, gCol2 - 1.5, y);
   doc.line(gCol3 - 1.5, y - grilleBodyH, gCol3 - 1.5, y);
 
