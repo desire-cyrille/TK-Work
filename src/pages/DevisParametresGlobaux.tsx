@@ -29,6 +29,10 @@ function TarifsForm({
   const fields: { k: keyof TarifsZone; lib: string }[] = [
     { k: "tarifKm", lib: "Tarif au km (€)" },
     { k: "prixRepasDefaut", lib: "Prix repas par défaut (€)" },
+    {
+      k: "prixPetitDejeunerDefaut",
+      lib: "Prix petit-déjeuner par défaut (€)",
+    },
     { k: "tarifHeure", lib: "Tarif horaire (€)" },
     { k: "tarifJour", lib: "Tarif jour (€)" },
     { k: "tarifSemaine", lib: "Tarif semaine (€)" },

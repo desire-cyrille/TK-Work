@@ -25,6 +25,10 @@ export type LigneRestauration = {
   repasParJour: number;
   /** 0 = utiliser le prix par défaut de la zone */
   prixRepas: number;
+  /** Petits-déjeuners par jour (même logique que repas/j). */
+  petitDejeunerParJour: number;
+  /** 0 = utiliser le prix petit-déjeuner par défaut de la zone */
+  prixPetitDejeuner: number;
 };
 
 export type DomaineRestauration = {
@@ -96,6 +100,7 @@ export type DevisTheme = {
 export type TarifsZone = {
   tarifKm: number;
   prixRepasDefaut: number;
+  prixPetitDejeunerDefaut: number;
   tarifHeure: number;
   tarifJour: number;
   tarifSemaine: number;
@@ -141,6 +146,7 @@ export function tarifsZoneDefaut(): TarifsZone {
   return {
     tarifKm: 0.28,
     prixRepasDefaut: 12.5,
+    prixPetitDejeunerDefaut: 6,
     tarifHeure: 26.35,
     tarifJour: 210.83,
     tarifSemaine: 1265,
@@ -239,6 +245,24 @@ export function contenuDevisVide(): DevisContenu {
       nbSemaines: 1,
       nbJoursParSemaine: 5,
       nbHeuresParJour: 8,
+    },
+  };
+}
+
+/** Rétrocompatibilité : devis enregistrés avant l’ajout du petit-déjeuner. */
+export function normaliserLigneRestauration(l: LigneRestauration): LigneRestauration {
+  return {
+    ...l,
+    petitDejeunerParJour: l.petitDejeunerParJour ?? 0,
+    prixPetitDejeuner: l.prixPetitDejeuner ?? 0,
+  };
+}
+
+export function normaliserContenuDevis(contenu: DevisContenu): DevisContenu {
+  return {
+    ...contenu,
+    restauration: {
+      lignes: contenu.restauration.lignes.map(normaliserLigneRestauration),
     },
   };
 }

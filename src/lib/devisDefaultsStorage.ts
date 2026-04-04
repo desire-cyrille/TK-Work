@@ -28,6 +28,10 @@ function mergeTarifs(z: Partial<TarifsZone> | undefined, def: TarifsZone): Tarif
       typeof z.prixRepasDefaut === "number"
         ? z.prixRepasDefaut
         : def.prixRepasDefaut,
+    prixPetitDejeunerDefaut:
+      typeof z.prixPetitDejeunerDefaut === "number"
+        ? z.prixPetitDejeunerDefaut
+        : def.prixPetitDejeunerDefaut,
     tarifHeure:
       typeof z.tarifHeure === "number" ? z.tarifHeure : def.tarifHeure,
     tarifJour: typeof z.tarifJour === "number" ? z.tarifJour : def.tarifJour,

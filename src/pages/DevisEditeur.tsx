@@ -669,8 +669,10 @@ export function DevisEditeur() {
           <section className={styles.section}>
             <h2>Restauration</h2>
             <p className={styles.hint}>
-              Montant = personnes × jours × repas/jour × prix repas (0 = prix
-              défaut {tarifs.prixRepasDefaut.toFixed(2)} €).
+              Montant repas = personnes × jours × repas/j × prix repas (0 ={" "}
+              {tarifs.prixRepasDefaut.toFixed(2)} €). Petit-déjeuner = personnes ×
+              jours × petit-déj/j × prix (0 ={" "}
+              {tarifs.prixPetitDejeunerDefaut.toFixed(2)} €).
             </p>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
@@ -681,6 +683,8 @@ export function DevisEditeur() {
                     <th>Jours présence</th>
                     <th>Repas/j</th>
                     <th>Prix repas</th>
+                    <th>Petit-déj/j</th>
+                    <th>Prix petit-déj</th>
                     <th />
                   </tr>
                 </thead>
@@ -775,6 +779,45 @@ export function DevisEditeur() {
                         />
                       </td>
                       <td>
+                        <input
+                          type="number"
+                          className={styles.tableMini}
+                          value={row.petitDejeunerParJour}
+                          onChange={(e) => {
+                            const n = Number(e.target.value) || 0;
+                            const lignes = c.restauration.lignes.map((x) =>
+                              x.id === row.id
+                                ? { ...x, petitDejeunerParJour: n }
+                                : x,
+                            );
+                            patchContenu({
+                              ...c,
+                              restauration: { lignes },
+                            });
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={styles.tableMini}
+                          value={row.prixPetitDejeuner}
+                          onChange={(e) => {
+                            const n = Number(e.target.value) || 0;
+                            const lignes = c.restauration.lignes.map((x) =>
+                              x.id === row.id
+                                ? { ...x, prixPetitDejeuner: n }
+                                : x,
+                            );
+                            patchContenu({
+                              ...c,
+                              restauration: { lignes },
+                            });
+                          }}
+                        />
+                      </td>
+                      <td>
                         <button
                           type="button"
                           className={styles.btnGhost}
@@ -808,6 +851,8 @@ export function DevisEditeur() {
                   joursPresence: 1,
                   repasParJour: 1,
                   prixRepas: 0,
+                  petitDejeunerParJour: 0,
+                  prixPetitDejeuner: 0,
                 };
                 patchContenu({
                   ...c,

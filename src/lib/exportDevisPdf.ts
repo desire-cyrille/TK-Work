@@ -482,6 +482,11 @@ function pageTarificationDetaillee(
       `${tarifs.prixRepasDefaut.toFixed(2).replace(".", ",")} €`,
     ],
     [
+      "Petit-déjeuner",
+      "Unité (1 pdj)",
+      `${tarifs.prixPetitDejeunerDefaut.toFixed(2).replace(".", ",")} €`,
+    ],
+    [
       "Permanence",
       `Jour (${d.contenu.permanence.nbHeuresParJour || 8} h)`,
       `${d.contenu.permanence.tarifJour.toFixed(2).replace(".", ",")} €`,

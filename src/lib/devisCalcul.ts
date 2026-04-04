@@ -60,9 +60,18 @@ export function totalRestauration(
 ): number {
   let s = 0;
   for (const l of d.lignes) {
-    const pu =
+    const puRepas =
       l.prixRepas > 0 ? l.prixRepas : tarifs.prixRepasDefaut;
-    s += l.nbPersonnes * l.joursPresence * l.repasParJour * pu;
+    s += l.nbPersonnes * l.joursPresence * l.repasParJour * puRepas;
+    const puPdj =
+      l.prixPetitDejeuner > 0
+        ? l.prixPetitDejeuner
+        : tarifs.prixPetitDejeunerDefaut;
+    s +=
+      l.nbPersonnes *
+      l.joursPresence *
+      l.petitDejeunerParJour *
+      puPdj;
   }
   return s;
 }
@@ -235,12 +244,21 @@ export function quantiteLibelleDomaine(
       return km > 0 ? `${km.toFixed(0)} km` : "—";
     }
     case "restauration": {
-      const n = contenu.restauration.lignes.reduce(
+      const repas = contenu.restauration.lignes.reduce(
         (a, l) =>
           a + l.nbPersonnes * l.joursPresence * l.repasParJour,
         0,
       );
-      return n > 0 ? `${Math.round(n)} repas` : "—";
+      const pdj = contenu.restauration.lignes.reduce(
+        (a, l) =>
+          a +
+          l.nbPersonnes * l.joursPresence * l.petitDejeunerParJour,
+        0,
+      );
+      const parts: string[] = [];
+      if (repas > 0) parts.push(`${Math.round(repas)} repas`);
+      if (pdj > 0) parts.push(`${Math.round(pdj)} petit-déj`);
+      return parts.length ? parts.join(" · ") : "—";
     }
     case "preparationMiseEnPlace":
     case "miseEnPlaceTerrain": {
@@ -297,7 +315,7 @@ export function detailSousLignePdf(
     case "deplacement":
       return "Calculé au km (personnes × distance × durée)";
     case "restauration":
-      return "Repas facturés (personnes × jours × repas/j)";
+      return "Repas et petits-déjeuners (personnes × jours × repas ou pdj/j)";
     default:
       return undefined;
   }

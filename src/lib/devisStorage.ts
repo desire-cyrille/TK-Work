@@ -3,6 +3,7 @@ import {
   type DevisTheme,
   type DevisZone,
   contenuDevisVide,
+  normaliserContenuDevis,
   themeDefaut,
 } from "./devisTypes";
 
@@ -48,10 +49,11 @@ function migrateLegacyDevis(raw: Record<string, unknown>): Devis | null {
   const statut = raw.statut as string;
   if (!["brouillon", "enregistre", "archive"].includes(statut)) return null;
 
-  const contenu =
+  const contenu = normaliserContenuDevis(
     raw.contenu && typeof raw.contenu === "object"
       ? (raw.contenu as DevisContenu)
-      : contenuDevisVide();
+      : contenuDevisVide(),
+  );
 
   const theme =
     raw.theme && typeof raw.theme === "object"
@@ -140,7 +142,7 @@ export function ajouterDevis(
   const now = new Date().toISOString();
   const d: Devis = {
     ...data,
-    contenu: data.contenu ?? contenuDevisVide(),
+    contenu: normaliserContenuDevis(data.contenu ?? contenuDevisVide()),
     theme: data.theme ?? themeDefaut(),
     id: crypto.randomUUID(),
     createdAt: now,
@@ -160,7 +162,11 @@ export function mettreAJourDevis(
   const i = f.devis.findIndex((x) => x.id === id);
   if (i === -1) return;
   const now = new Date().toISOString();
-  f.devis[i] = { ...f.devis[i], ...data, id, updatedAt: now };
+  const next = { ...f.devis[i], ...data, id, updatedAt: now };
+  if (data.contenu !== undefined) {
+    next.contenu = normaliserContenuDevis(data.contenu);
+  }
+  f.devis[i] = next;
   saveRaw(f);
 }
 
