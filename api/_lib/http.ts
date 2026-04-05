@@ -3,7 +3,16 @@ import type { VercelRequest } from "@vercel/node";
 export function readJsonBody(req: VercelRequest): unknown {
   const b = req.body;
   if (b == null) return null;
-  if (typeof b === "object" && !Array.isArray(b)) return b;
+  if (typeof b === "object" && b !== null && !Array.isArray(b)) {
+    if (typeof Buffer !== "undefined" && Buffer.isBuffer(b)) {
+      try {
+        return JSON.parse(b.toString("utf8")) as unknown;
+      } catch {
+        return null;
+      }
+    }
+    return b;
+  }
   if (typeof b === "string") {
     try {
       return JSON.parse(b) as unknown;

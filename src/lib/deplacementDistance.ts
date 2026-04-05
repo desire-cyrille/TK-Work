@@ -1,7 +1,27 @@
 /**
- * Distance routière (km) entre deux adresses texte.
- * En production : POST /api/geo/distance (Vercel). En dev sans API : proxy Vite /geo/*.
+ * Distance routière (km) entre deux adresses.
+ * 1) POST /api/geo/distance (Vercel)
+ * 2) Repli navigateur : Base Adresse Nationale (FR) + OSRM (CORS public)
+ * 3) En dev : proxy Vite /geo/* (Nominatim) si le repli échoue
  */
+
+const OSRM_PUBLIC = "https://router.project-osrm.org";
+
+async function geocodeBanDataGouv(
+  q: string,
+): Promise<{ lat: number; lon: number } | null> {
+  const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`;
+  const r = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!r.ok) return null;
+  const data = (await r.json()) as {
+    features?: { geometry?: { coordinates?: [number, number] } }[];
+  };
+  const coords = data.features?.[0]?.geometry?.coordinates;
+  if (!coords || coords.length < 2) return null;
+  const [lon, lat] = coords;
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+  return { lon, lat };
+}
 
 async function geocode(
   query: string,
@@ -34,6 +54,25 @@ async function routeDrivingKm(
     return null;
   }
   return j.routes[0].distance / 1000;
+}
+
+/** Repli sans backend : BAN + OSRM (adapté à la France, CORS autorisé). */
+async function distanceViaBanAndOsrmPublic(
+  depart: string,
+  arrivee: string,
+): Promise<number> {
+  const p1 = await geocodeBanDataGouv(depart);
+  const p2 = await geocodeBanDataGouv(arrivee);
+  if (!p1 || !p2) {
+    throw new Error(
+      "Adresse introuvable (essayez « ville, code postal »). Hors France : utilisez le site déployé avec l’API ou saisissez la distance à la main.",
+    );
+  }
+  const km = await routeDrivingKm(p1.lon, p1.lat, p2.lon, p2.lat, OSRM_PUBLIC);
+  if (km == null || !Number.isFinite(km)) {
+    throw new Error("Itinéraire introuvable. Saisissez la distance manuellement.");
+  }
+  return Math.round(km * 100) / 100;
 }
 
 async function distanceViaDevProxy(depart: string, arrivee: string): Promise<number> {
@@ -97,14 +136,38 @@ export async function computeRouteDistanceKm(
     throw new Error("Indiquez une adresse de départ et d’arrivée.");
   }
 
-  const fromApi = await distanceFromApi(d, a);
-  if (fromApi !== null) return fromApi;
-
-  if (import.meta.env.DEV) {
-    return distanceViaDevProxy(d, a);
+  let fromApi: number | null = null;
+  try {
+    fromApi = await distanceFromApi(d, a);
+  } catch (e) {
+    if (e instanceof Error && e.message !== "Failed to fetch") {
+      try {
+        return await distanceViaBanAndOsrmPublic(d, a);
+      } catch {
+        throw e;
+      }
+    }
+    fromApi = null;
   }
 
-  throw new Error(
-    "Calcul de distance indisponible. Saisissez la distance manuellement.",
-  );
+  if (fromApi !== null) return fromApi;
+
+  try {
+    return await distanceViaBanAndOsrmPublic(d, a);
+  } catch (banErr) {
+    if (import.meta.env.DEV) {
+      try {
+        return await distanceViaDevProxy(d, a);
+      } catch {
+        throw banErr instanceof Error
+          ? banErr
+          : new Error("Calcul de distance indisponible.");
+      }
+    }
+    throw banErr instanceof Error
+      ? banErr
+      : new Error(
+          "Calcul de distance indisponible. Saisissez la distance manuellement.",
+        );
+  }
 }

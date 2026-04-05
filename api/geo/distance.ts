@@ -1,9 +1,28 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { cors, readJsonBody } from "../_lib/http";
 
-const USER_AGENT = "TKProGestionDevis/1.0";
+const USER_AGENT = "TKProGestionDevis/1.0 (devis; contact via site)";
 
-async function geocodeServer(q: string): Promise<{ lat: number; lon: number } | null> {
+/** Géocodage France — fiable depuis Vercel (pas de blocage datacenter comme Nominatim). */
+async function geocodeBanDataGouv(
+  q: string,
+): Promise<{ lat: number; lon: number } | null> {
+  const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`;
+  const r = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!r.ok) return null;
+  const data = (await r.json()) as {
+    features?: { geometry?: { coordinates?: [number, number] } }[];
+  };
+  const coords = data.features?.[0]?.geometry?.coordinates;
+  if (!coords || coords.length < 2) return null;
+  const [lon, lat] = coords;
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+  return { lon, lat };
+}
+
+async function geocodeNominatim(
+  q: string,
+): Promise<{ lat: number; lon: number } | null> {
   const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
   const r = await fetch(url, {
     headers: {
@@ -16,6 +35,12 @@ async function geocodeServer(q: string): Promise<{ lat: number; lon: number } | 
   const first = data[0];
   if (!first?.lat || !first?.lon) return null;
   return { lat: parseFloat(first.lat), lon: parseFloat(first.lon) };
+}
+
+async function geocodeServer(q: string): Promise<{ lat: number; lon: number } | null> {
+  const fr = await geocodeBanDataGouv(q);
+  if (fr) return fr;
+  return geocodeNominatim(q);
 }
 
 async function routeDrivingKmServer(
@@ -47,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
   if (req.method !== "POST") {
-    res.status(405).json({ error: "method_not_allowed" });
+    res.status(405).json({ error: "method_not_allowed", message: "Méthode non autorisée." });
     return;
   }
 
@@ -55,7 +80,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const depart = typeof body?.depart === "string" ? body.depart.trim() : "";
   const arrivee = typeof body?.arrivee === "string" ? body.arrivee.trim() : "";
   if (!depart || !arrivee) {
-    res.status(400).json({ error: "missing_addresses" });
+    res.status(400).json({
+      error: "missing_addresses",
+      message: "Indiquez une adresse de départ et d’arrivée.",
+    });
     return;
   }
 
@@ -65,7 +93,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!p1 || !p2) {
       res.status(422).json({
         error: "geocode_failed",
-        message: "Adresse introuvable.",
+        message:
+          "Adresse introuvable (essayez « ville, code postal » ou une adresse complète).",
       });
       return;
     }
@@ -73,7 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (km == null || !Number.isFinite(km)) {
       res.status(422).json({
         error: "route_failed",
-        message: "Itinéraire introuvable.",
+        message: "Itinéraire introuvable. Saisissez la distance manuellement.",
       });
       return;
     }
@@ -83,6 +112,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "server_error" });
+    res.status(500).json({
+      error: "server_error",
+      message: "Erreur serveur lors du calcul. Réessayez ou saisissez la distance à la main.",
+    });
   }
 }
