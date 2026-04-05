@@ -32,6 +32,16 @@ export function montantLigneForfait(l: LigneForfait): number {
   return Math.max(0, l.quantite) * Math.max(0, l.tarifUnitaire);
 }
 
+/** Colonne « Quantité » du PDF pour une ligne forfait (qté × PU). */
+export function quantiteLibelleLigneForfaitPdf(lf: LigneForfait): string {
+  const q = lf.quantite.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+  const pu = lf.tarifUnitaire.toLocaleString("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${q} × ${pu} €`;
+}
+
 export function totalForfait(d: DomaineForfait): number {
   let s = 0;
   for (const l of d.lignes) {
@@ -374,13 +384,41 @@ export function lignesBudgetPourPdf(
 ): LigneBudgetPdf[] {
   const base = lignesBudget(contenu, tarifs);
   const map = new Map(base.map((l) => [l.cle, l]));
-  return ordreLignesBudgetPdf(contenu, modele).map((cle) => {
+  const order = ordreLignesBudgetPdf(contenu, modele);
+  const out: LigneBudgetPdf[] = [];
+
+  for (const cle of order) {
     const l = map.get(cle)!;
-    return {
+    if (cle === "forfait" && modele === "forfaitaire") {
+      const lignesF = contenu.forfait.lignes;
+      if (l.actif && lignesF.length > 0) {
+        for (const lf of lignesF) {
+          const intitule = lf.libelle.trim() || "Poste";
+          out.push({
+            cle: "forfait",
+            libelle: intitule.toUpperCase(),
+            montant: montantLigneForfait(lf),
+            actif: true,
+            quantiteLibelle: quantiteLibelleLigneForfaitPdf(lf),
+            detailLigne: undefined,
+          });
+        }
+      } else {
+        out.push({
+          ...l,
+          libelle: PDF_CATEGORIE_LIB.forfait,
+          quantiteLibelle: quantiteLibelleDomaine(cle, contenu),
+          detailLigne: detailSousLignePdf(cle, contenu),
+        });
+      }
+      continue;
+    }
+    out.push({
       ...l,
       libelle: PDF_CATEGORIE_LIB[cle],
       quantiteLibelle: quantiteLibelleDomaine(cle, contenu),
       detailLigne: detailSousLignePdf(cle, contenu),
-    };
-  });
+    });
+  }
+  return out;
 }
