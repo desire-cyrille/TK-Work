@@ -1,11 +1,14 @@
 import type {
   DevisContenu,
   DevisDomainesActifs,
+  DevisModele,
   DevisZone,
   DomaineActionsMultiples,
   DomaineDeplacement,
+  DomaineForfait,
   DomainePermanence,
   DomaineRestauration,
+  LigneForfait,
   TarifsZone,
 } from "./devisTypes";
 
@@ -21,8 +24,21 @@ const LIBELLES: Record<keyof DevisDomainesActifs, string> = {
   restauration: "Restauration",
   preparationMiseEnPlace: "Préparation de la mise en place",
   miseEnPlaceTerrain: "Mise en place terrain",
+  forfait: "Forfait",
   permanence: "Permanence",
 };
+
+export function montantLigneForfait(l: LigneForfait): number {
+  return Math.max(0, l.quantite) * Math.max(0, l.tarifUnitaire);
+}
+
+export function totalForfait(d: DomaineForfait): number {
+  let s = 0;
+  for (const l of d.lignes) {
+    s += montantLigneForfait(l);
+  }
+  return s;
+}
 
 function tarifUnite(t: TarifsZone, u: string): number {
   switch (u) {
@@ -145,6 +161,12 @@ export function lignesBudget(
       actif: act.miseEnPlaceTerrain,
     },
     {
+      cle: "forfait",
+      libelle: LIBELLES.forfait,
+      montant: totalForfait(contenu.forfait),
+      actif: act.forfait,
+    },
+    {
       cle: "permanence",
       libelle: LIBELLES.permanence,
       montant: totalPermanence(contenu.permanence),
@@ -189,7 +211,7 @@ export function tarifsPourZone(
   return zone === "idf" ? globaux.idf : globaux.horsIdf;
 }
 
-/** Ordre d’affichage type tableau Excel / devis papier. */
+/** Ordre d’affichage type tableau Excel / devis papier (modèle détaillé). */
 export const ORDRE_LIGNES_PDF: (keyof DevisDomainesActifs)[] = [
   "preparationMiseEnPlace",
   "miseEnPlaceTerrain",
@@ -198,9 +220,26 @@ export const ORDRE_LIGNES_PDF: (keyof DevisDomainesActifs)[] = [
   "restauration",
 ];
 
+export function ordreLignesBudgetPdf(
+  _contenu: DevisContenu,
+  modele: DevisModele,
+): (keyof DevisDomainesActifs)[] {
+  if (modele === "forfaitaire") {
+    return ["forfait", "permanence", "deplacement", "restauration"];
+  }
+  return [
+    "preparationMiseEnPlace",
+    "miseEnPlaceTerrain",
+    "permanence",
+    "deplacement",
+    "restauration",
+  ];
+}
+
 export const PDF_CATEGORIE_LIB: Record<keyof DevisDomainesActifs, string> = {
   preparationMiseEnPlace: "PRÉPARATION",
   miseEnPlaceTerrain: "MISE EN PLACE",
+  forfait: "FORFAIT",
   permanence: "PERMANENCE",
   deplacement: "DÉPLACEMENT",
   restauration: "RESTAURATION",
@@ -213,6 +252,7 @@ export const PDF_CATEGORIE_COULEUR: Record<
 > = {
   preparationMiseEnPlace: [15, 118, 110],
   miseEnPlaceTerrain: [22, 163, 74],
+  forfait: [196, 120, 42],
   permanence: [126, 34, 206],
   deplacement: [5, 150, 105],
   restauration: [37, 99, 235],
@@ -285,6 +325,10 @@ export function quantiteLibelleDomaine(
       if (m) parts.push(`${m} m.`);
       return parts.length ? parts.join(" · ") : "—";
     }
+    case "forfait": {
+      const n = contenu.forfait.lignes.length;
+      return n ? `${n} poste${n > 1 ? "s" : ""}` : "—";
+    }
     case "permanence": {
       const p = contenu.permanence;
       if (p.mode === "forfait_jours") {
@@ -316,6 +360,8 @@ export function detailSousLignePdf(
       return "Calculé au km (personnes × distance × durée)";
     case "restauration":
       return "Repas et petits-déjeuners (personnes × jours × repas ou pdj/j)";
+    case "forfait":
+      return "Montant par ligne : quantité × tarif unitaire HT";
     default:
       return undefined;
   }
@@ -324,10 +370,11 @@ export function detailSousLignePdf(
 export function lignesBudgetPourPdf(
   contenu: DevisContenu,
   tarifs: TarifsZone,
+  modele: DevisModele = "detaille",
 ): LigneBudgetPdf[] {
   const base = lignesBudget(contenu, tarifs);
   const map = new Map(base.map((l) => [l.cle, l]));
-  return ORDRE_LIGNES_PDF.map((cle) => {
+  return ordreLignesBudgetPdf(contenu, modele).map((cle) => {
     const l = map.get(cle)!;
     return {
       ...l,

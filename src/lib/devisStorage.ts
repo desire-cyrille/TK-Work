@@ -1,5 +1,6 @@
 import {
   type DevisContenu,
+  type DevisModele,
   type DevisTheme,
   type DevisZone,
   contenuDevisVide,
@@ -10,6 +11,10 @@ import {
 export const DEVIS_STORAGE_KEY = "tk-gestion-devis-v1";
 
 export type DevisStatut = "brouillon" | "enregistre" | "archive";
+
+function normalizeModeleDevis(v: unknown): DevisModele {
+  return v === "forfaitaire" ? "forfaitaire" : "detaille";
+}
 
 export type Devis = {
   id: string;
@@ -22,6 +27,8 @@ export type Devis = {
   clientSiren?: string;
   clientTva?: string;
   zone: DevisZone;
+  /** Présent sur tous les devis après migration (défaut : détaillé). */
+  modeleDevis: DevisModele;
   montantHt: string;
   notes: string;
   statut: DevisStatut;
@@ -98,6 +105,7 @@ function migrateLegacyDevis(raw: Record<string, unknown>): Devis | null {
       typeof raw.pdfComptabiliteBase64 === "string"
         ? raw.pdfComptabiliteBase64
         : undefined,
+    modeleDevis: normalizeModeleDevis(raw.modeleDevis),
   };
 }
 
@@ -136,12 +144,23 @@ export function getDevis(id: string): Devis | undefined {
 export function ajouterDevis(
   data: Omit<
     Devis,
-    "id" | "createdAt" | "updatedAt" | "archivedAt" | "contenu" | "theme"
-  > & { contenu?: DevisContenu; theme?: DevisTheme },
+    | "id"
+    | "createdAt"
+    | "updatedAt"
+    | "archivedAt"
+    | "contenu"
+    | "theme"
+    | "modeleDevis"
+  > & {
+    contenu?: DevisContenu;
+    theme?: DevisTheme;
+    modeleDevis?: DevisModele;
+  },
 ): Devis {
   const now = new Date().toISOString();
   const d: Devis = {
     ...data,
+    modeleDevis: normalizeModeleDevis(data.modeleDevis),
     contenu: normaliserContenuDevis(data.contenu ?? contenuDevisVide()),
     theme: data.theme ?? themeDefaut(),
     id: crypto.randomUUID(),

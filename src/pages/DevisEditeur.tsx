@@ -5,7 +5,11 @@ import { PdfPreviewDialog, type PdfApercu } from "../components/PdfPreviewDialog
 import frameStyles from "../components/PageFrame.module.css";
 import { useAuth } from "../context/AuthContext";
 import { useWorkspaceLock } from "../hooks/useWorkspaceLock";
-import { tarifsPourZone, totauxBudget } from "../lib/devisCalcul";
+import {
+  montantLigneForfait,
+  tarifsPourZone,
+  totauxBudget,
+} from "../lib/devisCalcul";
 import { lireParametresDevisDefaut } from "../lib/devisDefaultsStorage";
 import { memoriserClientDevis } from "../lib/devisClientsStorage";
 import {
@@ -20,6 +24,7 @@ import type {
   DevisTheme,
   LigneActionTemps,
   LigneDeplacement,
+  LigneForfait,
   LigneRestauration,
   ModePermanence,
   UniteTemps,
@@ -53,6 +58,7 @@ type OngletDevis =
   | "garde"
   | "preparation"
   | "mise"
+  | "forfait"
   | "permanence"
   | "deplacement"
   | "restauration"
@@ -60,7 +66,7 @@ type OngletDevis =
   | "notes"
   | "synthese";
 
-const ONGLETS: { id: OngletDevis; label: string }[] = [
+const ONGLETS_DETAILLE: { id: OngletDevis; label: string }[] = [
   { id: "infos", label: "Projet & client" },
   { id: "garde", label: "Garde & textes" },
   { id: "preparation", label: "Préparation" },
@@ -71,6 +77,52 @@ const ONGLETS: { id: OngletDevis; label: string }[] = [
   { id: "annexe", label: "Annexe PDF" },
   { id: "notes", label: "Notes" },
   { id: "synthese", label: "Synthèse budget" },
+];
+
+const ONGLETS_FORFAIT: { id: OngletDevis; label: string }[] = [
+  { id: "infos", label: "Projet & client" },
+  { id: "garde", label: "Garde & textes" },
+  { id: "forfait", label: "Forfait" },
+  { id: "permanence", label: "Permanence" },
+  { id: "deplacement", label: "Déplacement" },
+  { id: "restauration", label: "Restauration" },
+  { id: "annexe", label: "Annexe PDF" },
+  { id: "notes", label: "Notes" },
+  { id: "synthese", label: "Synthèse budget" },
+];
+
+function libelleCleDomaineActif(k: keyof DevisDomainesActifs): string {
+  switch (k) {
+    case "deplacement":
+      return "Déplacement";
+    case "restauration":
+      return "Restauration";
+    case "preparationMiseEnPlace":
+      return "Préparation mise en place";
+    case "miseEnPlaceTerrain":
+      return "Mise en place terrain";
+    case "forfait":
+      return "Forfait";
+    case "permanence":
+      return "Permanence";
+    default:
+      return k;
+  }
+}
+
+const CLES_SYNTHESE_DETAILLE: (keyof DevisDomainesActifs)[] = [
+  "deplacement",
+  "restauration",
+  "preparationMiseEnPlace",
+  "miseEnPlaceTerrain",
+  "permanence",
+];
+
+const CLES_SYNTHESE_FORFAIT: (keyof DevisDomainesActifs)[] = [
+  "deplacement",
+  "restauration",
+  "forfait",
+  "permanence",
 ];
 
 export function DevisEditeur() {
@@ -108,6 +160,15 @@ export function DevisEditeur() {
       navigate("/devis", { replace: true });
     }
   }, [id, lock.ready, lock.canEdit, lock.isLockedOut, lock.lockedByLabel, navigate]);
+
+  useEffect(() => {
+    if (!devis) return;
+    const allowed =
+      devis.modeleDevis === "forfaitaire" ? ONGLETS_FORFAIT : ONGLETS_DETAILLE;
+    if (!allowed.some((o) => o.id === onglet)) {
+      setOnglet("infos");
+    }
+  }, [devis?.id, devis?.modeleDevis, onglet]);
 
   const globaux = lireParametresDevisDefaut();
   const tarifs = useMemo(
@@ -261,7 +322,10 @@ export function DevisEditeur() {
   return (
     <>
       <PageFrame
-        title={devis.titre || "Devis"}
+        title={
+          (devis.titre || "Devis") +
+          (devis.modeleDevis === "forfaitaire" ? " — Forfaitaire" : "")
+        }
         actions={
           <>
             <Link
@@ -304,7 +368,10 @@ export function DevisEditeur() {
           {err ? <p className={styles.errMsg}>{err}</p> : null}
 
           <div className={styles.tabs} role="tablist">
-            {ONGLETS.map((t) => (
+            {(devis.modeleDevis === "forfaitaire"
+              ? ONGLETS_FORFAIT
+              : ONGLETS_DETAILLE
+            ).map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -323,6 +390,17 @@ export function DevisEditeur() {
           {onglet === "infos" ? (
           <section className={styles.section}>
             <h2>Projet & client</h2>
+            <p className={styles.hint}>
+              Modèle :{" "}
+              <strong>
+                {devis.modeleDevis === "forfaitaire"
+                  ? "Forfaitaire"
+                  : "Détaillé"}
+              </strong>
+              {devis.modeleDevis === "forfaitaire"
+                ? " — le domaine « Forfait » remplace les onglets Préparation et Mise en place (montants en €)."
+                : " — préparation et mise en place sont saisies en quantités × unités de temps."}
+            </p>
             <div className={styles.grid2}>
               <label className={styles.label}>
                 Titre du devis
@@ -867,18 +945,138 @@ export function DevisEditeur() {
           </section>
           ) : null}
 
-          {(
-            [
-              [
-                "preparationMiseEnPlace",
-                "Préparation de la mise en place",
-                "preparation",
-              ],
-              ["miseEnPlaceTerrain", "Mise en place terrain", "mise"],
-            ] as const
-          )
-            .filter(([, , tab]) => onglet === tab)
-            .map(([cle, titre]) => (
+          {onglet === "forfait" && devis.modeleDevis === "forfaitaire" ? (
+          <section className={styles.section}>
+            <h2>Forfait</h2>
+            <p className={styles.hint}>
+              Saisissez chaque poste : type (libellé), quantité, tarif unitaire HT.
+              Le montant HT de la ligne est le produit quantité × tarif unitaire.
+            </p>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Quantité</th>
+                    <th>Tarif unitaire HT</th>
+                    <th>Montant HT</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {c.forfait.lignes.map((row) => (
+                    <tr key={row.id}>
+                      <td>
+                        <input
+                          value={row.libelle}
+                          onChange={(e) => {
+                            const lignes = c.forfait.lignes.map((x) =>
+                              x.id === row.id
+                                ? { ...x, libelle: e.target.value }
+                                : x,
+                            );
+                            patchContenu({ ...c, forfait: { lignes } });
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={styles.tableMini}
+                          value={row.quantite}
+                          onChange={(e) => {
+                            const n = Number(e.target.value) || 0;
+                            const lignes = c.forfait.lignes.map((x) =>
+                              x.id === row.id ? { ...x, quantite: n } : x,
+                            );
+                            patchContenu({ ...c, forfait: { lignes } });
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={styles.tableMini}
+                          value={row.tarifUnitaire}
+                          onChange={(e) => {
+                            const n = Number(e.target.value) || 0;
+                            const lignes = c.forfait.lignes.map((x) =>
+                              x.id === row.id
+                                ? { ...x, tarifUnitaire: n }
+                                : x,
+                            );
+                            patchContenu({ ...c, forfait: { lignes } });
+                          }}
+                        />
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "right",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {formatEuro(montantLigneForfait(row))}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={styles.btnGhost}
+                          onClick={() =>
+                            patchContenu({
+                              ...c,
+                              forfait: {
+                                lignes: c.forfait.lignes.filter(
+                                  (x) => x.id !== row.id,
+                                ),
+                              },
+                            })
+                          }
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button
+              type="button"
+              className={styles.btnSecondary}
+              onClick={() => {
+                const ligne: LigneForfait = {
+                  id: newId(),
+                  libelle: "",
+                  quantite: 1,
+                  tarifUnitaire: 0,
+                };
+                patchContenu({
+                  ...c,
+                  forfait: {
+                    lignes: [...c.forfait.lignes, ligne],
+                  },
+                });
+              }}
+            >
+              + Ligne
+            </button>
+          </section>
+          ) : null}
+
+          {devis.modeleDevis !== "forfaitaire"
+            ? ([
+                  [
+                    "preparationMiseEnPlace",
+                    "Préparation de la mise en place",
+                    "preparation",
+                  ],
+                  ["miseEnPlaceTerrain", "Mise en place terrain", "mise"],
+                ] as const)
+                .filter(([, , tab]) => onglet === tab)
+                .map(([cle, titre]) => (
             <section key={cle} className={styles.section}>
               <h2>{titre}</h2>
               <p className={styles.hint}>
@@ -1072,7 +1270,8 @@ export function DevisEditeur() {
                 + Bloc d’actions
               </button>
             </section>
-          ))}
+                ))
+            : null}
 
           {onglet === "permanence" ? (
           <section className={styles.section}>
@@ -1268,8 +1467,9 @@ export function DevisEditeur() {
               « Hors budget »).
             </p>
             <div className={styles.checkRow}>
-              {(
-                Object.keys(c.domainesActifs) as (keyof DevisDomainesActifs)[]
+              {(devis.modeleDevis === "forfaitaire"
+                ? CLES_SYNTHESE_FORFAIT
+                : CLES_SYNTHESE_DETAILLE
               ).map((k) => (
                 <label key={k}>
                   <input
@@ -1279,15 +1479,7 @@ export function DevisEditeur() {
                       setActifs({ ...c.domainesActifs, [k]: e.target.checked })
                     }
                   />
-                  {k === "deplacement"
-                    ? "Déplacement"
-                    : k === "restauration"
-                      ? "Restauration"
-                      : k === "preparationMiseEnPlace"
-                        ? "Préparation mise en place"
-                        : k === "miseEnPlaceTerrain"
-                          ? "Mise en place terrain"
-                          : "Permanence"}
+                  {libelleCleDomaineActif(k)}
                 </label>
               ))}
             </div>

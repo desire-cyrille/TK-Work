@@ -24,7 +24,11 @@ import {
   nomFichierPdfDevis,
 } from "../lib/exportDevisPdf";
 import { formatEuro } from "../lib/money";
-import type { DevisClientFiche } from "../lib/devisTypes";
+import {
+  contenuDevisForfaitaireVide,
+  type DevisClientFiche,
+  type DevisModele,
+} from "../lib/devisTypes";
 import { withResourceLock } from "../lib/workspaceLockApi";
 import styles from "./DevisListe.module.css";
 
@@ -92,6 +96,7 @@ export function DevisListe() {
   const [draftEstSociete, setDraftEstSociete] = useState(false);
   const [draftZone, setDraftZone] = useState<"idf" | "hors_idf">("idf");
   const [draftFicheId, setDraftFicheId] = useState<string | null>(null);
+  const [draftModele, setDraftModele] = useState<DevisModele>("detaille");
   const [clientSuggestOuvert, setClientSuggestOuvert] = useState(false);
 
   const [pdfApercu, setPdfApercu] = useState<PdfApercu | null>(null);
@@ -139,6 +144,7 @@ export function DevisListe() {
     setDraftEstSociete(false);
     setDraftZone("idf");
     setDraftFicheId(null);
+    setDraftModele("detaille");
     setClientSuggestOuvert(false);
     setModalCreer(true);
   }
@@ -182,6 +188,11 @@ export function DevisListe() {
       notes: "",
       statut: "brouillon",
       createdByEmail: profileEmail || undefined,
+      modeleDevis: draftModele,
+      contenu:
+        draftModele === "forfaitaire"
+          ? contenuDevisForfaitaireVide()
+          : undefined,
     });
     setModalCreer(false);
     refresh();
@@ -482,6 +493,34 @@ export function DevisListe() {
                       <option value="hors_idf">Hors Île-de-France</option>
                     </select>
                   </label>
+                  <fieldset className={styles.modalFieldset}>
+                    <legend className={styles.modalLegend}>Type de devis</legend>
+                    <label className={styles.radioLine}>
+                      <input
+                        type="radio"
+                        name="devis-modele"
+                        checked={draftModele === "detaille"}
+                        onChange={() => setDraftModele("detaille")}
+                      />
+                      <span>
+                        <strong>Détaillé</strong> — préparation et mise en place
+                        en temps (h, jour, semaine…), comme aujourd’hui.
+                      </span>
+                    </label>
+                    <label className={styles.radioLine}>
+                      <input
+                        type="radio"
+                        name="devis-modele"
+                        checked={draftModele === "forfaitaire"}
+                        onChange={() => setDraftModele("forfaitaire")}
+                      />
+                      <span>
+                        <strong>Forfaitaire</strong> — sans onglets préparation /
+                        mise en place ; un domaine « Forfait » avec lignes type ×
+                        quantité × tarif unitaire HT.
+                      </span>
+                    </label>
+                  </fieldset>
                   <div className={styles.modalActions}>
                     <button
                       type="button"
@@ -528,6 +567,14 @@ export function DevisListe() {
                           {d.clientEstSociete
                             ? d.clientSociete || d.client || "—"
                             : d.client || "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Modèle</dt>
+                        <dd>
+                          {d.modeleDevis === "forfaitaire"
+                            ? "Forfaitaire"
+                            : "Détaillé"}
                         </dd>
                       </div>
                       <div>

@@ -276,7 +276,7 @@ function pageTarificationDetaillee(
   doc.addPage();
   remplirPageBlanche(doc);
 
-  const lignesPdf = lignesBudgetPourPdf(d.contenu, tarifs);
+  const lignesPdf = lignesBudgetPourPdf(d.contenu, tarifs, d.modeleDevis);
 
   let y = M + 6 + topInsetMm;
   doc.setDrawColor(55, 55, 55);
@@ -476,6 +476,15 @@ function pageTarificationDetaillee(
   const grille: [string, string, string][] = [
     ["Déplacement", "Kilomètre", `${tarifs.tarifKm.toFixed(2).replace(".", ",")} €`],
     ["Exploitation", "Heure", `${tarifs.tarifHeure.toFixed(2).replace(".", ",")} €`],
+    ...(d.modeleDevis === "forfaitaire"
+      ? ([
+          [
+            "Forfait",
+            "Postes (qté × PU HT)",
+            "—",
+          ],
+        ] as [string, string, string][])
+      : []),
     [
       "Restauration",
       "Jour (1 repas)",

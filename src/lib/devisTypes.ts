@@ -1,5 +1,8 @@
 /** Modèle métier des devis (calculs type tableur Numbers / Excel). */
 
+/** Devis ligne à ligne (prépa + mise en place) ou forfaitaire (postes en €). */
+export type DevisModele = "detaille" | "forfaitaire";
+
 export type DevisZone = "idf" | "hors_idf";
 
 export type UniteTemps = "heure" | "jour" | "semaine" | "mois";
@@ -66,11 +69,26 @@ export type DomainePermanence = {
   nbHeuresParJour: number;
 };
 
+/** Ligne forfaitaire : montant HT = quantité × tarif unitaire. */
+export type LigneForfait = {
+  id: string;
+  /** Libellé / type de poste */
+  libelle: string;
+  quantite: number;
+  tarifUnitaire: number;
+};
+
+export type DomaineForfait = {
+  lignes: LigneForfait[];
+};
+
 export type DevisDomainesActifs = {
   deplacement: boolean;
   restauration: boolean;
   preparationMiseEnPlace: boolean;
   miseEnPlaceTerrain: boolean;
+  /** Remplace prépa + mise en place en modèle forfaitaire */
+  forfait: boolean;
   permanence: boolean;
 };
 
@@ -85,6 +103,7 @@ export type DevisContenu = {
   restauration: DomaineRestauration;
   preparationMiseEnPlace: DomaineActionsMultiples;
   miseEnPlaceTerrain: DomaineActionsMultiples;
+  forfait: DomaineForfait;
   permanence: DomainePermanence;
 };
 
@@ -205,6 +224,18 @@ export function domainesActifsDefaut(): DevisDomainesActifs {
     restauration: true,
     preparationMiseEnPlace: true,
     miseEnPlaceTerrain: true,
+    forfait: false,
+    permanence: true,
+  };
+}
+
+export function domainesActifsForfaitaireDefaut(): DevisDomainesActifs {
+  return {
+    deplacement: true,
+    restauration: true,
+    preparationMiseEnPlace: false,
+    miseEnPlaceTerrain: false,
+    forfait: true,
     permanence: true,
   };
 }
@@ -237,6 +268,7 @@ export function contenuDevisVide(): DevisContenu {
         },
       ],
     },
+    forfait: { lignes: [] },
     permanence: {
       mode: "par_semaine",
       tarifJour: 110,
@@ -246,6 +278,27 @@ export function contenuDevisVide(): DevisContenu {
       nbJoursParSemaine: 5,
       nbHeuresParJour: 8,
     },
+  };
+}
+
+/** Contenu initial pour un devis forfaitaire (sans domaines prépa / mise en place). */
+export function contenuDevisForfaitaireVide(): DevisContenu {
+  const base = contenuDevisVide();
+  return {
+    ...base,
+    domainesActifs: domainesActifsForfaitaireDefaut(),
+    preparationMiseEnPlace: { blocs: [] },
+    miseEnPlaceTerrain: { blocs: [] },
+    forfait: { lignes: [] },
+  };
+}
+
+function normaliserLigneForfait(l: LigneForfait): LigneForfait {
+  return {
+    id: typeof l.id === "string" && l.id ? l.id : newId(),
+    libelle: typeof l.libelle === "string" ? l.libelle : "",
+    quantite: Number.isFinite(l.quantite) ? l.quantite : 0,
+    tarifUnitaire: Number.isFinite(l.tarifUnitaire) ? l.tarifUnitaire : 0,
   };
 }
 
@@ -259,8 +312,20 @@ export function normaliserLigneRestauration(l: LigneRestauration): LigneRestaura
 }
 
 export function normaliserContenuDevis(contenu: DevisContenu): DevisContenu {
+  const forfaitRaw = contenu.forfait;
+  const lignesForfait = Array.isArray(forfaitRaw?.lignes)
+    ? forfaitRaw.lignes.map((x) =>
+        normaliserLigneForfait(x as LigneForfait),
+      )
+    : [];
+  const da = contenu.domainesActifs;
   return {
     ...contenu,
+    domainesActifs: {
+      ...da,
+      forfait: Boolean(da.forfait),
+    },
+    forfait: { lignes: lignesForfait },
     restauration: {
       lignes: contenu.restauration.lignes.map(normaliserLigneRestauration),
     },

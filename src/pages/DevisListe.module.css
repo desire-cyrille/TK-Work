@@ -268,6 +268,41 @@
   color: #475569;
 }
 
+.modalFieldset {
+  margin: 0.85rem 0 0;
+  padding: 0.65rem 0.75rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.modalLegend {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+  padding: 0 0.35rem;
+}
+
+.radioLine {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-top: 0.55rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #334155;
+  cursor: pointer;
+}
+
+.radioLine:first-of-type {
+  margin-top: 0.35rem;
+}
+
+.radioLine input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
 /* Champs du modal : fond clair explicite (pas d’héritage du thème sombre) */
 .modal .label {
   color: #334155;
