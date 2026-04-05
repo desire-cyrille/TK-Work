@@ -9,11 +9,16 @@ export type UniteTemps = "heure" | "jour" | "semaine" | "mois";
 
 export type LigneDeplacement = {
   id: string;
-  libelle: string;
-  nbPersonnes: number;
+  /** Ville ou adresse complète de départ */
+  adresseDepart: string;
+  /** Ville ou adresse complète d’arrivée */
+  adresseArrivee: string;
+  /** Distance routière (km), calculée ou saisie manuellement */
   distanceKm: number;
-  /** Ex. nombre de jours ou semaines de facturation des déplacements (multiplicateur). */
-  coefficientDuree: number;
+  /** Prix HT pour un trajet (€) */
+  tarifTrajetHt: number;
+  /** Nombre de trajets (multiplicateur) */
+  nombre: number;
 };
 
 export type DomaineDeplacement = {
@@ -311,6 +316,54 @@ export function normaliserLigneRestauration(l: LigneRestauration): LigneRestaura
   };
 }
 
+/** Tarif km par défaut pour migrer les anciennes lignes (aligné zone Île-de-France). */
+const TARIF_KM_MIGRATION_DEFAUT = 0.28;
+
+/**
+ * Rétrocompatibilité : anciennes lignes (libellé, personnes, coeff. durée).
+ * Le montant total est préservé si tarif km = 0,28 €/km au moment de la migration.
+ */
+export function normaliserLigneDeplacement(l: unknown): LigneDeplacement {
+  const o = l && typeof l === "object" ? (l as Record<string, unknown>) : {};
+  const id = typeof o.id === "string" && o.id ? o.id : newId();
+
+  if ("adresseDepart" in o) {
+    return {
+      id,
+      adresseDepart:
+        typeof o.adresseDepart === "string" ? o.adresseDepart : "",
+      adresseArrivee:
+        typeof o.adresseArrivee === "string" ? o.adresseArrivee : "",
+      distanceKm: Number.isFinite(Number(o.distanceKm)) ? Number(o.distanceKm) : 0,
+      tarifTrajetHt: Number.isFinite(Number(o.tarifTrajetHt))
+        ? Number(o.tarifTrajetHt)
+        : 0,
+      nombre: Number.isFinite(Number(o.nombre)) ? Math.max(0, Number(o.nombre)) : 0,
+    };
+  }
+
+  const libelle = typeof o.libelle === "string" ? o.libelle : "";
+  const nb = Number.isFinite(Number(o.nbPersonnes))
+    ? Math.max(0, Number(o.nbPersonnes))
+    : 0;
+  const d = Number.isFinite(Number(o.distanceKm))
+    ? Math.max(0, Number(o.distanceKm))
+    : 0;
+  const coef = Number.isFinite(Number(o.coefficientDuree))
+    ? Math.max(0, Number(o.coefficientDuree))
+    : 1;
+  const nombre = nb * coef;
+  const tarifTrajetHt = d > 0 ? d * TARIF_KM_MIGRATION_DEFAUT : 0;
+  return {
+    id,
+    adresseDepart: libelle,
+    adresseArrivee: "",
+    distanceKm: d,
+    tarifTrajetHt,
+    nombre,
+  };
+}
+
 export function normaliserContenuDevis(contenu: DevisContenu): DevisContenu {
   const forfaitRaw = contenu.forfait;
   const lignesForfait = Array.isArray(forfaitRaw?.lignes)
@@ -328,6 +381,11 @@ export function normaliserContenuDevis(contenu: DevisContenu): DevisContenu {
     forfait: { lignes: lignesForfait },
     restauration: {
       lignes: contenu.restauration.lignes.map(normaliserLigneRestauration),
+    },
+    deplacement: {
+      lignes: Array.isArray(contenu.deplacement?.lignes)
+        ? contenu.deplacement.lignes.map((x) => normaliserLigneDeplacement(x))
+        : [],
     },
   };
 }

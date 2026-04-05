@@ -12,6 +12,31 @@
   color: var(--workspace-muted, #a8a8b8);
 }
 
+.deplacementAdresseCell {
+  min-width: 12rem;
+  vertical-align: top;
+}
+
+.deplacementMiniLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--workspace-muted, #a8a8b8);
+}
+
+.deplacementAdresseCell input {
+  font-size: 0.88rem;
+}
+
+.deplacementAdresseCell .btnGhost {
+  margin-top: 0.25rem;
+  align-self: flex-start;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.78rem;
+}
+
 .okMsg {
   margin: 0.5rem 0;
   color: #4ade80;

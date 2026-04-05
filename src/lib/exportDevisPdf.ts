@@ -4,6 +4,7 @@ import {
   PDF_CATEGORIE_COULEUR,
   lignesBudgetPourPdf,
   type LigneBudget,
+  type LigneBudgetPdf,
 } from "./devisCalcul";
 import { lireParametresDevisDefaut } from "./devisDefaultsStorage";
 import { formatEuroPdf } from "./money";
@@ -308,7 +309,32 @@ function pageTarificationDetaillee(
   const chartY = y + 14;
   const chartCenterX = chartX + chartMm / 2;
 
-  const actifsChart = lignesPdf.filter((l) => l.actif && l.montant > 0);
+  function lignesPourGraphique(lignes: LigneBudgetPdf[]) {
+    const out: { cle: LigneBudget["cle"]; libelle: string; montant: number }[] =
+      [];
+    for (const l of lignes) {
+      if (!l.actif || l.montant <= 0) continue;
+      if (l.forfaitPdfBloc?.length) {
+        for (const row of l.forfaitPdfBloc) {
+          if (row.montant <= 0) continue;
+          out.push({
+            cle: l.cle,
+            libelle: row.libelle,
+            montant: row.montant,
+          });
+        }
+      } else {
+        out.push({
+          cle: l.cle,
+          libelle: l.libelle,
+          montant: l.montant,
+        });
+      }
+    }
+    return out;
+  }
+
+  const actifsChart = lignesPourGraphique(lignesPdf);
   const sumChart = actifsChart.reduce((a, l) => a + l.montant, 0);
   if (sumChart > 0) {
     const donut = createDonutDataUrl(
@@ -371,13 +397,32 @@ function pageTarificationDetaillee(
   y += headerH;
 
   doc.setFont("helvetica", "normal");
+  const lineStep = 3.85;
   for (const l of lignesPdf) {
-    const libLines = doc.splitTextToSize(
-      textePdfSafe(l.libelle),
-      vAfterCat - colCat - stripeW - 3,
-    );
-    /* Pas de sous-texte « méthode de calcul » sur le PDF tarif détaillé */
-    const hMain = Math.max(rowH + 1.5, 5 + libLines.length * 3.85);
+    const catX = colCat + stripeW + 2;
+    const subIndentMm = 2.2;
+    const catWBase = vAfterCat - catX - 3;
+
+    let hMain: number;
+    if (l.actif && l.forfaitPdfBloc && l.forfaitPdfBloc.length > 0) {
+      const catWSub = vAfterCat - (catX + subIndentMm) - 2;
+      let totalLines = 1;
+      for (const row of l.forfaitPdfBloc) {
+        const wrapped = doc.splitTextToSize(
+          textePdfSafe(row.libelle),
+          Math.max(12, catWSub),
+        );
+        totalLines += Math.max(1, wrapped.length);
+      }
+      hMain = Math.max(rowH + 1.5, 5 + totalLines * lineStep);
+    } else {
+      const libLines = doc.splitTextToSize(
+        textePdfSafe(l.libelle),
+        catWBase,
+      );
+      hMain = Math.max(rowH + 1.5, 5 + libLines.length * lineStep);
+    }
+
     const hCell = hMain;
     y = ensureSpace(doc, y, hCell + 4);
     const [r, g, b] = PDF_CATEGORIE_COULEUR[l.cle];
@@ -387,27 +432,57 @@ function pageTarificationDetaillee(
     doc.rect(tableLeft, y, stripeW, hCell, "F");
     doc.setDrawColor(72, 72, 78);
     doc.rect(tableLeft, y, tableW, hCell, "S");
-    doc.setFont("helvetica", "bold");
     doc.setFontSize(8.2);
     setText(doc, [22, 22, 28]);
-    let yyRow = y + 5;
-    for (const line of libLines) {
-      doc.text(line, colCat + stripeW + 2, yyRow);
-      yyRow += 3.85;
+
+    if (l.actif && l.forfaitPdfBloc && l.forfaitPdfBloc.length > 0) {
+      const catWSub = vAfterCat - (catX + subIndentMm) - 2;
+      let yyRow = y + 5;
+      doc.setFont("helvetica", "bold");
+      doc.text("FONCTION", catX, yyRow);
+      yyRow += lineStep;
+      doc.setFont("helvetica", "normal");
+      for (const row of l.forfaitPdfBloc) {
+        const wrapped = doc.splitTextToSize(
+          textePdfSafe(row.libelle),
+          Math.max(12, catWSub),
+        );
+        const startY = yyRow;
+        for (const frag of wrapped) {
+          doc.text(frag, catX + subIndentMm, yyRow);
+          yyRow += lineStep;
+        }
+        setText(doc, [45, 45, 50]);
+        doc.text(textePdfSafe(row.quantite), colQty, startY, {
+          maxWidth: vBeforeTarif - colQty - 2,
+        });
+        doc.text(formatEuroPdf(row.montant), tarRightX, startY, {
+          align: "right",
+        });
+        setText(doc, [22, 22, 28]);
+      }
+    } else {
+      doc.setFont("helvetica", "bold");
+      const libLines = doc.splitTextToSize(textePdfSafe(l.libelle), catWBase);
+      let yyRow = y + 5;
+      for (const line of libLines) {
+        doc.text(line, catX, yyRow);
+        yyRow += lineStep;
+      }
+      doc.setFont("helvetica", "normal");
+      setText(doc, [l.actif ? 45 : 140, l.actif ? 45 : 140, l.actif ? 50 : 140]);
+      const qtyStr = l.actif ? textePdfSafe(l.quantiteLibelle) : "—";
+      const qtyTarY = y + hMain / 2 + 1.5;
+      doc.text(qtyStr, colQty, qtyTarY, {
+        maxWidth: vBeforeTarif - colQty - 2,
+      });
+      doc.text(
+        l.actif ? formatEuroPdf(l.montant) : "Hors budget",
+        tarRightX,
+        qtyTarY,
+        { align: "right" },
+      );
     }
-    doc.setFont("helvetica", "normal");
-    setText(doc, [l.actif ? 45 : 140, l.actif ? 45 : 140, l.actif ? 50 : 140]);
-    const qtyStr = l.actif ? textePdfSafe(l.quantiteLibelle) : "—";
-    const qtyTarY = y + hMain / 2 + 1.5;
-    doc.text(qtyStr, colQty, qtyTarY, {
-      maxWidth: vBeforeTarif - colQty - 2,
-    });
-    doc.text(
-      l.actif ? formatEuroPdf(l.montant) : "Hors budget",
-      tarRightX,
-      qtyTarY,
-      { align: "right" },
-    );
     y += hCell + 2;
   }
 
@@ -474,7 +549,11 @@ function pageTarificationDetaillee(
   y += 8;
 
   const grille: [string, string, string][] = [
-    ["Déplacement", "Kilomètre", `${tarifs.tarifKm.toFixed(2).replace(".", ",")} €`],
+    [
+      "Déplacement",
+      "Trajet HT × nombre",
+      `${tarifs.tarifKm.toFixed(2).replace(".", ",")} €/km (suggestion)`,
+    ],
     ["Exploitation", "Heure", `${tarifs.tarifHeure.toFixed(2).replace(".", ",")} €`],
     ...(d.modeleDevis === "forfaitaire"
       ? ([

@@ -6,10 +6,15 @@ import frameStyles from "../components/PageFrame.module.css";
 import { useAuth } from "../context/AuthContext";
 import { useWorkspaceLock } from "../hooks/useWorkspaceLock";
 import {
+  montantLigneActionTemps,
+  montantLigneDeplacement,
   montantLigneForfait,
+  montantLigneRestauration,
   tarifsPourZone,
+  totalPermanence,
   totauxBudget,
 } from "../lib/devisCalcul";
+import { computeRouteDistanceKm } from "../lib/deplacementDistance";
 import { lireParametresDevisDefaut } from "../lib/devisDefaultsStorage";
 import { memoriserClientDevis } from "../lib/devisClientsStorage";
 import {
@@ -133,6 +138,10 @@ export function DevisEditeur() {
   const [pdfApercu, setPdfApercu] = useState<PdfApercu | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [onglet, setOnglet] = useState<OngletDevis>("infos");
+  const [distanceLoadingId, setDistanceLoadingId] = useState<string | null>(
+    null,
+  );
+  const [distanceErr, setDistanceErr] = useState<string | null>(null);
 
   const lock = useWorkspaceLock(
     id && id.length > 0 ? `devis:${id}` : null,
@@ -608,55 +617,111 @@ export function DevisEditeur() {
           <section className={styles.section}>
             <h2>Déplacement</h2>
             <p className={styles.hint}>
-              Montant = personnes × km × tarif km (zone) × coefficient durée.
-              Tarif km actuel : {tarifs.tarifKm.toFixed(2)} €/km.
+              Prix total par ligne = tarif trajet HT × nombre. La synthèse et le
+              PDF additionnent uniquement ces prix totaux. Distance : calcul
+              automatique (départ / arrivée) ou saisie manuelle. Après calcul
+              d’itinéraire, le tarif est proposé à distance ×{" "}
+              {tarifs.tarifKm.toFixed(2)} €/km (modifiable).
             </p>
+            {distanceErr ? (
+              <p className={styles.errMsg} role="alert">
+                {distanceErr}
+              </p>
+            ) : null}
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Libellé</th>
-                    <th>Personnes</th>
-                    <th>Distance km</th>
-                    <th>Coeff. durée</th>
+                    <th>Adresse</th>
+                    <th>Distance (km)</th>
+                    <th>Tarif HT</th>
+                    <th>Nombre</th>
+                    <th>Prix total HT</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
                   {c.deplacement.lignes.map((row) => (
                     <tr key={row.id}>
-                      <td>
-                        <input
-                          value={row.libelle}
-                          onChange={(e) => {
-                            const lignes = c.deplacement.lignes.map((x) =>
-                              x.id === row.id
-                                ? { ...x, libelle: e.target.value }
-                                : x,
-                            );
-                            patchContenu({
-                              ...c,
-                              deplacement: { lignes },
-                            });
+                      <td className={styles.deplacementAdresseCell}>
+                        <label className={styles.deplacementMiniLabel}>
+                          Départ
+                          <input
+                            value={row.adresseDepart}
+                            onChange={(e) => {
+                              setDistanceErr(null);
+                              const lignes = c.deplacement.lignes.map((x) =>
+                                x.id === row.id
+                                  ? { ...x, adresseDepart: e.target.value }
+                                  : x,
+                              );
+                              patchContenu({
+                                ...c,
+                                deplacement: { lignes },
+                              });
+                            }}
+                          />
+                        </label>
+                        <label className={styles.deplacementMiniLabel}>
+                          Arrivée
+                          <input
+                            value={row.adresseArrivee}
+                            onChange={(e) => {
+                              setDistanceErr(null);
+                              const lignes = c.deplacement.lignes.map((x) =>
+                                x.id === row.id
+                                  ? { ...x, adresseArrivee: e.target.value }
+                                  : x,
+                              );
+                              patchContenu({
+                                ...c,
+                                deplacement: { lignes },
+                              });
+                            }}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className={styles.btnGhost}
+                          disabled={distanceLoadingId === row.id}
+                          onClick={async () => {
+                            setDistanceErr(null);
+                            setDistanceLoadingId(row.id);
+                            try {
+                              const km = await computeRouteDistanceKm(
+                                row.adresseDepart,
+                                row.adresseArrivee,
+                              );
+                              const sug =
+                                Math.round(km * tarifs.tarifKm * 100) / 100;
+                              const lignes = c.deplacement.lignes.map((x) =>
+                                x.id === row.id
+                                  ? {
+                                      ...x,
+                                      distanceKm: km,
+                                      tarifTrajetHt: sug,
+                                    }
+                                  : x,
+                              );
+                              patchContenu({
+                                ...c,
+                                deplacement: { lignes },
+                              });
+                            } catch (e) {
+                              setDistanceErr(
+                                e instanceof Error
+                                  ? e.message
+                                  : "Impossible de calculer la distance.",
+                              );
+                            } finally {
+                              setDistanceLoadingId(null);
+                            }
                           }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          className={styles.tableMini}
-                          value={row.nbPersonnes}
-                          onChange={(e) => {
-                            const n = Number(e.target.value) || 0;
-                            const lignes = c.deplacement.lignes.map((x) =>
-                              x.id === row.id ? { ...x, nbPersonnes: n } : x,
-                            );
-                            patchContenu({
-                              ...c,
-                              deplacement: { lignes },
-                            });
-                          }}
-                        />
+                        >
+                          {distanceLoadingId === row.id
+                            ? "…"
+                            : "Calculer distance"}
+                        </button>
                       </td>
                       <td>
                         <input
@@ -681,12 +746,12 @@ export function DevisEditeur() {
                           type="number"
                           step="0.01"
                           className={styles.tableMini}
-                          value={row.coefficientDuree}
+                          value={row.tarifTrajetHt}
                           onChange={(e) => {
                             const n = Number(e.target.value) || 0;
                             const lignes = c.deplacement.lignes.map((x) =>
                               x.id === row.id
-                                ? { ...x, coefficientDuree: n }
+                                ? { ...x, tarifTrajetHt: n }
                                 : x,
                             );
                             patchContenu({
@@ -695,6 +760,33 @@ export function DevisEditeur() {
                             });
                           }}
                         />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={styles.tableMini}
+                          value={row.nombre}
+                          onChange={(e) => {
+                            const n = Number(e.target.value) || 0;
+                            const lignes = c.deplacement.lignes.map((x) =>
+                              x.id === row.id ? { ...x, nombre: n } : x,
+                            );
+                            patchContenu({
+                              ...c,
+                              deplacement: { lignes },
+                            });
+                          }}
+                        />
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "right",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {formatEuro(montantLigneDeplacement(row))}
                       </td>
                       <td>
                         <button
@@ -725,10 +817,11 @@ export function DevisEditeur() {
               onClick={() => {
                 const ligne: LigneDeplacement = {
                   id: newId(),
-                  libelle: "",
-                  nbPersonnes: 1,
+                  adresseDepart: "",
+                  adresseArrivee: "",
                   distanceKm: 0,
-                  coefficientDuree: 1,
+                  tarifTrajetHt: 0,
+                  nombre: 1,
                 };
                 patchContenu({
                   ...c,
@@ -763,6 +856,7 @@ export function DevisEditeur() {
                     <th>Prix repas</th>
                     <th>Petit-déj/j</th>
                     <th>Prix petit-déj</th>
+                    <th>Montant HT</th>
                     <th />
                   </tr>
                 </thead>
@@ -894,6 +988,15 @@ export function DevisEditeur() {
                             });
                           }}
                         />
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "right",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {formatEuro(montantLigneRestauration(row, tarifs))}
                       </td>
                       <td>
                         <button
@@ -1120,6 +1223,7 @@ export function DevisEditeur() {
                           <th>Action</th>
                           <th>Qté</th>
                           <th>Unité</th>
+                          <th>Montant HT</th>
                           <th />
                         </tr>
                       </thead>
@@ -1200,6 +1304,17 @@ export function DevisEditeur() {
                                   </option>
                                 ))}
                               </select>
+                            </td>
+                            <td
+                              style={{
+                                textAlign: "right",
+                                fontWeight: 600,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {formatEuro(
+                                montantLigneActionTemps(row, tarifs),
+                              )}
                             </td>
                             <td>
                               <button
@@ -1413,6 +1528,10 @@ export function DevisEditeur() {
                 </>
               )}
             </div>
+            <p className={styles.hint} style={{ marginTop: "0.85rem" }}>
+              <strong>Montant HT (permanence)</strong> :{" "}
+              {formatEuro(totalPermanence(c.permanence))}
+            </p>
           </section>
           ) : null}
 

@@ -21,6 +21,22 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/proxy-insee/, ""),
       },
+      /** Géocodage + itinéraire (dev sans `vercel dev`) — respecter l’usage raisonnable d’OSM. */
+      "/geo/nominatim": {
+        target: "https://nominatim.openstreetmap.org",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/geo\/nominatim/, ""),
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq) => {
+            proxyReq.setHeader("User-Agent", "TKProGestionDevis/1.0");
+          });
+        },
+      },
+      "/geo/osrm": {
+        target: "https://router.project-osrm.org",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/geo\/osrm/, ""),
+      },
     },
   },
 });

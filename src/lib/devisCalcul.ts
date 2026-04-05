@@ -8,7 +8,10 @@ import type {
   DomaineForfait,
   DomainePermanence,
   DomaineRestauration,
+  LigneActionTemps,
+  LigneDeplacement,
   LigneForfait,
+  LigneRestauration,
   TarifsZone,
 } from "./devisTypes";
 
@@ -42,6 +45,18 @@ export function quantiteLibelleLigneForfaitPdf(lf: LigneForfait): string {
   return `${q} × ${pu} €`;
 }
 
+/** Quantité seule (sans « × PU ») pour le PDF devis forfaitaire. */
+export function quantiteSeuleLigneForfaitPdf(lf: LigneForfait): string {
+  return lf.quantite.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+}
+
+/** Détail d’un bloc forfait fusionné sur une ligne du tableau PDF. */
+export type LigneForfaitPdfDetail = {
+  libelle: string;
+  quantite: string;
+  montant: number;
+};
+
 export function totalForfait(d: DomaineForfait): number {
   let s = 0;
   for (const l of d.lignes) {
@@ -65,17 +80,41 @@ function tarifUnite(t: TarifsZone, u: string): number {
   }
 }
 
-export function totalDeplacement(
-  d: DomaineDeplacement,
+/** Montant ligne déplacement = tarif trajet HT × nombre (km informatif). */
+export function montantLigneDeplacement(l: LigneDeplacement): number {
+  return Math.max(0, l.tarifTrajetHt) * Math.max(0, l.nombre);
+}
+
+export function montantLigneRestauration(
+  l: LigneRestauration,
   tarifs: TarifsZone,
 ): number {
+  const puRepas = l.prixRepas > 0 ? l.prixRepas : tarifs.prixRepasDefaut;
+  const repas =
+    l.nbPersonnes * l.joursPresence * l.repasParJour * puRepas;
+  const puPdj =
+    l.prixPetitDejeuner > 0
+      ? l.prixPetitDejeuner
+      : tarifs.prixPetitDejeunerDefaut;
+  const pdj =
+    l.nbPersonnes *
+    l.joursPresence *
+    l.petitDejeunerParJour *
+    puPdj;
+  return repas + pdj;
+}
+
+export function montantLigneActionTemps(
+  l: LigneActionTemps,
+  tarifs: TarifsZone,
+): number {
+  return l.quantite * tarifUnite(tarifs, l.unite);
+}
+
+export function totalDeplacement(d: DomaineDeplacement): number {
   let s = 0;
   for (const l of d.lignes) {
-    s +=
-      l.nbPersonnes *
-      l.distanceKm *
-      tarifs.tarifKm *
-      Math.max(0, l.coefficientDuree);
+    s += montantLigneDeplacement(l);
   }
   return s;
 }
@@ -86,18 +125,7 @@ export function totalRestauration(
 ): number {
   let s = 0;
   for (const l of d.lignes) {
-    const puRepas =
-      l.prixRepas > 0 ? l.prixRepas : tarifs.prixRepasDefaut;
-    s += l.nbPersonnes * l.joursPresence * l.repasParJour * puRepas;
-    const puPdj =
-      l.prixPetitDejeuner > 0
-        ? l.prixPetitDejeuner
-        : tarifs.prixPetitDejeunerDefaut;
-    s +=
-      l.nbPersonnes *
-      l.joursPresence *
-      l.petitDejeunerParJour *
-      puPdj;
+    s += montantLigneRestauration(l, tarifs);
   }
   return s;
 }
@@ -109,7 +137,7 @@ export function totalActionsMultiples(
   let s = 0;
   for (const b of d.blocs) {
     for (const l of b.lignes) {
-      s += l.quantite * tarifUnite(tarifs, l.unite);
+      s += montantLigneActionTemps(l, tarifs);
     }
   }
   return s;
@@ -146,7 +174,7 @@ export function lignesBudget(
     {
       cle: "deplacement",
       libelle: LIBELLES.deplacement,
-      montant: totalDeplacement(contenu.deplacement, tarifs),
+      montant: totalDeplacement(contenu.deplacement),
       actif: act.deplacement,
     },
     {
@@ -271,6 +299,8 @@ export const PDF_CATEGORIE_COULEUR: Record<
 export type LigneBudgetPdf = LigneBudget & {
   quantiteLibelle: string;
   detailLigne?: string;
+  /** Devis forfaitaire : une seule ligne tableau PDF, plusieurs fonctions en sous-lignes. */
+  forfaitPdfBloc?: LigneForfaitPdfDetail[];
 };
 
 export function quantiteLibelleDomaine(
@@ -280,18 +310,13 @@ export function quantiteLibelleDomaine(
   switch (cle) {
     case "deplacement": {
       if (contenu.deplacement.lignes.length === 0) return "—";
-      const coef = contenu.deplacement.lignes.reduce(
-        (a, l) => a + Math.max(0, l.coefficientDuree),
+      const n = contenu.deplacement.lignes.reduce(
+        (a, l) => a + Math.max(0, l.nombre),
         0,
       );
-      if (coef > 0) {
-        return `${coef.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} j.`;
-      }
-      const km = contenu.deplacement.lignes.reduce(
-        (a, l) => a + l.nbPersonnes * l.distanceKm,
-        0,
-      );
-      return km > 0 ? `${km.toFixed(0)} km` : "—";
+      return n > 0
+        ? `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}`
+        : "—";
     }
     case "restauration": {
       const repas = contenu.restauration.lignes.reduce(
@@ -367,7 +392,7 @@ export function detailSousLignePdf(
       return undefined;
     }
     case "deplacement":
-      return "Calculé au km (personnes × distance × durée)";
+      return "Synthèse : somme des prix totaux (tarif trajet HT × nombre)";
     case "restauration":
       return "Repas et petits-déjeuners (personnes × jours × repas ou pdj/j)";
     case "forfait":
@@ -392,17 +417,24 @@ export function lignesBudgetPourPdf(
     if (cle === "forfait" && modele === "forfaitaire") {
       const lignesF = contenu.forfait.lignes;
       if (l.actif && lignesF.length > 0) {
-        for (const lf of lignesF) {
-          const intitule = lf.libelle.trim() || "Poste";
-          out.push({
-            cle: "forfait",
-            libelle: intitule.toUpperCase(),
+        const forfaitPdfBloc: LigneForfaitPdfDetail[] = lignesF.map((lf) => {
+          const intitule = (lf.libelle.trim() || "Poste").toUpperCase();
+          return {
+            libelle: intitule,
+            quantite: quantiteSeuleLigneForfaitPdf(lf),
             montant: montantLigneForfait(lf),
-            actif: true,
-            quantiteLibelle: quantiteLibelleLigneForfaitPdf(lf),
-            detailLigne: undefined,
-          });
-        }
+          };
+        });
+        const montantTotal = forfaitPdfBloc.reduce((a, x) => a + x.montant, 0);
+        out.push({
+          cle: "forfait",
+          libelle: PDF_CATEGORIE_LIB.forfait,
+          montant: montantTotal,
+          actif: true,
+          quantiteLibelle: "—",
+          detailLigne: undefined,
+          forfaitPdfBloc,
+        });
       } else {
         out.push({
           ...l,
