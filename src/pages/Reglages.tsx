@@ -223,6 +223,68 @@ export function Reglages() {
             </section>
 
             <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>
+                Couleur d’accent (bandeaux, onglets modules)
+              </h2>
+              <p className={styles.hint}>
+                S’applique à la barre latérale du bandeau de page, aux onglets
+                actifs (ex. Rapport), aux boutons principaux et au dégradé global
+                de l’application. La couleur secondaire termine le dégradé ; laissez
+                le champ vide pour un ton automatiquement plus foncé.
+              </p>
+              <label className={styles.fieldRow}>
+                <span className={styles.label}>Couleur principale</span>
+                <input
+                  type="color"
+                  className={styles.colorInput}
+                  value={pickerHex(draft.accentPrimary, "#e53935")}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, accentPrimary: e.target.value }))
+                  }
+                />
+                <input
+                  className={styles.hexInput}
+                  value={draft.accentPrimary}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, accentPrimary: e.target.value }))
+                  }
+                  placeholder="#e53935"
+                />
+              </label>
+              <label className={styles.fieldRow}>
+                <span className={styles.label}>Couleur secondaire (dégradé)</span>
+                <input
+                  type="color"
+                  className={styles.colorInput}
+                  value={pickerHex(
+                    draft.accentSecondary.trim() || "#c62828",
+                    "#c62828",
+                  )}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, accentSecondary: e.target.value }))
+                  }
+                />
+                <input
+                  className={styles.hexInput}
+                  value={draft.accentSecondary}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, accentSecondary: e.target.value }))
+                  }
+                  placeholder="vide = automatique"
+                />
+                <button
+                  type="button"
+                  className={styles.linkBtn}
+                  onClick={() =>
+                    setDraft((d) => ({ ...d, accentSecondary: "" }))
+                  }
+                >
+                  Auto (plus foncé)
+                </button>
+              </label>
+            </section>
+
+            <section className={styles.section}>
               <h2 className={styles.sectionTitle}>Colonne menu (gauche)</h2>
               <p className={styles.hint}>
                 Laissez vide pour retrouver le dégradé bleu nuit par défaut.
@@ -305,7 +367,7 @@ export function Reglages() {
                       setDraft((d) => ({ ...d, navActiveMode: "gradient" }))
                     }
                   />
-                  Dégradé marque (orange → rose)
+                  Dégradé (couleurs d’accent ci-dessus)
                 </label>
                 <label className={styles.radioLabel}>
                   <input

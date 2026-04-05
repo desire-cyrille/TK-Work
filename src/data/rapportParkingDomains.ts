@@ -75,17 +75,31 @@ export function resoudreIdDomaine(
   return null;
 }
 
-/** Contenu d’un domaine (texte et photo optionnelle pour le rapport / PDF). */
+/** Contenu d’un domaine (texte et photo(s) optionnelles pour le rapport / PDF). */
 export type AxeContenu = {
   texte: string;
+  /** Première image ; conservé pour rétrocompatibilité et exports simples. */
   photoDataUrl?: string;
+  /** Plusieurs clichés par domaine (même site). */
+  photosDataUrls?: string[];
 };
 
 /** @deprecated préférer les ids string par projet */
 export type CleDomaine = string;
 
+/** Liste des data URLs image valides pour un axe (legacy `photoDataUrl` + tableau). */
+export function photosAxeContenu(ax: AxeContenu | undefined): string[] {
+  if (!ax) return [];
+  const fromArr = ax.photosDataUrls?.filter(
+    (u) => typeof u === "string" && u.startsWith("data:"),
+  );
+  if (fromArr?.length) return fromArr;
+  const one = ax.photoDataUrl?.trim();
+  return one && one.startsWith("data:") && one.length > 40 ? [one] : [];
+}
+
 export function axeContenuNonVide(b: AxeContenu | undefined): boolean {
   if (!b) return false;
-  if (b.photoDataUrl && b.photoDataUrl.trim().length > 40) return true;
+  if (photosAxeContenu(b).length > 0) return true;
   return Boolean(b.texte?.trim());
 }

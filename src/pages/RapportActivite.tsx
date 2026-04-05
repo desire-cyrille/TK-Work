@@ -47,6 +47,8 @@ import {
 } from "../lib/rapportChainStorage";
 import {
   axesContenuVidesPourDomaines,
+  photosAxeContenu,
+  type AxeContenu,
   type RapportDomaineDef,
 } from "../data/rapportParkingDomains";
 import {
@@ -117,6 +119,7 @@ function debutMissionDefaut(): string {
 }
 
 const MAX_IMAGE_OCTETS = 2 * 1024 * 1024;
+const MAX_PHOTOS_PAR_DOMAINE_RAPPORT = 15;
 
 function lireImageVersDataUrl(f: File):
   Promise<{ ok: true; dataUrl: string } | { ok: false; raison: string }> {
@@ -683,16 +686,10 @@ export function RapportActivite() {
             const ax = bloc?.axes[d.id];
             const fromQuotidiens =
               photoUrlsParSiteDomain.get(`${site.id}\t${d.id}`) ?? [];
-            const phAx = ax?.photoDataUrl?.trim();
-            const manuelle =
-              mode === "mensuel" && phAx && phAx.length > 40 ? [phAx] : [];
-            const seuleAxe =
-              mode !== "mensuel" && phAx && phAx.length > 40 ? [phAx] : [];
-            const photoDataUrls = [
-              ...fromQuotidiens,
-              ...manuelle,
-              ...seuleAxe,
-            ];
+            const axePhotos = photosAxeContenu(ax).filter(
+              (u) => u.length > 40,
+            );
+            const photoDataUrls = [...fromQuotidiens, ...axePhotos];
             const hasPhotos = photoDataUrls.length > 0;
             const hasText = Boolean((ax?.texte ?? "").trim());
             if (!hasText && !hasPhotos) return null;
@@ -829,26 +826,75 @@ export function RapportActivite() {
     );
   }
 
-  function setAxePhotoDataUrl(
-    siteId: string,
-    key: string,
-    photoDataUrl: string | undefined,
-  ) {
+  function appendAxePhoto(siteId: string, key: string, photoDataUrl: string) {
     setContenuParSite((prev) =>
-      prev.map((c) =>
-        c.siteId !== siteId
-          ? c
-          : {
-              ...c,
-              axes: {
-                ...c.axes,
-                [key]: {
-                  ...(c.axes[key] ?? { texte: "" }),
-                  photoDataUrl,
-                },
-              },
+      prev.map((c) => {
+        if (c.siteId !== siteId) return c;
+        const cur = c.axes[key] ?? { texte: "" };
+        const existing = photosAxeContenu(cur);
+        if (existing.length >= MAX_PHOTOS_PAR_DOMAINE_RAPPORT) return c;
+        const next = [...existing, photoDataUrl];
+        const nextAxe: AxeContenu =
+          next.length === 1
+            ? { ...cur, photoDataUrl: next[0], photosDataUrls: undefined }
+            : { ...cur, photoDataUrl: next[0], photosDataUrls: next };
+        return {
+          ...c,
+          axes: { ...c.axes, [key]: nextAxe },
+        };
+      }),
+    );
+  }
+
+  function removeAxePhotoAt(siteId: string, key: string, index: number) {
+    setContenuParSite((prev) =>
+      prev.map((c) => {
+        if (c.siteId !== siteId) return c;
+        const cur = c.axes[key] ?? { texte: "" };
+        const existing = photosAxeContenu(cur);
+        const next = existing.filter((_, i) => i !== index);
+        let nextAxe: AxeContenu;
+        if (next.length === 0) {
+          nextAxe = {
+            ...cur,
+            photoDataUrl: undefined,
+            photosDataUrls: undefined,
+          };
+        } else if (next.length === 1) {
+          nextAxe = {
+            ...cur,
+            photoDataUrl: next[0],
+            photosDataUrls: undefined,
+          };
+        } else {
+          nextAxe = {
+            ...cur,
+            photoDataUrl: next[0],
+            photosDataUrls: next,
+          };
+        }
+        return { ...c, axes: { ...c.axes, [key]: nextAxe } };
+      }),
+    );
+  }
+
+  function clearAxePhotos(siteId: string, key: string) {
+    setContenuParSite((prev) =>
+      prev.map((c) => {
+        if (c.siteId !== siteId) return c;
+        const cur = c.axes[key] ?? { texte: "" };
+        return {
+          ...c,
+          axes: {
+            ...c.axes,
+            [key]: {
+              ...cur,
+              photoDataUrl: undefined,
+              photosDataUrls: undefined,
             },
-      ),
+          },
+        };
+      }),
     );
   }
 
@@ -1148,12 +1194,20 @@ export function RapportActivite() {
     file: File,
   ) {
     if (!sid) return;
+    const bloc = contenuParSite.find((c) => c.siteId === sid);
+    const n = photosAxeContenu(bloc?.axes[key]).length;
+    if (n >= MAX_PHOTOS_PAR_DOMAINE_RAPPORT) {
+      setProvenanceSynthese(
+        `Maximum ${MAX_PHOTOS_PAR_DOMAINE_RAPPORT} photos par domaine.`,
+      );
+      return;
+    }
     const r = await lireImageVersDataUrl(file);
     if (!r.ok) {
       setProvenanceSynthese(r.raison);
       return;
     }
-    setAxePhotoDataUrl(sid, key, r.dataUrl);
+    appendAxePhoto(sid, key, r.dataUrl);
     setProvenanceSynthese(null);
   }
 
@@ -2054,9 +2108,10 @@ export function RapportActivite() {
               </div>
 
               <p className={styles.axesIntro}>
-                <strong>Domaines pour ce site</strong> — texte et photo optionnelle
-                par bloc (<strong>glisser-déposer</strong> ou « Parcourir »). Les
-                blocs sans texte ni image sont absents du PDF.
+                <strong>Domaines pour ce site</strong> — texte et jusqu’à{" "}
+                {MAX_PHOTOS_PAR_DOMAINE_RAPPORT} photos par bloc (
+                <strong>glisser-déposer</strong> ou « Parcourir » pour en ajouter).
+                Les blocs sans texte ni image sont absents du PDF.
               </p>
               <div className={styles.tableauPdfToggleRow}>
                 <span className={styles.tableauPdfToggleLabel}>
@@ -2096,23 +2151,65 @@ export function RapportActivite() {
                   const bloc = contenuParSite.find((c) => c.siteId === sid);
                   return getDomainesRapportProjet(projetCourant).map((d) => {
                     const inputId = `axe-file-${sid}-${d.id}`;
+                    const photosDom = photosAxeContenu(bloc?.axes[d.id]);
+                    const plein =
+                      photosDom.length >= MAX_PHOTOS_PAR_DOMAINE_RAPPORT;
                     return (
                       <div key={d.id} className={`${styles.field} ${styles.axeField}`}>
                         <label htmlFor={`axe-${sid}-${d.id}`}>
                           {d.label}
                           <span className={styles.axeHint}>{d.hint}</span>
                         </label>
-                        <div className={styles.axePhotoLabel}>Photo du domaine</div>
+                        <div className={styles.axePhotoLabel}>
+                          Photos du domaine
+                          {photosDom.length > 0 ? (
+                            <span className={styles.axePhotoCount}>
+                              {" "}
+                              ({photosDom.length}/{MAX_PHOTOS_PAR_DOMAINE_RAPPORT})
+                            </span>
+                          ) : null}
+                        </div>
+                        {photosDom.length > 0 ? (
+                          <ul className={styles.axePhotoGallery}>
+                            {photosDom.map((src, idx) => (
+                              <li key={`${d.id}-ph-${idx}`} className={styles.axePhotoItem}>
+                                <div className={styles.axePhotoThumbWrap}>
+                                  <img
+                                    src={src}
+                                    alt=""
+                                    className={styles.axePhotoThumb}
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  className={styles.axePhotoRemove}
+                                  disabled={!sid}
+                                  onClick={() => removeAxePhotoAt(sid, d.id, idx)}
+                                >
+                                  Retirer
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        {photosDom.length > 0 ? (
+                          <button
+                            type="button"
+                            className={styles.axePhotoClearAll}
+                            disabled={!sid}
+                            onClick={() => clearAxePhotos(sid, d.id)}
+                          >
+                            Tout retirer
+                          </button>
+                        ) : null}
                         <RapportPhotoImport
                           inputId={inputId}
-                          disabled={!sid}
-                          previewSrc={bloc?.axes[d.id]?.photoDataUrl}
-                          onClearPreview={
-                            bloc?.axes[d.id]?.photoDataUrl
-                              ? () => setAxePhotoDataUrl(sid, d.id, undefined)
-                              : undefined
+                          disabled={!sid || plein}
+                          hint={
+                            plein
+                              ? "Nombre maximum de photos atteint pour ce domaine"
+                              : "Glissez-déposez une image ici"
                           }
-                          clearPreviewLabel="Retirer la photo"
                           onPick={(f) => void appliquerPhotoDomaine(sid, d.id, f)}
                         />
                         <textarea

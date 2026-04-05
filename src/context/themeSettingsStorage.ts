@@ -19,6 +19,15 @@ export type ThemeSettings = {
   sidebarBg: string;
   /** Vide = translucide par défaut */
   navInactiveBg: string;
+  /**
+   * Couleur d’accent : bandeaux PageFrame, onglets modules (Rapport…), dégradés `--gradient-brand`, focus.
+   * @default #e53935
+   */
+  accentPrimary: string;
+  /**
+   * 2ᵉ couleur du dégradé global ; vide = dérivée automatiquement (plus foncée) à partir de `accentPrimary`.
+   */
+  accentSecondary: string;
   navActiveMode: "gradient" | "solid";
   navActiveSolid: string;
   workspaceMode: "color" | "image";
@@ -35,6 +44,8 @@ export const DEFAULT_THEME: ThemeSettings = {
   logoDocumentsPdf: "",
   sidebarBg: "#ffffff",
   navInactiveBg: "rgba(0, 0, 0, 0.04)",
+  accentPrimary: "#e53935",
+  accentSecondary: "#c62828",
   navActiveMode: "solid",
   navActiveSolid: "#e53935",
   workspaceMode: "color",
@@ -53,6 +64,12 @@ export function loadThemeSettings(): ThemeSettings {
       }
       if (merged.logoDocumentsPdf == null) {
         merged.logoDocumentsPdf = "";
+      }
+      if (typeof merged.accentPrimary !== "string" || !merged.accentPrimary.trim()) {
+        merged.accentPrimary = DEFAULT_THEME.accentPrimary;
+      }
+      if (merged.accentSecondary == null || typeof merged.accentSecondary !== "string") {
+        merged.accentSecondary = DEFAULT_THEME.accentSecondary;
       }
       return merged;
     }

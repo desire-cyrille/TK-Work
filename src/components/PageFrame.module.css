@@ -82,7 +82,10 @@
   padding: 0.45rem 0.85rem 0.45rem 1.1rem;
   background: var(--gradient-brand);
   border-radius: 999px 0 0 999px;
-  box-shadow: -4px 0 20px rgba(229, 57, 53, 0.35);
+  box-shadow: var(
+    --accent-shadow-bar,
+    -4px 0 20px rgba(229, 57, 53, 0.35)
+  );
 }
 
 .heroRedBarText {

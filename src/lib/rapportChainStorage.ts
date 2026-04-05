@@ -3,6 +3,7 @@ import {
   type RapportDomaineDef,
   axesContenuVidesPourDomaines,
   axesVidesPourDomaines,
+  photosAxeContenu,
   resoudreIdDomaine,
 } from "../data/rapportParkingDomains";
 import {
@@ -63,14 +64,21 @@ function newId() {
 function normalizeAxeContenuRaw(v: unknown): AxeContenu {
   if (v && typeof v === "object" && v !== null && "texte" in v) {
     const o = v as Record<string, unknown>;
-    const photoDataUrl =
+    const texte = typeof o.texte === "string" ? o.texte : "";
+    const urls: string[] = [];
+    if (Array.isArray(o.photosDataUrls)) {
+      for (const u of o.photosDataUrls) {
+        if (typeof u === "string" && u.startsWith("data:")) urls.push(u);
+      }
+    }
+    const single =
       typeof o.photoDataUrl === "string" && o.photoDataUrl.startsWith("data:")
         ? o.photoDataUrl
         : undefined;
-    return {
-      texte: typeof o.texte === "string" ? o.texte : "",
-      photoDataUrl,
-    };
+    if (single && urls.length === 0) urls.push(single);
+    if (urls.length === 0) return { texte };
+    if (urls.length === 1) return { texte, photoDataUrl: urls[0] };
+    return { texte, photoDataUrl: urls[0], photosDataUrls: urls };
   }
   if (typeof v === "string") return { texte: v };
   return { texte: "" };
@@ -170,6 +178,7 @@ function fusionnerAxesVersDomaines(
       out[d.id] = {
         texte: cur.texte ?? "",
         photoDataUrl: cur.photoDataUrl,
+        photosDataUrls: cur.photosDataUrls,
       };
     }
   }
@@ -730,8 +739,10 @@ export function clePhotoQuotidienMensuel(
   rapportId: string,
   siteId: string,
   domainId: string,
+  photoIndex = 0,
 ): string {
-  return `${rapportId}|${siteId}|${domainId}`;
+  if (photoIndex <= 0) return `${rapportId}|${siteId}|${domainId}`;
+  return `${rapportId}|${siteId}|${domainId}|p${photoIndex}`;
 }
 
 export type PhotoQuotidienPourMensuel = {
@@ -760,17 +771,19 @@ export function collecterPhotosQuotidiensPourMensuel(
     if (r.mode !== "quotidien") continue;
     for (const c of r.contenuParSite) {
       for (const d of domaines) {
-        const photo = c.axes[d.id]?.photoDataUrl?.trim();
-        if (!photo || photo.length < 40) continue;
-        out.push({
-          cle: clePhotoQuotidienMensuel(r.id, c.siteId, d.id),
-          rapportId: r.id,
-          jourDate: r.jourDate,
-          siteId: c.siteId,
-          siteNom: siteNom(c.siteId),
-          domainId: d.id,
-          domainLabel: domLabel(d.id),
-          photoDataUrl: photo,
+        const liste = photosAxeContenu(c.axes[d.id]);
+        liste.forEach((photoDataUrl, idx) => {
+          if (!photoDataUrl || photoDataUrl.length < 40) return;
+          out.push({
+            cle: clePhotoQuotidienMensuel(r.id, c.siteId, d.id, idx),
+            rapportId: r.id,
+            jourDate: r.jourDate,
+            siteId: c.siteId,
+            siteNom: siteNom(c.siteId),
+            domainId: d.id,
+            domainLabel: domLabel(d.id),
+            photoDataUrl,
+          });
         });
       }
     }
