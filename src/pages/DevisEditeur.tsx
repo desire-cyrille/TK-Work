@@ -1,4 +1,11 @@
-import { FormEvent, Fragment, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
 import { PdfPreviewDialog, type PdfApercu } from "../components/PdfPreviewDialog";
@@ -131,6 +138,9 @@ const CLES_SYNTHESE_FORFAIT: (keyof DevisDomainesActifs)[] = [
   "permanence",
 ];
 
+/** Délai après la dernière modification avant écriture locale / sync. */
+const AUTO_SAVE_DEBOUNCE_MS = 480;
+
 export function DevisEditeur() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -144,9 +154,100 @@ export function DevisEditeur() {
   );
   const [distanceErr, setDistanceErr] = useState<string | null>(null);
 
+  const devisRef = useRef<Devis | null>(null);
+  devisRef.current = devis;
+
+  const lockEditableRef = useRef(false);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipAutosaveCyclesRef = useRef(0);
+  const isFirstDevisAutosaveRef = useRef(true);
+  const profileEmailRef = useRef(profileEmail);
+  profileEmailRef.current = profileEmail;
+
   const lock = useWorkspaceLock(
     id && id.length > 0 ? `devis:${id}` : null,
   );
+
+  lockEditableRef.current = Boolean(devis && lock.ready && lock.canEdit);
+
+  function clearAutosaveTimer() {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+  }
+
+  async function persisterDevisVersStockage(d: Devis): Promise<boolean> {
+    const globaux = lireParametresDevisDefaut();
+    const tz = tarifsPourZone(d.zone, globaux);
+    const tot = totauxBudget(d.contenu, tz);
+    const r = await withResourceLock(`devis:${d.id}`, () => {
+      mettreAJourDevis(d.id, {
+        ...d,
+        montantHt: formatEuro(tot.totalHt),
+        createdByEmail: d.createdByEmail || profileEmailRef.current || undefined,
+      });
+    });
+    if (!r.ok) {
+      setErr(r.error);
+      return false;
+    }
+    setErr(null);
+    return true;
+  }
+
+  function flushSauvegardeImmediate() {
+    clearAutosaveTimer();
+    const d = devisRef.current;
+    if (!d || !lockEditableRef.current) return;
+    void persisterDevisVersStockage(d);
+  }
+
+  function planifierSauvegardeDifferee() {
+    if (!lockEditableRef.current) return;
+    clearAutosaveTimer();
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      const d = devisRef.current;
+      if (!d || !lockEditableRef.current) return;
+      void persisterDevisVersStockage(d);
+    }, AUTO_SAVE_DEBOUNCE_MS);
+  }
+
+  useEffect(() => {
+    isFirstDevisAutosaveRef.current = true;
+  }, [id]);
+
+  useEffect(() => {
+    if (!devis || !lock.ready || !lock.canEdit) return;
+    if (skipAutosaveCyclesRef.current > 0) {
+      skipAutosaveCyclesRef.current -= 1;
+      return;
+    }
+    if (isFirstDevisAutosaveRef.current) {
+      isFirstDevisAutosaveRef.current = false;
+      return;
+    }
+    planifierSauvegardeDifferee();
+  }, [devis, lock.ready, lock.canEdit]);
+
+  useEffect(() => {
+    return () => {
+      clearAutosaveTimer();
+      const d = devisRef.current;
+      if (!d) return;
+      const globaux = lireParametresDevisDefaut();
+      const tz = tarifsPourZone(d.zone, globaux);
+      const tot = totauxBudget(d.contenu, tz);
+      void withResourceLock(`devis:${d.id}`, () => {
+        mettreAJourDevis(d.id, {
+          ...d,
+          montantHt: formatEuro(tot.totalHt),
+          createdByEmail: d.createdByEmail || profileEmailRef.current || undefined,
+        });
+      });
+    };
+  }, []);
 
   useEffect(() => {
     if (!id) {
@@ -176,6 +277,7 @@ export function DevisEditeur() {
     const allowed =
       devis.modeleDevis === "forfaitaire" ? ONGLETS_FORFAIT : ONGLETS_DETAILLE;
     if (!allowed.some((o) => o.id === onglet)) {
+      flushSauvegardeImmediate();
       setOnglet("infos");
     }
   }, [devis?.id, devis?.modeleDevis, onglet]);
@@ -215,21 +317,19 @@ export function DevisEditeur() {
         : devis.client,
       Boolean(devis.clientEstSociete),
     );
+    clearAutosaveTimer();
     void (async () => {
-      const r = await withResourceLock(`devis:${devis.id}`, () => {
-        mettreAJourDevis(devis.id, {
-          ...devis,
-          montantHt: formatEuro(totaux.totalHt),
-          createdByEmail: devis.createdByEmail || profileEmail || undefined,
-        });
-      });
-      if (!r.ok) {
-        setErr(r.error);
-        return;
+      const ok = await persisterDevisVersStockage(devis);
+      if (ok) {
+        skipAutosaveCyclesRef.current = 1;
+        setDevis(getDevis(devis.id) ?? devis);
       }
-      setErr(null);
-      setDevis(getDevis(devis.id) ?? devis);
     })();
+  }
+
+  function choisirOnglet(next: OngletDevis) {
+    flushSauvegardeImmediate();
+    setOnglet(next);
   }
 
   async function ouvrirPdf() {
@@ -375,6 +475,12 @@ export function DevisEditeur() {
               Partager (PDF)
             </button>
           </div>
+          <p className={styles.hint} style={{ marginTop: "-0.35rem" }}>
+            Les modifications sont enregistrées automatiquement (quelques
+            secondes après la saisie) et à chaque changement d’onglet. Le bouton
+            « Enregistrer » force la sauvegarde et mémorise le client pour les
+            prochains devis.
+          </p>
           {err ? <p className={styles.errMsg}>{err}</p> : null}
 
           <div className={styles.tabs} role="tablist">
@@ -390,7 +496,7 @@ export function DevisEditeur() {
                 className={
                   onglet === t.id ? `${styles.tab} ${styles.tabActive}` : styles.tab
                 }
-                onClick={() => setOnglet(t.id)}
+                onClick={() => choisirOnglet(t.id)}
               >
                 {t.label}
               </button>
