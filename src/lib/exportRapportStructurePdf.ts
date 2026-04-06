@@ -1,10 +1,42 @@
 import { jsPDF } from "jspdf";
 import {
+  COL_DOMAINE_ID,
   COL_ETAT_ID,
+  COL_SUJET_ID,
   TABLEAU_ETAT_LEGENDE,
   type TableauSuiviBloc,
   type TableauSuiviColonne,
+  type TableauSuiviSujetRow,
 } from "./tableauSuivi";
+
+/** Ligne affichée dans le PDF seulement si au moins un champ utile est renseigné. */
+function tableauSujetRowRempliePourPdf(
+  suj: TableauSuiviSujetRow,
+  colonnes: TableauSuiviColonne[],
+): boolean {
+  if (suj.sujet.trim()) return true;
+  if ((suj.cellules[COL_SUJET_ID] ?? "").trim()) return true;
+  for (const c of colonnes) {
+    const id = c.id;
+    if (id === COL_DOMAINE_ID || id === COL_SUJET_ID) continue;
+    if ((suj.cellules[id] ?? "").trim()) return true;
+  }
+  return false;
+}
+
+function filtrerBlocsTableauSuiviPourPdf(
+  blocs: TableauSuiviBloc[],
+  colonnes: TableauSuiviColonne[],
+): TableauSuiviBloc[] {
+  return blocs
+    .map((b) => ({
+      ...b,
+      sujets: b.sujets.filter((s) =>
+        tableauSujetRowRempliePourPdf(s, colonnes),
+      ),
+    }))
+    .filter((b) => b.sujets.length > 0);
+}
 
 /** Style TK Pro (rouge + bandeau sombre), aligné sur l’app et tkpro.fr */
 const BRAND_RED: [number, number, number] = [229, 57, 53];
@@ -12,6 +44,8 @@ const HERO_DARK: [number, number, number] = [26, 26, 28];
 const MARGE = 15;
 const PAGE_W = 210;
 const MAX_TXT = 180;
+/** Centre horizontal de la page A4 (mm) pour le texte centré. */
+const PAGE_CENTER_X = PAGE_W / 2;
 
 export type PdfBlocTableauSuivi = {
   colonnes: TableauSuiviColonne[];
@@ -124,6 +158,10 @@ const TABLEAU_CELL_PAD_V = 1.15;
 const TABLEAU_MAX_LINES_PAR_CELLULE = 28;
 /** Bas de zone utile avant saut (mm). */
 const TABLEAU_PAGE_BOTTOM = 283;
+/** Espace entre la fin du texte site et le titre « Tableau de suivi » (mm). */
+const TABLEAU_GAP_APRES_TEXTE = 8;
+/** Hauteur mini restante pour enchaîner le tableau sur la page courante (titre + en-tête) (mm). */
+const TABLEAU_MIN_RESTE_POUR_MEME_PAGE = 28;
 const CELL_DOMAIN: [number, number, number] = [240, 244, 250];
 const CELL_SUBJ: [number, number, number] = [248, 250, 252];
 const CELL_BODY: [number, number, number] = [255, 255, 255];
@@ -139,9 +177,8 @@ function drawTableauSuiviPdf(
   const nc = colonnes.length;
   if (!nc || !blocs.length) return yStart;
 
-  /** Toujours une page dédiée (ne pas enchaîner après le texte des domaines). */
-  doc.addPage();
-  let y = MARGE;
+  const blocsPdf = filtrerBlocsTableauSuiviPourPdf(blocs, colonnes);
+  if (!blocsPdf.length) return yStart;
 
   const x0 = MARGE;
   const wTot = MAX_TXT;
@@ -209,7 +246,7 @@ function drawTableauSuiviPdf(
       const subLines = doc.splitTextToSize(st, wTot);
       h += Math.min(subLines.length, 4) * 3.9 + 2;
     }
-    for (const b of blocs) {
+    for (const b of blocsPdf) {
       if (b.sujets.length === 0) {
         h += TABLEAU_ROW_H_MIN;
       } else {
@@ -224,9 +261,31 @@ function drawTableauSuiviPdf(
   }
 
   const extent = hauteurTableauDessinee();
-  const fitsOnUnePage = MARGE + extent <= TABLEAU_PAGE_BOTTOM;
-  /** Si false, tableau plus haut qu’une A4 : sauts entre blocs / légende. */
-  const splitMode = !fitsOnUnePage;
+  const maxY = TABLEAU_PAGE_BOTTOM;
+  const yApresSeparation = yStart + TABLEAU_GAP_APRES_TEXTE;
+  const espaceRestant = maxY - yApresSeparation;
+  const hauteurPageUtile = maxY - MARGE;
+
+  let y: number;
+  if (extent <= espaceRestant) {
+    /** Tout le tableau tient sous le contenu site sur la page courante. */
+    y = yApresSeparation;
+  } else if (extent <= hauteurPageUtile) {
+    /** Une page entière suffit, mais pas dans l’espace restant : page dédiée. */
+    doc.addPage();
+    y = MARGE;
+  } else {
+    /** Tableau multi-pages : enchaîner si assez de place pour titre + en-tête, sinon saut. */
+    if (espaceRestant >= TABLEAU_MIN_RESTE_POUR_MEME_PAGE) {
+      y = yApresSeparation;
+    } else {
+      doc.addPage();
+      y = MARGE;
+    }
+  }
+
+  /** Sauts internes si le bloc ne tient pas jusqu’en bas de page à partir de `y`. */
+  const splitMode = y + extent > maxY;
 
   function pageBreakIf(needLocal: number) {
     if (!splitMode) return;
@@ -304,7 +363,7 @@ function drawTableauSuiviPdf(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(...BRAND_RED);
-  doc.text("Tableau de suivi", x0, y);
+  doc.text("Tableau de suivi", PAGE_CENTER_X, y, { align: "center" });
   y += 8;
 
   if (st) {
@@ -314,7 +373,7 @@ function drawTableauSuiviPdf(
     const subLines = doc.splitTextToSize(st, wTot);
     for (let si = 0; si < Math.min(subLines.length, 4); si++) {
       pageBreakIf(4);
-      doc.text(subLines[si] as string, x0, y);
+      doc.text(subLines[si] as string, PAGE_CENTER_X, y, { align: "center" });
       y += 3.9;
     }
     y += 2;
@@ -345,7 +404,7 @@ function drawTableauSuiviPdf(
   }
   y += TABLEAU_HDR_H;
 
-  for (const bloc of blocs) {
+  for (const bloc of blocsPdf) {
     const rowHeights =
       bloc.sujets.length === 0
         ? [TABLEAU_ROW_H_MIN]
@@ -404,23 +463,30 @@ function drawTableauSuiviPdf(
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(...BRAND_RED);
-    doc.text("Légende — colonne État", x0, y);
+    doc.text("Légende — colonne État", PAGE_CENTER_X, y, { align: "center" });
     y += 5;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.6);
     doc.setTextColor(48, 55, 65);
     const sq = 2.6;
     const gapApresCarre = 3.5;
+    const labelMaxW = wTot - sq - gapApresCarre - 2;
     for (const ent of TABLEAU_ETAT_LEGENDE) {
       pageBreakIf(8);
+      const lines = doc.splitTextToSize(ent.label, labelMaxW);
+      let maxLineW = 0;
+      for (let li = 0; li < Math.min(lines.length, 4); li++) {
+        maxLineW = Math.max(maxLineW, doc.getTextWidth(lines[li] as string));
+      }
+      const rowW = sq + gapApresCarre + maxLineW;
+      const rowStartX = PAGE_CENTER_X - rowW / 2;
       doc.setFillColor(...ent.rgb);
       doc.setDrawColor(...BORDER);
       doc.setLineWidth(0.12);
-      doc.rect(x0, y - sq + 0.6, sq, sq, "FD");
-      const lines = doc.splitTextToSize(ent.label, wTot - sq - gapApresCarre - 2);
+      doc.rect(rowStartX, y - sq + 0.6, sq, sq, "FD");
       let ly = y;
       for (let li = 0; li < Math.min(lines.length, 4); li++) {
-        doc.text(lines[li] as string, x0 + sq + gapApresCarre, ly);
+        doc.text(lines[li] as string, rowStartX + sq + gapApresCarre, ly);
         ly += 3.1;
       }
       y = ly + 1;
@@ -509,7 +575,9 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
   const pillLines = doc.splitTextToSize(input.titreBandeau, pillW - 8);
   let py = pillY + pillH / 2 - (Math.min(pillLines.length, 2) * 4) / 2 + 3;
   for (let pi = 0; pi < Math.min(pillLines.length, 2); pi++) {
-    doc.text(pillLines[pi] as string, pillX + 4, py);
+    doc.text(pillLines[pi] as string, pillX + pillW / 2, py, {
+      align: "center",
+    });
     py += 4.1;
   }
   doc.setTextColor(0, 0, 0);
@@ -535,26 +603,28 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
   doc.setFontSize(12);
   doc.setTextColor(...BRAND_RED);
   for (const part of doc.splitTextToSize(input.titreDocument, MAX_TXT - 10)) {
-    doc.text(part, MARGE + 4, yi);
+    doc.text(part, PAGE_CENTER_X, yi, { align: "center" });
     yi += 6;
   }
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
   doc.setTextColor(45);
-  doc.text(`Période : ${input.periodeLibelle}`, MARGE + 4, yi);
+  doc.text(`Période : ${input.periodeLibelle}`, PAGE_CENTER_X, yi, {
+    align: "center",
+  });
   yi += 6;
-  doc.text(input.genereLeLibelle, MARGE + 4, yi);
+  doc.text(input.genereLeLibelle, PAGE_CENTER_X, yi, { align: "center" });
   yi += 8;
 
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...BRAND_RED);
-  doc.text("Sites", MARGE + 4, yi);
+  doc.text("Sites", PAGE_CENTER_X, yi, { align: "center" });
   yi += 5;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   for (const nom of input.sitesNomsListe) {
     if (yi > y + boxH - 6) break;
-    doc.text(`• ${nom}`, MARGE + 6, yi);
+    doc.text(`• ${nom}`, PAGE_CENTER_X, yi, { align: "center" });
     yi += 4.5;
   }
 
@@ -565,7 +635,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(...BRAND_RED);
-    doc.text(titre, MARGE, y);
+    doc.text(titre, PAGE_CENTER_X, y, { align: "center" });
     y += 6;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(size);
@@ -577,7 +647,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
           y = MARGE;
           drawPageFooterPlaceholders();
         }
-        doc.text(part, MARGE, y);
+        doc.text(part, PAGE_CENTER_X, y, { align: "center" });
         y += size === 9 ? 4.6 : 5;
       }
     }
@@ -599,8 +669,11 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
 
   // —— Corps : une section par site (intercalaire) ——
   for (const section of input.sectionsParSite) {
-    const tableauRempli = (t: { blocs: TableauSuiviBloc[] } | undefined) =>
-      Boolean(t?.blocs?.some((b) => b.sujets.length > 0));
+    const tableauRempli = (t: PdfBlocTableauSuivi | undefined) =>
+      Boolean(
+        t?.colonnes?.length &&
+          filtrerBlocsTableauSuiviPourPdf(t.blocs, t.colonnes).length > 0,
+      );
     const hasTableauPdf =
       input.inclureTableauSuiviPdf !== false &&
       (tableauRempli(section.tableauSuivi) ||
@@ -630,8 +703,14 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
       ? PAGE_W - MARGE - 40 - MARGE
       : MAX_TXT;
     const lignesSite = doc.splitTextToSize(section.siteNom, titreSiteW);
-    const txSite = 16;
-    if (lignesSite[0]) doc.text(lignesSite[0], txSite, 10);
+    const nSiteLines = Math.min(lignesSite.length, 2);
+    let lySite = nSiteLines <= 1 ? 10 : 7;
+    for (let si = 0; si < nSiteLines; si++) {
+      doc.text(lignesSite[si] as string, PAGE_CENTER_X, lySite, {
+        align: "center",
+      });
+      lySite += 5.2;
+    }
     doc.setTextColor(0, 0, 0);
     y = 24;
 
@@ -644,7 +723,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(...BRAND_RED);
-      doc.text(dom.titre, MARGE, y);
+      doc.text(dom.titre, PAGE_CENTER_X, y, { align: "center" });
       y += 7;
       doc.setTextColor(30);
 
@@ -666,7 +745,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
             doc.addPage();
             y = MARGE;
           }
-          doc.text(part, MARGE, y);
+          doc.text(part, PAGE_CENTER_X, y, { align: "center" });
           y += 5;
         }
       }
@@ -704,7 +783,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(...BRAND_RED);
-    doc.text("Synthèse", MARGE, y);
+    doc.text("Synthèse", PAGE_CENTER_X, y, { align: "center" });
     y += 10;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
@@ -714,7 +793,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
         doc.addPage();
         y = MARGE;
       }
-      doc.text(part, MARGE, y);
+      doc.text(part, PAGE_CENTER_X, y, { align: "center" });
       y += 5;
     }
   }

@@ -13,8 +13,8 @@ export function telechargerRapportActivitePdf(input: {
   nomFichierPrefix: string;
 }): void {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const marge = 15;
   const maxW = 180;
+  const cx = 210 / 2;
   let y = 18;
 
   function avancer(h: number) {
@@ -28,7 +28,7 @@ export function telechargerRapportActivitePdf(input: {
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
   for (const chunk of doc.splitTextToSize(input.titre, maxW)) {
-    doc.text(chunk, marge, y);
+    doc.text(chunk, cx, y, { align: "center" });
     avancer(7);
   }
 
@@ -36,33 +36,35 @@ export function telechargerRapportActivitePdf(input: {
   doc.setFontSize(10);
   doc.setTextColor(100);
   for (const part of doc.splitTextToSize(input.typeLibelle, maxW)) {
-    doc.text(part, marge, y);
+    doc.text(part, cx, y, { align: "center" });
     avancer(5);
   }
   doc.setTextColor(0);
-  doc.text(`Période / focus : ${input.periodeLibelle}`, marge, y);
+  doc.text(`Période / focus : ${input.periodeLibelle}`, cx, y, {
+    align: "center",
+  });
   avancer(6);
   if (input.contexteMetier?.trim()) {
     doc.setFontSize(9);
     doc.setTextColor(90);
     for (const part of doc.splitTextToSize(input.contexteMetier.trim(), maxW)) {
-      doc.text(part, marge, y);
+      doc.text(part, cx, y, { align: "center" });
       avancer(4.5);
     }
     doc.setTextColor(0);
     doc.setFontSize(10);
   }
-  doc.text(input.genereLeLibelle, marge, y);
+  doc.text(input.genereLeLibelle, cx, y, { align: "center" });
   avancer(6);
 
   if (input.enteteContexte && input.enteteContexte.length > 0) {
     doc.setFont("helvetica", "bold");
-    doc.text("Mission et client", marge, y);
+    doc.text("Mission et client", cx, y, { align: "center" });
     avancer(6);
     doc.setFont("helvetica", "normal");
     for (const line of input.enteteContexte) {
       for (const part of doc.splitTextToSize(line, maxW)) {
-        doc.text(part, marge, y);
+        doc.text(part, cx, y, { align: "center" });
         avancer(5);
       }
     }
@@ -73,18 +75,20 @@ export function telechargerRapportActivitePdf(input: {
   if (domaines.length > 0) {
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
-    doc.text("Activité par domaine — mission parking", marge, y);
+    doc.text("Activité par domaine — mission parking", cx, y, {
+      align: "center",
+    });
     avancer(7);
     doc.setFontSize(10);
     for (const bloc of domaines) {
       doc.setFont("helvetica", "bold");
       for (const part of doc.splitTextToSize(bloc.titre, maxW)) {
-        doc.text(part, marge, y);
+        doc.text(part, cx, y, { align: "center" });
         avancer(5);
       }
       doc.setFont("helvetica", "normal");
       for (const part of doc.splitTextToSize(bloc.corps.trim(), maxW)) {
-        doc.text(part, marge, y);
+        doc.text(part, cx, y, { align: "center" });
         avancer(5);
       }
       avancer(2);
@@ -96,12 +100,12 @@ export function telechargerRapportActivitePdf(input: {
     avancer(6);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text("Synthèse et notes complémentaires", marge, y);
+    doc.text("Synthèse et notes complémentaires", cx, y, { align: "center" });
     avancer(6);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     for (const part of doc.splitTextToSize(obs, maxW)) {
-      doc.text(part, marge, y);
+      doc.text(part, cx, y, { align: "center" });
       avancer(5);
     }
   }
@@ -113,7 +117,7 @@ export function telechargerRapportActivitePdf(input: {
       doc.addPage();
       y = 18;
     }
-    doc.text(part, marge, y);
+    doc.text(part, cx, y, { align: "center" });
     y += 4;
   }
 
