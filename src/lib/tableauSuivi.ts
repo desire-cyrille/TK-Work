@@ -30,7 +30,7 @@ export const TABLEAU_ETAT_LEGENDE: readonly {
   },
   {
     code: "non_fonctionnel",
-    label: "Mis en place, non fonctionnel",
+    label: "Mis en place mais dysfonctionne",
     couleur: "#2563eb",
     rgb: [37, 99, 235],
   },
@@ -149,6 +149,7 @@ export function normaliserValeurEtat(stocke: string): string {
   }
   if (low.includes("en cours")) return "en_cours";
   if (
+    low.includes("dysfonctionne") ||
     low.includes("non fonctionnel") ||
     low.includes("non-fonctionnel") ||
     low.includes("non fonctionnelle")

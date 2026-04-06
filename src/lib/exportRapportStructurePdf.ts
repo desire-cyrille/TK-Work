@@ -120,6 +120,28 @@ function addImageFit(
   }
 }
 
+/** Hauteur d’image mise à l’échelle (mm), sans dessiner — aligné sur addImageFit. */
+function estimateImageFitHeight(
+  doc: jsPDF,
+  dataUrl: string,
+  maxW: number,
+  maxH: number,
+): number {
+  try {
+    const props = doc.getImageProperties(dataUrl);
+    const ratio = props.width / props.height;
+    let w = maxW;
+    let h = w / ratio;
+    if (h > maxH) {
+      h = maxH;
+      w = h * ratio;
+    }
+    return h;
+  } catch {
+    return 0;
+  }
+}
+
 /** Logo aligné à droite ; retourne la largeur utilisée (0 si échec). */
 function addImageAlignedRight(
   doc: jsPDF,
@@ -166,6 +188,148 @@ const CELL_DOMAIN: [number, number, number] = [240, 244, 250];
 const CELL_SUBJ: [number, number, number] = [248, 250, 252];
 const CELL_BODY: [number, number, number] = [255, 255, 255];
 const BORDER: [number, number, number] = [198, 206, 216];
+/** Sous le bandeau titre site (mm). */
+const SITE_CORPS_Y_DEBUT = 24;
+
+/**
+ * Hauteur verticale du bloc « Tableau de suivi » + légende (mm).
+ * `blocsPdf` = blocs déjà filtrés (lignes vides exclues).
+ */
+function tableauSuiviExtentMm(
+  doc: jsPDF,
+  colonnes: TableauSuiviColonne[],
+  blocsPdf: TableauSuiviBloc[],
+  st: string,
+): number {
+  const nc = colonnes.length;
+  const wTot = MAX_TXT;
+  const wLead =
+    nc >= 2 ? Math.min(34, wTot * 0.19) : Math.max(wTot / nc, 14);
+  const wLead2 = nc >= 2 ? Math.min(36, wTot * 0.2) : 0;
+  const wData =
+    nc > 2
+      ? Math.max((wTot - wLead - wLead2) / (nc - 2), 13)
+      : wTot / Math.max(nc, 1);
+
+  function colW(i: number): number {
+    if (nc === 1) return wTot;
+    if (i === 0) return wLead;
+    if (i === 1) return wLead2;
+    return wData;
+  }
+
+  const inclutColonneEtat = colonnes.some((c) => c.id === COL_ETAT_ID);
+
+  function nbLignesTexteDansCellule(txt: string, cw: number): number {
+    const t = txt.trim();
+    if (!t) return 1;
+    const parts = doc.splitTextToSize(t, Math.max(cw - 2, 4));
+    return Math.min(
+      Math.max(1, parts.length),
+      TABLEAU_MAX_LINES_PAR_CELLULE,
+    );
+  }
+
+  function hauteurLignePourSujet(suj: TableauSuiviBloc["sujets"][number]): number {
+    let maxLines = 1;
+    for (let ci = 1; ci < nc; ci++) {
+      const cw = colW(ci);
+      const colId = colonnes[ci]?.id;
+      if (inclutColonneEtat && colId === COL_ETAT_ID) continue;
+      const cellTxt =
+        ci === 1 ? suj.sujet : colId ? (suj.cellules[colId] ?? "") : "";
+      maxLines = Math.max(maxLines, nbLignesTexteDansCellule(cellTxt, cw));
+    }
+    return Math.max(
+      TABLEAU_ROW_H_MIN,
+      maxLines * TABLEAU_CELL_LINE_H + TABLEAU_CELL_PAD_V * 2,
+    );
+  }
+
+  function hauteurLegendeEstimee(): number {
+    if (!inclutColonneEtat) return 0;
+    let h = 3 + 5 + 2;
+    const sq = 2.6;
+    const gapApresCarre = 3.5;
+    for (const ent of TABLEAU_ETAT_LEGENDE) {
+      const lines = doc.splitTextToSize(ent.label, wTot - sq - gapApresCarre - 2);
+      h += Math.min(lines.length, 4) * 3.1 + 1;
+    }
+    return h + 2;
+  }
+
+  let h = 8 + TABLEAU_HDR_H;
+  if (st) {
+    const subLines = doc.splitTextToSize(st, wTot);
+    h += Math.min(subLines.length, 4) * 3.9 + 2;
+  }
+  for (const b of blocsPdf) {
+    if (b.sujets.length === 0) {
+      h += TABLEAU_ROW_H_MIN;
+    } else {
+      for (const suj of b.sujets) {
+        h += hauteurLignePourSujet(suj);
+      }
+    }
+  }
+  h += hauteurLegendeEstimee();
+  h += 5 + 6;
+  return h;
+}
+
+/**
+ * Vérifie si texte domaines + liste de tableaux tiennent sur une seule page sous le bandeau site,
+ * et retourne la hauteur totale (mm) pour centrage vertical.
+ */
+function simulerHauteurSectionSiteUnePage(
+  doc: jsPDF,
+  section: PdfSectionSite,
+  tableaux: PdfBlocTableauSuivi[],
+): { unePage: boolean; hMm: number } {
+  let y = SITE_CORPS_Y_DEBUT;
+  const yMax = TABLEAU_PAGE_BOTTOM;
+  const hPage = yMax - MARGE;
+
+  if (section.sitePhotoDataUrl?.trim()) {
+    y +=
+      estimateImageFitHeight(doc, section.sitePhotoDataUrl, 90, 50) + 6;
+  }
+
+  for (const dom of section.domaines) {
+    y += 7;
+    const imgs = (dom.photoDataUrls ?? []).filter((u) => u?.trim());
+    for (const dataUrl of imgs) {
+      if (y > 200) return { unePage: false, hMm: 0 };
+      y += estimateImageFitHeight(doc, dataUrl, MAX_TXT, 65) + 5;
+    }
+    if (dom.texte.trim()) {
+      const parts = doc.splitTextToSize(dom.texte.trim(), MAX_TXT);
+      for (const _line of parts) {
+        if (y > yMax) return { unePage: false, hMm: 0 };
+        y += 5;
+      }
+    }
+    y += 5;
+  }
+
+  for (const t of tableaux) {
+    const blocsPdf = filtrerBlocsTableauSuiviPourPdf(t.blocs, t.colonnes);
+    if (!blocsPdf.length) continue;
+    const st = t.sousTitre?.trim() ?? "";
+    const extent = tableauSuiviExtentMm(doc, t.colonnes, blocsPdf, st);
+    const yApresGap = y + TABLEAU_GAP_APRES_TEXTE;
+    const espaceRestant = yMax - yApresGap;
+    if (extent <= espaceRestant) {
+      y = yApresGap + extent;
+    } else if (extent <= hPage) {
+      return { unePage: false, hMm: 0 };
+    } else {
+      return { unePage: false, hMm: 0 };
+    }
+  }
+
+  return { unePage: true, hMm: y - SITE_CORPS_Y_DEBUT };
+}
 
 function drawTableauSuiviPdf(
   doc: jsPDF,
@@ -227,40 +391,7 @@ function drawTableauSuiviPdf(
   }
 
   /** Hauteur légende état (mm), cohérente avec le dessin réel. */
-  function hauteurLegendeEstimee(): number {
-    if (!inclutColonneEtat) return 0;
-    let h = 3 + 5 + 2;
-    const sq = 2.6;
-    const gapApresCarre = 3.5;
-    for (const ent of TABLEAU_ETAT_LEGENDE) {
-      const lines = doc.splitTextToSize(ent.label, wTot - sq - gapApresCarre - 2);
-      h += Math.min(lines.length, 4) * 3.1 + 1;
-    }
-    return h + 2;
-  }
-
-  /** Hauteur dessinée : titre, en-tête, lignes, légende, marge de fin (mm). */
-  function hauteurTableauDessinee(): number {
-    let h = 8 + TABLEAU_HDR_H;
-    if (st) {
-      const subLines = doc.splitTextToSize(st, wTot);
-      h += Math.min(subLines.length, 4) * 3.9 + 2;
-    }
-    for (const b of blocsPdf) {
-      if (b.sujets.length === 0) {
-        h += TABLEAU_ROW_H_MIN;
-      } else {
-        for (const suj of b.sujets) {
-          h += hauteurLignePourSujet(suj);
-        }
-      }
-    }
-    h += hauteurLegendeEstimee();
-    h += 5 + 6;
-    return h;
-  }
-
-  const extent = hauteurTableauDessinee();
+  const extent = tableauSuiviExtentMm(doc, colonnes, blocsPdf, st);
   const maxY = TABLEAU_PAGE_BOTTOM;
   const yApresSeparation = yStart + TABLEAU_GAP_APRES_TEXTE;
   const espaceRestant = maxY - yApresSeparation;
@@ -285,7 +416,12 @@ function drawTableauSuiviPdf(
   }
 
   /** Sauts internes si le bloc ne tient pas jusqu’en bas de page à partir de `y`. */
-  const splitMode = y + extent > maxY;
+  let splitMode = y + extent > maxY;
+  if (y === MARGE && !splitMode) {
+    const zone = maxY - MARGE;
+    y = MARGE + Math.max(0, (zone - extent) / 2);
+    splitMode = y + extent > maxY;
+  }
 
   function pageBreakIf(needLocal: number) {
     if (!splitMode) return;
@@ -712,7 +848,28 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
       lySite += 5.2;
     }
     doc.setTextColor(0, 0, 0);
-    y = 24;
+
+    const listeTableauxSite: PdfBlocTableauSuivi[] = [];
+    if (input.inclureTableauSuiviPdf !== false) {
+      if (section.tableauxSuivi?.length) {
+        for (const t of section.tableauxSuivi) {
+          if (tableauRempli(t)) listeTableauxSite.push(t);
+        }
+      } else if (tableauRempli(section.tableauSuivi)) {
+        listeTableauxSite.push(section.tableauSuivi!);
+      }
+    }
+    const simSite = simulerHauteurSectionSiteUnePage(
+      doc,
+      section,
+      listeTableauxSite,
+    );
+    const zoneCorpsSite = TABLEAU_PAGE_BOTTOM - SITE_CORPS_Y_DEBUT;
+    y =
+      SITE_CORPS_Y_DEBUT +
+      (simSite.unePage && simSite.hMm > 0
+        ? Math.max(0, (zoneCorpsSite - simSite.hMm) / 2)
+        : 0);
 
     if (section.sitePhotoDataUrl?.trim()) {
       const h = addImageFit(doc, section.sitePhotoDataUrl, MARGE, y, 90, 50);
@@ -753,24 +910,13 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     }
 
     if (input.inclureTableauSuiviPdf !== false) {
-      if (section.tableauxSuivi?.length) {
-        for (const t of section.tableauxSuivi) {
-          if (!tableauRempli(t)) continue;
-          y = drawTableauSuiviPdf(
-            doc,
-            y,
-            t.colonnes,
-            t.blocs,
-            t.sousTitre,
-          );
-        }
-      } else if (tableauRempli(section.tableauSuivi)) {
+      for (const t of listeTableauxSite) {
         y = drawTableauSuiviPdf(
           doc,
           y,
-          section.tableauSuivi!.colonnes,
-          section.tableauSuivi!.blocs,
-          section.tableauSuivi!.sousTitre,
+          t.colonnes,
+          t.blocs,
+          t.sousTitre,
         );
       }
     }
@@ -779,7 +925,12 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
   const syn = input.synthese.trim();
   if (syn) {
     doc.addPage();
-    y = MARGE;
+    const partsSyn = doc.splitTextToSize(syn, MAX_TXT);
+    const hSynBloc = 13 + partsSyn.length * 5;
+    const zoneSyn = TABLEAU_PAGE_BOTTOM - MARGE;
+    y =
+      MARGE +
+      (hSynBloc < zoneSyn ? Math.max(0, (zoneSyn - hSynBloc) / 2) : 0);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(...BRAND_RED);
@@ -788,7 +939,7 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(25);
-    for (const part of doc.splitTextToSize(syn, MAX_TXT)) {
+    for (const part of partsSyn) {
       if (y > 275) {
         doc.addPage();
         y = MARGE;
