@@ -97,6 +97,8 @@ function remplirPageSommaire(
   doc: jsPDF,
   entrees: { libelle: string; debut: number; fin: number }[],
   topInsetMm: number,
+  /** Ne lier que vers des pages déjà présentes dans ce PDF jsPDF (sinon destinations invalides → PDF corrompu). */
+  nbPagesMaxPourLiensInternes: number,
 ) {
   doc.setPage(2);
   remplirPageBlanche(doc);
@@ -128,7 +130,10 @@ function remplirPageSommaire(
     }
     const yApresBloc = y;
     y += 3;
-    if (e.debut >= 1) {
+    if (
+      e.debut >= 1 &&
+      e.debut <= nbPagesMaxPourLiensInternes
+    ) {
       const linkW = W - 2 * M - 4;
       const linkH = Math.max(lineH, yApresBloc - yLigneSommaire) + 4;
       doc.link(M + 2, yLigneSommaire - 4.5, linkW, linkH, {
@@ -965,7 +970,12 @@ export async function genererDevisPdfBlob(
     fin: conclusionFin,
   });
 
-  remplirPageSommaire(docCorps, entreesSommaire, topInsetMm);
+  remplirPageSommaire(
+    docCorps,
+    entreesSommaire,
+    topInsetMm,
+    docCorps.getNumberOfPages(),
+  );
   const bufCorps = docCorps.output("arraybuffer");
 
   const merged = await PDFDocument.create();
