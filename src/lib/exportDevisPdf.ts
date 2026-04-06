@@ -53,6 +53,33 @@ function reserverPageSommaire(doc: jsPDF) {
   remplirPageBlanche(doc);
 }
 
+/** Titre de page centré dans un cadre (style « TARIFICATION DÉTAILLÉE »). */
+function dessinerTitrePageEncadre(
+  doc: jsPDF,
+  titre: string,
+  yTopMm: number,
+  options?: { fontSize?: number; boxWidthMm?: number },
+): number {
+  const fs = options?.fontSize ?? 12;
+  const boxWMm = options?.boxWidthMm ?? 100;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(fs);
+  const lines = doc.splitTextToSize(titre.trim().toUpperCase(), boxWMm - 8) as string[];
+  const lineHmm = fs * 0.42 + 1.35;
+  const padMm = 2.8;
+  const boxHMm = Math.max(11, lines.length * lineHmm + padMm * 2);
+  doc.setDrawColor(55, 55, 55);
+  doc.setLineWidth(0.35);
+  doc.rect((W - boxWMm) / 2, yTopMm, boxWMm, boxHMm);
+  setText(doc, [28, 28, 28]);
+  let ty = yTopMm + padMm + fs * 0.32;
+  for (const ln of lines) {
+    doc.text(ln, W / 2, ty, { align: "center" });
+    ty += lineHmm;
+  }
+  return yTopMm + boxHMm;
+}
+
 function remplirPageSommaire(
   doc: jsPDF,
   entrees: { libelle: string; debut: number; fin: number }[],
@@ -60,12 +87,9 @@ function remplirPageSommaire(
 ) {
   doc.setPage(2);
   remplirPageBlanche(doc);
-  let y = M + 12 + topInsetMm;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  setText(doc, [28, 28, 28]);
-  doc.text("SOMMAIRE", W / 2, y, { align: "center" });
-  y += 14;
+  let y = M + 8 + topInsetMm;
+  y = dessinerTitrePageEncadre(doc, "Sommaire", y, { fontSize: 12, boxWidthMm: 100 });
+  y += 6;
   doc.setDrawColor(190, 190, 198);
   doc.setLineWidth(0.3);
   doc.line(M + 2, y, W - M - 2, y);
@@ -185,14 +209,8 @@ function corpsCentre(
   }
   remplirPageBlanche(doc);
   const inset = options?.topInsetMm ?? 0;
-  let y = M + 8 + inset;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  setText(doc, [25, 25, 25]);
-  for (const line of doc.splitTextToSize(titre, TEXT_W)) {
-    doc.text(line, W / 2, y, { align: "center" });
-    y += 8;
-  }
+  let y = M + 6 + inset;
+  y = dessinerTitrePageEncadre(doc, titre, y, { fontSize: 12, boxWidthMm: 110 });
   y += 10;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10.5);
@@ -301,16 +319,11 @@ function pageTarificationDetaillee(
   const lignesPdf = lignesBudgetPourPdf(d.contenu, tarifs, d.modeleDevis);
 
   let y = M + 6 + topInsetMm;
-  doc.setDrawColor(55, 55, 55);
-  doc.setLineWidth(0.35);
-  const boxW = 100;
-  const titleBoxH = 11;
-  doc.rect((W - boxW) / 2, y, boxW, titleBoxH);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  setText(doc, [28, 28, 28]);
-  doc.text("TARIFICATION DÉTAILLÉE", W / 2, y + 7.5, { align: "center" });
-  y += titleBoxH + 14;
+  y = dessinerTitrePageEncadre(doc, "Tarification détaillée", y, {
+    fontSize: 12,
+    boxWidthMm: 100,
+  });
+  y += 14;
 
   const tableLeft = M + 2;
   const tableW = 100;
@@ -666,28 +679,20 @@ function pageBandeauAnnexeCompta(
   topInsetMm: number,
 ) {
   remplirPageBlanche(doc);
-  let y = M + 10 + topInsetMm;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(40, 40, 40);
-  doc.text("Document issu du logiciel de comptabilité", W / 2, y, {
-    align: "center",
-  });
+  let y = M + 8 + topInsetMm;
+  y = dessinerTitrePageEncadre(
+    doc,
+    "Document issu du logiciel de comptabilité",
+    y,
+    { fontSize: 11, boxWidthMm: 150 },
+  );
   y += 10;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setTextColor(90, 90, 90);
+  setText(doc, [90, 90, 90]);
   const nom = d.pdfComptabiliteNom?.trim() || "Pièce jointe";
   doc.text(nom, W / 2, y, { align: "center" });
-  y += 12;
-  doc.setTextColor(60, 60, 60);
-  for (const part of doc.splitTextToSize(
-    "Les pages suivantes reprennent l’export PDF de votre logiciel de comptabilité.",
-    TEXT_W,
-  )) {
-    doc.text(part, W / 2, y, { align: "center" });
-    y += 5;
-  }
+  setText(doc, [0, 0, 0]);
 }
 
 function dataUrlToBytes(dataUrl: string): Uint8Array | null {
@@ -702,12 +707,22 @@ function dataUrlToBytes(dataUrl: string): Uint8Array | null {
 
 async function appliquerLogoEtPiedPageSurDocument(
   pdf: PDFDocument,
-  opts: { logoDataUrl?: string; footerText: string },
+  opts: {
+    logoDataUrl?: string;
+    footerText: string;
+    /** RVB 0–255 — fond du bandeau de pied (hors pages compta). */
+    gardeFond: [number, number, number];
+    /** RVB 0–255 — texte du pied sur le bandeau. */
+    gardeTexte: [number, number, number];
+    /** Indices de pages (0-based) sans pied ni bandeau : export comptable. */
+    indicesSansPied?: Set<number>;
+  },
 ) {
   const lines = opts.footerText
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
+  const skipFooter = opts.indicesSansPied ?? new Set<number>();
   if (!opts.logoDataUrl && lines.length === 0) return;
 
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -728,11 +743,15 @@ async function appliquerLogoEtPiedPageSurDocument(
     }
   }
 
+  const [gfR, gfG, gfB] = opts.gardeFond;
+  const [gtR, gtG, gtB] = opts.gardeTexte;
+  const fondPied = rgb(gfR / 255, gfG / 255, gfB / 255);
+  const textePied = rgb(gtR / 255, gtG / 255, gtB / 255);
+
   const pages = pdf.getPages();
   for (let i = 0; i < pages.length; i++) {
     const page = pages[i];
     const { width: pw, height: ph } = page.getSize();
-    const isGarde = i === 0;
 
     if (embedded) {
       const maxWPt = 30 * MM_TO_PT;
@@ -748,10 +767,23 @@ async function appliquerLogoEtPiedPageSurDocument(
       });
     }
 
-    if (lines.length === 0) continue;
-    const footerColor = isGarde ? rgb(0.88, 0.88, 0.9) : rgb(0.34, 0.34, 0.38);
+    if (lines.length === 0 || skipFooter.has(i)) continue;
+
     const fs = 6;
-    let yFromBottom = 14;
+    const lineGapPt = 7;
+    const bandHpt = Math.max(
+      24,
+      12 + lines.length * lineGapPt + 10,
+    );
+    page.drawRectangle({
+      x: 0,
+      y: 0,
+      width: pw,
+      height: bandHpt,
+      color: fondPied,
+    });
+
+    let yFromBottom = 12;
     for (const line of lines) {
       const tw = font.widthOfTextAtSize(line, fs);
       page.drawText(line, {
@@ -759,9 +791,9 @@ async function appliquerLogoEtPiedPageSurDocument(
         y: yFromBottom,
         size: fs,
         font,
-        color: footerColor,
+        color: textePied,
       });
-      yFromBottom += 7;
+      yFromBottom += lineGapPt;
     }
   }
 }
@@ -834,10 +866,7 @@ export async function genererDevisPdfBlob(
   ];
   if (hasCompta) {
     entreesSommaire.push({
-      libelle:
-        nbPagesAnnexeCompta > 0
-          ? "Comptabilité (document d’introduction et annexes)"
-          : "Comptabilité (document d’introduction)",
+      libelle: "Devis comptable",
       debut: pagesCorpsTotal + 1,
       fin: pagesCorpsTotal + nbPagesBlocCompta,
     });
@@ -887,9 +916,20 @@ export async function genererDevisPdfBlob(
   const finPages = await merged.copyPages(finPdf, finPdf.getPageIndices());
   finPages.forEach((p) => merged.addPage(p));
 
+  const nCorps = corpsPages.length;
+  const indicesSansPied = new Set<number>();
+  if (hasCompta && nbPagesBlocCompta > 0) {
+    for (let p = 0; p < nbPagesBlocCompta; p++) {
+      indicesSansPied.add(nCorps + p);
+    }
+  }
+
   await appliquerLogoEtPiedPageSurDocument(merged, {
     logoDataUrl: glob.logoPdfDataUrl,
     footerText: pied,
+    gardeFond: d.theme.gardeFond,
+    gardeTexte: d.theme.gardeTexte,
+    indicesSansPied,
   });
 
   const out = await merged.save();
