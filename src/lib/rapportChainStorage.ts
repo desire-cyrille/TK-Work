@@ -361,6 +361,39 @@ function cleNaturelle(
   return `u:${newId()}`;
 }
 
+export type ContexteEditionRapport = {
+  mode: ModeRapportChain;
+  jourDate?: string;
+  moisCle?: string;
+  missionDebut?: string;
+  missionFin?: string;
+  clientNom?: string;
+  referenceMission?: string;
+};
+
+/** Rapport déjà enregistré pour le même projet et la même période (clé naturelle), si elle est stable. */
+export function trouverRapportPourContexteEdition(
+  projetId: string,
+  ctx: ContexteEditionRapport,
+): RapportEnregistre | undefined {
+  const want = cleNaturelle({
+    mode: ctx.mode,
+    jourDate: ctx.jourDate,
+    moisCle: ctx.moisCle,
+    missionDebut: ctx.missionDebut,
+    missionFin: ctx.missionFin,
+    clientNom: ctx.clientNom,
+    referenceMission: ctx.referenceMission,
+  });
+  if (want.startsWith("u:")) return undefined;
+  return chargerRapportsEnregistres().find(
+    (r) =>
+      r.projetId === projetId &&
+      r.mode === ctx.mode &&
+      cleNaturelle(r) === want,
+  );
+}
+
 export function sauvegarderRapport(
   data: Omit<
     RapportEnregistre,

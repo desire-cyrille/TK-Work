@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   Navigate,
@@ -41,6 +41,7 @@ import {
   premierEtDernierQuotidienMois,
   sauvegarderRapport,
   supprimerRapportEnregistre,
+  trouverRapportPourContexteEdition,
   type ContenuSiteRapport,
   type ModeRapportChain,
   type RapportEnregistre,
@@ -88,6 +89,36 @@ const MOIS_CHOIX = [
   { v: 11, l: "Novembre" },
   { v: 12, l: "Décembre" },
 ];
+
+const TITRE_RAPPORT_DEFAUT = "Rapport d’activité";
+
+function rapportAContenuPersistable(
+  contenuParSite: ContenuSiteRapport[],
+  observations: string,
+  titre: string,
+): boolean {
+  if (titre.trim() && titre.trim() !== TITRE_RAPPORT_DEFAUT) return true;
+  if (observations.trim()) return true;
+  for (const site of contenuParSite) {
+    for (const ax of Object.values(site.axes)) {
+      if ((ax.texte ?? "").trim()) return true;
+      if (ax.photoDataUrl || (ax.photosDataUrls && ax.photosDataUrls.length > 0))
+        return true;
+    }
+    const ts = site.tableauSuivi;
+    if (
+      ts?.blocs?.some((b) =>
+        b.sujets.some(
+          (s) =>
+            (s.sujet ?? "").trim() ||
+            Object.values(s.cellules).some((v) => String(v).trim()),
+        ),
+      )
+    )
+      return true;
+  }
+  return false;
+}
 
 function formatDateInput(d: Date): string {
   const y = d.getFullYear();
@@ -220,7 +251,7 @@ export function RapportActivite() {
   const [missionDebut, setMissionDebut] = useState(debutMissionDefaut);
   const [missionFin, setMissionFin] = useState(() => formatDateInput(now));
 
-  const [titre, setTitre] = useState("Rapport d’activité");
+  const [titre, setTitre] = useState(TITRE_RAPPORT_DEFAUT);
   const [observations, setObservations] = useState("");
   const [rapportEditeId, setRapportEditeId] = useState<string | null>(null);
   const [listeVersion, setListeVersion] = useState(0);
@@ -236,65 +267,49 @@ export function RapportActivite() {
     string | null
   >(null);
 
+  type SnapshotSauvegarde = {
+    projetCourant: ReturnType<typeof getProjetById>;
+    rapportEditeId: string | null;
+    mode: ModeRapportChain;
+    jourDate: string;
+    moisCleMensuel: string;
+    missionDebut: string;
+    missionFin: string;
+    clientNom: string;
+    referenceMission: string;
+    contenuParSite: ContenuSiteRapport[];
+    observations: string;
+    titre: string;
+    sourceIdsSynthese: string[] | undefined;
+    mensuelPhotoKeysIncluded: string[] | null;
+    inclureTableauSuiviPdf: boolean;
+    missionOrdreOk: boolean;
+  };
+
+  const snapshotSauvegardeRef = useRef<SnapshotSauvegarde | null>(null);
+  const suspendAutosaveJusquA = useRef(0);
+  const prevCtxHydrateKeyRef = useRef("");
+  const chargerEnregistreRef = useRef<(r: RapportEnregistre) => void>(() => {});
+
   useEffect(() => {
     if (!confirmationSauvegarde) return;
     const t = window.setTimeout(() => setConfirmationSauvegarde(null), 5000);
     return () => window.clearTimeout(t);
   }, [confirmationSauvegarde]);
 
+  /** Changement de projet uniquement : ne vide plus le formulaire (reprise via hydratation + sauvegarde auto). */
   useEffect(() => {
     if (!pidBrut) return;
     const p = getProjetById(pidBrut);
     if (!p) return;
-    const dom = getDomainesRapportProjet(p);
-    const colsTs = getColonnesTableauSuiviProjet(p);
-    setContenuParSite(contenuVidePourProjetSites(p.sites, dom, colsTs));
     setSiteOngletId(p.sites[0]?.id ?? null);
-    setRapportEditeId(null);
-    setObservations("");
     setProvenanceSynthese(null);
     setSourceIdsSynthese(undefined);
     setMensuelPhotoKeysIncluded(null);
     setInclureTableauSuiviPdf(true);
     setConfirmationSauvegarde(null);
+    prevCtxHydrateKeyRef.current = "";
   }, [pidBrut]);
-
-  /** Brouillon quotidien : reprendre les tableaux de suivi de la veille (sans toucher au texte / photos). */
-  useEffect(() => {
-    if (!projetCourant || !pidBrut) return;
-    if (mode !== "quotidien" || rapportEditeId) return;
-    const dom = getDomainesRapportProjet(projetCourant);
-    const colsTs = getColonnesTableauSuiviProjet(projetCourant);
-    setContenuParSite((prev) =>
-      appliquerVeilleTableauSurContenu(
-        prev,
-        projetCourant.id,
-        jourDate,
-        dom,
-        colsTs,
-      ),
-    );
-  }, [projetCourant, pidBrut, mode, rapportEditeId, jourDate]);
-
-  function preparerNouveauMode(m: ModeRapportChain) {
-    setMode(m);
-    setRapportEditeId(null);
-    setProvenanceSynthese(null);
-    setSourceIdsSynthese(undefined);
-    setMensuelPhotoKeysIncluded(null);
-    setInclureTableauSuiviPdf(true);
-    if (projetCourant) {
-      const colsTs = getColonnesTableauSuiviProjet(projetCourant);
-      setContenuParSite(
-        contenuVidePourProjetSites(
-          projetCourant.sites,
-          getDomainesRapportProjet(projetCourant),
-          colsTs,
-        ),
-      );
-      setSiteOngletId(projetCourant.sites[0]?.id ?? null);
-    }
-  }
 
   function refreshProjet() {
     setProjetNonce((n) => n + 1);
@@ -346,6 +361,185 @@ export function RapportActivite() {
         : libellePeriodeMoisFr(mois, annee);
 
   const moisCleMensuel = moisClePour(annee, mois);
+
+  const ctxHydrateKey = useMemo(() => {
+    if (!projetCourant || !pidBrut) return "";
+    if (mode === "quotidien") return `${projetCourant.id}|q|${jourDate}`;
+    if (mode === "mensuel") return `${projetCourant.id}|m|${moisCleMensuel}`;
+    if (mode === "fin_mission")
+      return `${projetCourant.id}|f|${missionDebut}|${missionFin}`;
+    return "";
+  }, [
+    projetCourant,
+    pidBrut,
+    mode,
+    jourDate,
+    moisCleMensuel,
+    missionDebut,
+    missionFin,
+  ]);
+
+  function sauvegarderDepuisSnapshot(options?: { forcerMemeVide?: boolean }) {
+    const s = snapshotSauvegardeRef.current;
+    if (!s?.projetCourant) return;
+    if (s.mode === "fin_mission" && !s.missionOrdreOk) return;
+    if (
+      !options?.forcerMemeVide &&
+      !s.rapportEditeId &&
+      !rapportAContenuPersistable(
+        s.contenuParSite,
+        s.observations,
+        s.titre,
+      )
+    )
+      return;
+    const row = sauvegarderRapport({
+      id: s.rapportEditeId ?? undefined,
+      projetId: s.projetCourant.id,
+      mode: s.mode,
+      titre: s.titre.trim() || "Rapport",
+      jourDate: s.mode === "quotidien" ? s.jourDate : undefined,
+      moisCle: s.mode === "mensuel" ? s.moisCleMensuel : undefined,
+      missionDebut: s.mode === "fin_mission" ? s.missionDebut : undefined,
+      missionFin: s.mode === "fin_mission" ? s.missionFin : undefined,
+      clientNom: s.mode === "fin_mission" ? s.clientNom : undefined,
+      referenceMission: s.mode === "fin_mission" ? s.referenceMission : undefined,
+      contenuParSite: s.contenuParSite,
+      observations: s.observations,
+      sourceIds: s.sourceIdsSynthese,
+      photosMensuelSelection:
+        s.mode === "mensuel"
+          ? s.mensuelPhotoKeysIncluded === null
+            ? undefined
+            : [...s.mensuelPhotoKeysIncluded]
+          : undefined,
+      ...(s.inclureTableauSuiviPdf === false
+        ? { inclureTableauSuiviPdf: false as const }
+        : {}),
+    });
+    setRapportEditeId(row.id);
+    setListeVersion((v) => v + 1);
+  }
+
+  useEffect(() => {
+    if (!projetCourant || !ctxHydrateKey) return;
+    if (prevCtxHydrateKeyRef.current === ctxHydrateKey) return;
+    prevCtxHydrateKeyRef.current = ctxHydrateKey;
+    suspendAutosaveJusquA.current = Date.now() + 900;
+
+    const trouve = trouverRapportPourContexteEdition(projetCourant.id, {
+      mode,
+      jourDate: mode === "quotidien" ? jourDate : undefined,
+      moisCle: mode === "mensuel" ? moisCleMensuel : undefined,
+      missionDebut: mode === "fin_mission" ? missionDebut : undefined,
+      missionFin: mode === "fin_mission" ? missionFin : undefined,
+      clientNom: mode === "fin_mission" ? clientNom : undefined,
+      referenceMission: mode === "fin_mission" ? referenceMission : undefined,
+    });
+
+    if (trouve) {
+      chargerEnregistreRef.current(trouve);
+      return;
+    }
+
+    const dom = getDomainesRapportProjet(projetCourant);
+    const colsTs = getColonnesTableauSuiviProjet(projetCourant);
+    let contenu = contenuVidePourProjetSites(projetCourant.sites, dom, colsTs);
+    if (mode === "quotidien") {
+      contenu = appliquerVeilleTableauSurContenu(
+        contenu,
+        projetCourant.id,
+        jourDate,
+        dom,
+        colsTs,
+      );
+    }
+    setContenuParSite(contenu);
+    setRapportEditeId(null);
+    setObservations("");
+    setTitre(TITRE_RAPPORT_DEFAUT);
+    setSourceIdsSynthese(undefined);
+    setProvenanceSynthese(null);
+    setMensuelPhotoKeysIncluded(null);
+    setInclureTableauSuiviPdf(true);
+  }, [
+    ctxHydrateKey,
+    projetCourant,
+    mode,
+    jourDate,
+    moisCleMensuel,
+    missionDebut,
+    missionFin,
+  ]);
+
+  useEffect(() => {
+    if (!projetCourant) return;
+    if (mode === "fin_mission" && !missionOrdreOk) return;
+    if (Date.now() < suspendAutosaveJusquA.current) return;
+    const t = window.setTimeout(() => {
+      sauvegarderDepuisSnapshot();
+    }, 550);
+    return () => window.clearTimeout(t);
+  }, [
+    projetCourant?.id,
+    rapportEditeId,
+    mode,
+    jourDate,
+    moisCleMensuel,
+    missionDebut,
+    missionFin,
+    clientNom,
+    referenceMission,
+    contenuParSite,
+    observations,
+    titre,
+    sourceIdsSynthese,
+    mensuelPhotoKeysIncluded,
+    inclureTableauSuiviPdf,
+    missionOrdreOk,
+  ]);
+
+  useLayoutEffect(() => {
+    if (!projetCourant) {
+      snapshotSauvegardeRef.current = null;
+      return;
+    }
+    snapshotSauvegardeRef.current = {
+      projetCourant,
+      rapportEditeId,
+      mode,
+      jourDate,
+      moisCleMensuel,
+      missionDebut,
+      missionFin,
+      clientNom,
+      referenceMission,
+      contenuParSite,
+      observations,
+      titre,
+      sourceIdsSynthese,
+      mensuelPhotoKeysIncluded,
+      inclureTableauSuiviPdf,
+      missionOrdreOk,
+    };
+  }, [
+    projetCourant,
+    rapportEditeId,
+    mode,
+    jourDate,
+    moisCleMensuel,
+    missionDebut,
+    missionFin,
+    clientNom,
+    referenceMission,
+    contenuParSite,
+    observations,
+    titre,
+    sourceIdsSynthese,
+    mensuelPhotoKeysIncluded,
+    inclureTableauSuiviPdf,
+    missionOrdreOk,
+  ]);
 
   const stockCourant = useMemo(() => {
     const all = chargerRapportsEnregistres();
@@ -522,9 +716,34 @@ export function RapportActivite() {
     );
   }
 
+  chargerEnregistreRef.current = chargerEnregistre;
+
+  function preparerNouveauMode(m: ModeRapportChain) {
+    sauvegarderDepuisSnapshot({ forcerMemeVide: true });
+    setMode(m);
+    setRapportEditeId(null);
+    setProvenanceSynthese(null);
+    setSourceIdsSynthese(undefined);
+    setMensuelPhotoKeysIncluded(null);
+    setInclureTableauSuiviPdf(true);
+    if (projetCourant) {
+      const colsTs = getColonnesTableauSuiviProjet(projetCourant);
+      setContenuParSite(
+        contenuVidePourProjetSites(
+          projetCourant.sites,
+          getDomainesRapportProjet(projetCourant),
+          colsTs,
+        ),
+      );
+      setSiteOngletId(projetCourant.sites[0]?.id ?? null);
+    }
+    prevCtxHydrateKeyRef.current = "";
+  }
+
   function supprimerEnregistre(id: string) {
     supprimerRapportEnregistre(id);
     if (rapportEditeId === id) {
+      prevCtxHydrateKeyRef.current = "";
       setRapportEditeId(null);
       if (projetCourant) {
         const colsTs = getColonnesTableauSuiviProjet(projetCourant);
@@ -1812,7 +2031,10 @@ export function RapportActivite() {
                   id="rapport-jour"
                   type="date"
                   value={jourDate}
-                  onChange={(e) => setJourDate(e.target.value)}
+                  onChange={(e) => {
+                    sauvegarderDepuisSnapshot();
+                    setJourDate(e.target.value);
+                  }}
                 />
               </div>
             ) : null}
@@ -1825,6 +2047,7 @@ export function RapportActivite() {
                     id="rapport-mois"
                     value={mois}
                     onChange={(e) => {
+                      sauvegarderDepuisSnapshot();
                       setMois(Number(e.target.value));
                       setMensuelPhotoKeysIncluded(null);
                     }}
@@ -1842,6 +2065,7 @@ export function RapportActivite() {
                     id="rapport-annee"
                     value={annee}
                     onChange={(e) => {
+                      sauvegarderDepuisSnapshot();
                       setAnnee(Number(e.target.value));
                       setMensuelPhotoKeysIncluded(null);
                     }}
@@ -1979,7 +2203,10 @@ export function RapportActivite() {
                     id="mission-debut"
                     type="date"
                     value={missionDebut}
-                    onChange={(e) => setMissionDebut(e.target.value)}
+                    onChange={(e) => {
+                      sauvegarderDepuisSnapshot();
+                      setMissionDebut(e.target.value);
+                    }}
                   />
                 </div>
                 <div className={styles.field}>
@@ -1988,7 +2215,10 @@ export function RapportActivite() {
                     id="mission-fin"
                     type="date"
                     value={missionFin}
-                    onChange={(e) => setMissionFin(e.target.value)}
+                    onChange={(e) => {
+                      sauvegarderDepuisSnapshot();
+                      setMissionFin(e.target.value);
+                    }}
                   />
                 </div>
               </div>
