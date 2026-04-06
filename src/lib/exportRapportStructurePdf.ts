@@ -633,6 +633,88 @@ function drawTableauSuiviPdf(
   return y + 5;
 }
 
+/** Sous le bandeau sombre de la page de garde PDF (mm). */
+const GARDE_CORPS_Y0 = 46;
+/** Au-delà de cette ordonnée, suiteBloc enchaîne sur une nouvelle page. */
+const GARDE_SUITE_Y_MAX = 270;
+
+/**
+ * Simule la fin du corps de page de garde (couverture + cadre + blocs émetteur/client/mission)
+ * pour une position de départ donnée.
+ */
+function simulerFinYCorpsPageGarde(
+  doc: jsPDF,
+  input: ExportRapportPdfInput,
+  yStart: number,
+): { finY: number; depasseUnePage: boolean } {
+  let y = yStart;
+  let depasseUnePage = false;
+
+  if (input.couvertureDataUrl?.trim()) {
+    y +=
+      estimateImageFitHeight(doc, input.couvertureDataUrl, MAX_TXT, 72) + 8;
+  }
+
+  const boxH = Math.min(70, 278 - y - 30);
+  const yBoxTop = y;
+  let yi = y + 7;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  for (const _ of doc.splitTextToSize(input.titreDocument, MAX_TXT - 10)) {
+    yi += 6;
+  }
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  yi += 6;
+  yi += 8;
+
+  doc.setFont("helvetica", "bold");
+  yi += 5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  for (const _ of input.sitesNomsListe) {
+    if (yi > yBoxTop + boxH - 6) break;
+    yi += 4.5;
+  }
+
+  y = yBoxTop + boxH + 10;
+
+  const simSuiteBloc = (lines: string[], size = 9) => {
+    const nonempty = lines.filter((l) => l.trim());
+    if (!nonempty.length) return;
+    y += 6;
+    for (const line of nonempty) {
+      const parts = doc.splitTextToSize(line, MAX_TXT);
+      for (const _ of parts) {
+        if (y > GARDE_SUITE_Y_MAX) {
+          depasseUnePage = true;
+          return;
+        }
+        y += size === 9 ? 4.6 : 5;
+      }
+    }
+    y += 5;
+  };
+
+  if (input.coordonneesEmetteur?.trim()) {
+    simSuiteBloc(input.coordonneesEmetteur.split("\n"), 9);
+  }
+  if (depasseUnePage) return { finY: y, depasseUnePage: true };
+  if (input.clientRaisonSociale?.trim() || input.clientCoordonnees?.trim()) {
+    const cli: string[] = [];
+    if (input.clientRaisonSociale?.trim()) cli.push(input.clientRaisonSociale.trim());
+    if (input.clientCoordonnees?.trim()) cli.push(...input.clientCoordonnees.split("\n"));
+    simSuiteBloc(cli, 9);
+  }
+  if (depasseUnePage) return { finY: y, depasseUnePage: true };
+  if (input.missionLignes?.filter((l) => l.trim()).length) {
+    simSuiteBloc(input.missionLignes!, 9);
+  }
+
+  return { finY: y, depasseUnePage };
+}
+
 function appliquerPiedsDePage(doc: jsPDF, pied: string) {
   const total = doc.getNumberOfPages();
   const lines = pied.trim() ? doc.splitTextToSize(pied.trim(), MAX_TXT) : [];
@@ -719,7 +801,25 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "normal");
 
-  let y = 46;
+  let padTopGarde = 0;
+  const simGarde0 = simulerFinYCorpsPageGarde(doc, input, GARDE_CORPS_Y0);
+  if (!simGarde0.depasseUnePage) {
+    const hGarde = simGarde0.finY - GARDE_CORPS_Y0;
+    const zoneGarde = GARDE_SUITE_Y_MAX - GARDE_CORPS_Y0;
+    if (hGarde > 0 && hGarde < zoneGarde) {
+      padTopGarde = (zoneGarde - hGarde) / 2;
+      const simGarde1 = simulerFinYCorpsPageGarde(
+        doc,
+        input,
+        GARDE_CORPS_Y0 + padTopGarde,
+      );
+      if (simGarde1.depasseUnePage || simGarde1.finY > GARDE_SUITE_Y_MAX) {
+        padTopGarde = 0;
+      }
+    }
+  }
+
+  let y = GARDE_CORPS_Y0 + padTopGarde;
   if (input.couvertureDataUrl?.trim()) {
     const hIm = addImageFit(doc, input.couvertureDataUrl, MARGE, y, MAX_TXT, 72);
     y += hIm + 8;
