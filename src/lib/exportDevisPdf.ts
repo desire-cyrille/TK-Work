@@ -368,6 +368,22 @@ function pageTarificationDetaillee(
   const qtyColCenterX = (colQty + vBeforeTarif) / 2;
   const qtyColWidth = vBeforeTarif - colQty - 2;
   const rowH = 9;
+  const lineStep = 3.85;
+  /** Baseline de la 1re ligne d’un bloc de n lignes (espacement lineStep), centré verticalement dans [y, y+h]. */
+  const baselineBlocVertCentré = (
+    yCell: number,
+    hCell: number,
+    nLines: number,
+    lineStepLocal: number,
+  ): number => {
+    if (nLines < 1) return yCell + hCell / 2;
+    return (
+      yCell +
+      hCell / 2 -
+      ((nLines - 1) * lineStepLocal) / 2 +
+      lineStepLocal * 0.32
+    );
+  };
 
   const chartX = tableLeft + tableW + 12;
   const chartMm = 56;
@@ -457,13 +473,13 @@ function pageTarificationDetaillee(
   doc.setDrawColor(72, 72, 78);
   doc.setLineWidth(0.28);
   doc.rect(tableLeft, y, tableW, headerH, "S");
-  doc.text("CATÉGORIES", colCat, y + 5.2);
-  doc.text("QUANTITÉ", qtyColCenterX, y + 5.2, { align: "center" });
-  doc.text("TARIF HT", tarRightX, y + 5.2, { align: "right" });
+  const yHead = baselineBlocVertCentré(y, headerH, 1, lineStep);
+  doc.text("CATÉGORIES", colCat, yHead);
+  doc.text("QUANTITÉ", qtyColCenterX, yHead, { align: "center" });
+  doc.text("TARIF HT", tarRightX, yHead, { align: "right" });
   y += headerH;
 
   doc.setFont("helvetica", "normal");
-  const lineStep = 3.85;
   for (const l of lignesPdf) {
     const catX = colCat + stripeW + 2;
     const subIndentMm = 2.2;
@@ -518,12 +534,25 @@ function pageTarificationDetaillee(
           doc.text(frag, catX + subIndentMm, yyRow);
           yyRow += lineStep;
         }
+        const nLib = Math.max(1, wrapped.length);
+        const midLib = startY + ((nLib - 1) * lineStep) / 2;
+        const qtyParts = doc.splitTextToSize(
+          textePdfSafe(row.quantite),
+          qtyColWidth,
+        ) as string[];
+        const nQty = Math.max(1, qtyParts.length);
+        const qtyFirstY =
+          midLib -
+          ((nQty - 1) * lineStep) / 2 +
+          lineStep * 0.32;
         setText(doc, [45, 45, 50]);
-        doc.text(textePdfSafe(row.quantite), qtyColCenterX, startY, {
-          align: "center",
-          maxWidth: qtyColWidth,
-        });
-        doc.text(formatEuroPdf(row.montant), tarRightX, startY, {
+        let qy = qtyFirstY;
+        for (const qp of qtyParts) {
+          doc.text(qp, qtyColCenterX, qy, { align: "center" });
+          qy += lineStep;
+        }
+        const tarY = midLib + lineStep * 0.32;
+        doc.text(formatEuroPdf(row.montant), tarRightX, tarY, {
           align: "right",
         });
         setText(doc, [22, 22, 28]);
@@ -531,7 +560,8 @@ function pageTarificationDetaillee(
     } else {
       doc.setFont("helvetica", "bold");
       const libLines = doc.splitTextToSize(textePdfSafe(l.libelle), catWBase);
-      let yyRow = y + 5;
+      const nCat = Math.max(1, libLines.length);
+      let yyRow = baselineBlocVertCentré(y, hCell, nCat, lineStep);
       for (const line of libLines) {
         doc.text(line, catX, yyRow);
         yyRow += lineStep;
@@ -539,17 +569,24 @@ function pageTarificationDetaillee(
       doc.setFont("helvetica", "normal");
       setText(doc, [l.actif ? 45 : 140, l.actif ? 45 : 140, l.actif ? 50 : 140]);
       const qtyStr = l.actif ? textePdfSafe(l.quantiteLibelle) : "—";
-      const qtyTarY = y + hMain / 2 + 1.5;
-      doc.text(qtyStr, qtyColCenterX, qtyTarY, {
-        align: "center",
-        maxWidth: qtyColWidth,
-      });
-      doc.text(
-        l.actif ? formatEuroPdf(l.montant) : "Hors budget",
-        tarRightX,
-        qtyTarY,
-        { align: "right" },
-      );
+      const qtyParts = doc.splitTextToSize(qtyStr, qtyColWidth) as string[];
+      const nQty = Math.max(1, qtyParts.length);
+      const qtyY0 = baselineBlocVertCentré(y, hCell, nQty, lineStep);
+      let qy = qtyY0;
+      for (const qp of qtyParts) {
+        doc.text(qp, qtyColCenterX, qy, { align: "center" });
+        qy += lineStep;
+      }
+      const tarStr = l.actif ? formatEuroPdf(l.montant) : "Hors budget";
+      const tarColW = Math.max(12, tarRightX - vBeforeTarif - 2);
+      const tarLines = doc.splitTextToSize(tarStr, tarColW) as string[];
+      const nTar = Math.max(1, tarLines.length);
+      const tarY0 = baselineBlocVertCentré(y, hCell, nTar, lineStep);
+      let ty = tarY0;
+      for (const tl of tarLines) {
+        doc.text(tl, tarRightX, ty, { align: "right" });
+        ty += lineStep;
+      }
     }
     y += hCell + 2;
   }
