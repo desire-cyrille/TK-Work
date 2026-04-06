@@ -94,6 +94,31 @@ function remplirPageSommaire(
   setText(doc, [0, 0, 0]);
 }
 
+/** Retours à la ligne explicites + césure jsPDF pour titre / sous-titre garde. */
+function yApresTexteGardeMultiligne(
+  doc: jsPDF,
+  raw: string,
+  maxW: number,
+  xCenter: number,
+  yStart: number,
+  lineH: number,
+): number {
+  let y = yStart;
+  const blocks = raw.split(/\r?\n/);
+  for (const block of blocks) {
+    const t = block.trim();
+    if (t === "") {
+      y += lineH * 0.45;
+      continue;
+    }
+    for (const line of doc.splitTextToSize(t, maxW)) {
+      doc.text(line as string, xCenter, y, { align: "center" });
+      y += lineH;
+    }
+  }
+  return y;
+}
+
 function pageGarde(doc: jsPDF, d: Devis) {
   const { theme, contenu } = d;
   setFill(doc, theme.gardeFond);
@@ -103,20 +128,15 @@ function pageGarde(doc: jsPDF, d: Devis) {
   let y = H * 0.36;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
-  const titre = contenu.titrePageGarde.trim() || "PROPOSITION";
-  for (const line of doc.splitTextToSize(titre, TEXT_W)) {
-    doc.text(line, W / 2, y, { align: "center" });
-    y += 10;
-  }
+  const titre =
+    contenu.titrePageGarde.trim() || "PROPOSITION COMMERCIALE";
+  y = yApresTexteGardeMultiligne(doc, titre, TEXT_W, W / 2, y, 10);
   y += 6;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(13);
   const sous = contenu.sousTitrePageGarde.trim();
   if (sous) {
-    for (const line of doc.splitTextToSize(sous, TEXT_W)) {
-      doc.text(line, W / 2, y, { align: "center" });
-      y += 7;
-    }
+    y = yApresTexteGardeMultiligne(doc, sous, TEXT_W, W / 2, y, 7);
   }
   y += 16;
   doc.setFontSize(11);

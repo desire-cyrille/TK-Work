@@ -616,11 +616,16 @@ export function DevisEditeur() {
           <Fragment>
           <section className={styles.section}>
             <h2>Page de garde</h2>
+            <p className={styles.hint}>
+              Titre et sous-titre : plusieurs lignes (touche Entrée). Défaut du titre
+              pour un nouveau devis : « PROPOSITION COMMERCIALE ».
+            </p>
             <div className={styles.grid2}>
               <label className={styles.label}>
                 Titre affiché
-                <input
-                  className={styles.input}
+                <textarea
+                  className={styles.textarea}
+                  rows={4}
                   value={c.titrePageGarde}
                   onChange={(e) =>
                     patchContenu({ ...c, titrePageGarde: e.target.value })
@@ -629,8 +634,9 @@ export function DevisEditeur() {
               </label>
               <label className={styles.label}>
                 Sous-titre
-                <input
-                  className={styles.input}
+                <textarea
+                  className={styles.textarea}
+                  rows={4}
                   value={c.sousTitrePageGarde}
                   onChange={(e) =>
                     patchContenu({ ...c, sousTitrePageGarde: e.target.value })

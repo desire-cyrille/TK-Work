@@ -253,7 +253,7 @@ export function domainesActifsForfaitaireDefaut(): DevisDomainesActifs {
 
 export function contenuDevisVide(): DevisContenu {
   return {
-    titrePageGarde: "PROPOSITION",
+    titrePageGarde: "PROPOSITION COMMERCIALE",
     sousTitrePageGarde: "Prestations techniques",
     descriptionPrestation: "",
     texteConclusion: "Nous restons à votre disposition pour toute précision.",
