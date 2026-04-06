@@ -224,28 +224,29 @@ function corpsCentre(
   const inset = options?.topInsetMm ?? 0;
   const contentTop = M + 6 + inset;
   const contentBottom = H - M - RESERVE_BAS_MM;
-  const available = Math.max(0, contentBottom - contentTop);
 
   const titleOpts = { fontSize: 12, boxWidthMm: 110 } as const;
-  const { boxHMm: titleH } = dimensionsBoiteTitreEncadre(doc, titre, titleOpts);
+  let y = contentTop;
+  y = dessinerTitrePageEncadre(doc, titre, y, titleOpts);
   const gapCorps = 10;
-  const lineStep = 6;
+  y += gapCorps;
+  const bodyZoneTop = y;
+  const availCorps = Math.max(0, contentBottom - bodyZoneTop);
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10.5);
   const body = texte.trim() || "—";
   const bodyLines = doc.splitTextToSize(body, TEXT_W) as string[];
+  const lineStep = 6;
   const bodyH = bodyLines.length * lineStep;
-  const totalBloc = titleH + gapCorps + bodyH;
-  const centreVertical = totalBloc <= available;
-  let y = centreVertical
-    ? contentTop + (available - totalBloc) / 2
-    : contentTop;
+  y =
+    bodyH <= availCorps
+      ? bodyZoneTop + (availCorps - bodyH) / 2
+      : bodyZoneTop;
 
-  y = dessinerTitrePageEncadre(doc, titre, y, titleOpts);
-  y += gapCorps;
   setText(doc, [35, 35, 35]);
   for (const line of bodyLines) {
-    if (y > H - M - RESERVE_BAS_MM) {
+    if (y > contentBottom) {
       doc.addPage();
       remplirPageBlanche(doc);
       y = M + 8 + inset;
@@ -707,19 +708,32 @@ function pageBandeauAnnexeCompta(
   topInsetMm: number,
 ) {
   remplirPageBlanche(doc);
-  let y = M + 8 + topInsetMm;
-  y = dessinerTitrePageEncadre(
-    doc,
-    "Document issu du logiciel de comptabilité",
-    y,
-    { fontSize: 11, boxWidthMm: 150 },
-  );
-  y += 10;
+  const inset = topInsetMm;
+  const contentTop = M + 8 + inset;
+  const contentBottom = H - M - RESERVE_BAS_MM;
+  const titleOpts = { fontSize: 12, boxWidthMm: 100 } as const;
+  let y = contentTop;
+  y = dessinerTitrePageEncadre(doc, "Devis comptable", y, titleOpts);
+  const gapCorps = 10;
+  y += gapCorps;
+  const bodyZoneTop = y;
+  const availCorps = Math.max(0, contentBottom - bodyZoneTop);
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   setText(doc, [90, 90, 90]);
   const nom = d.pdfComptabiliteNom?.trim() || "Pièce jointe";
-  doc.text(nom, W / 2, y, { align: "center" });
+  const nomLines = doc.splitTextToSize(nom, TEXT_W) as string[];
+  const lineStep = 5.2;
+  const bodyH = nomLines.length * lineStep;
+  y =
+    bodyH <= availCorps
+      ? bodyZoneTop + (availCorps - bodyH) / 2
+      : bodyZoneTop;
+  for (const ln of nomLines) {
+    doc.text(ln, W / 2, y, { align: "center" });
+    y += lineStep;
+  }
   setText(doc, [0, 0, 0]);
 }
 
