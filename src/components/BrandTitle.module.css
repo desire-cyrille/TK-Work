@@ -4,6 +4,17 @@
   line-height: 0;
 }
 
+.logoLink {
+  text-decoration: none;
+  color: inherit;
+  border-radius: 10px;
+}
+
+.logoLink:focus-visible {
+  outline: 2px solid var(--tk-red, #e53935);
+  outline-offset: 2px;
+}
+
 /* Fond clair : le fichier marque est noir sur blanc */
 .logoPad {
   display: inline-flex;

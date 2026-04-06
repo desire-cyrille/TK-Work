@@ -116,6 +116,7 @@ function remplirPageSommaire(
     const plage = formatPlagePages(e.debut, e.fin);
     const lignes = doc.splitTextToSize(e.libelle, maxLib);
     const lineH = 5.5;
+    const yLigneSommaire = y;
     for (let i = 0; i < lignes.length; i++) {
       doc.text(lignes[i]!, M + 4, y);
       if (i === 0) {
@@ -125,7 +126,15 @@ function remplirPageSommaire(
       }
       y += lineH;
     }
+    const yApresBloc = y;
     y += 3;
+    if (e.debut >= 1) {
+      const linkW = W - 2 * M - 4;
+      const linkH = Math.max(lineH, yApresBloc - yLigneSommaire) + 4;
+      doc.link(M + 2, yLigneSommaire - 4.5, linkW, linkH, {
+        pageNumber: e.debut,
+      });
+    }
     if (y > H - M - RESERVE_BAS_MM - 20) break;
   }
   setText(doc, [0, 0, 0]);
