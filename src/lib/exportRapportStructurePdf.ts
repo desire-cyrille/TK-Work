@@ -113,8 +113,15 @@ function addImageAlignedRight(
   }
 }
 
-const TABLEAU_ROW_H = 6.8;
+/** Hauteur minimale d’une ligne de données (mm). */
+const TABLEAU_ROW_H_MIN = 6.8;
 const TABLEAU_HDR_H = 7.5;
+/** Interligne texte cellule (mm). */
+const TABLEAU_CELL_LINE_H = 3.15;
+/** Marge verticale dans une cellule texte (mm). */
+const TABLEAU_CELL_PAD_V = 1.15;
+/** Limite de sécurité (lignes) pour éviter une ligne de tableau plus haute qu’une page. */
+const TABLEAU_MAX_LINES_PAR_CELLULE = 28;
 /** Bas de zone utile avant saut (mm). */
 const TABLEAU_PAGE_BOTTOM = 283;
 const CELL_DOMAIN: [number, number, number] = [240, 244, 250];
@@ -156,6 +163,32 @@ function drawTableauSuiviPdf(
 
   const inclutColonneEtat = colonnes.some((c) => c.id === COL_ETAT_ID);
 
+  function nbLignesTexteDansCellule(txt: string, cw: number): number {
+    const t = txt.trim();
+    if (!t) return 1;
+    const parts = doc.splitTextToSize(t, Math.max(cw - 2, 4));
+    return Math.min(
+      Math.max(1, parts.length),
+      TABLEAU_MAX_LINES_PAR_CELLULE,
+    );
+  }
+
+  function hauteurLignePourSujet(suj: TableauSuiviBloc["sujets"][number]): number {
+    let maxLines = 1;
+    for (let ci = 1; ci < nc; ci++) {
+      const cw = colW(ci);
+      const colId = colonnes[ci]?.id;
+      if (inclutColonneEtat && colId === COL_ETAT_ID) continue;
+      const cellTxt =
+        ci === 1 ? suj.sujet : colId ? (suj.cellules[colId] ?? "") : "";
+      maxLines = Math.max(maxLines, nbLignesTexteDansCellule(cellTxt, cw));
+    }
+    return Math.max(
+      TABLEAU_ROW_H_MIN,
+      maxLines * TABLEAU_CELL_LINE_H + TABLEAU_CELL_PAD_V * 2,
+    );
+  }
+
   /** Hauteur légende état (mm), cohérente avec le dessin réel. */
   function hauteurLegendeEstimee(): number {
     if (!inclutColonneEtat) return 0;
@@ -177,7 +210,13 @@ function drawTableauSuiviPdf(
       h += Math.min(subLines.length, 4) * 3.9 + 2;
     }
     for (const b of blocs) {
-      h += Math.max(b.sujets.length, 1) * TABLEAU_ROW_H;
+      if (b.sujets.length === 0) {
+        h += TABLEAU_ROW_H_MIN;
+      } else {
+        for (const suj of b.sujets) {
+          h += hauteurLignePourSujet(suj);
+        }
+      }
     }
     h += hauteurLegendeEstimee();
     h += 5 + 6;
@@ -208,16 +247,22 @@ function drawTableauSuiviPdf(
     doc.setFont("helvetica", bold ? "bold" : "normal");
     doc.setFontSize(7);
     doc.setTextColor(32);
-    if (!text.trim()) return;
-    const parts = doc.splitTextToSize(text.trim(), Math.max(cw - 2, 4));
-    const maxLines = Math.min(parts.length, Math.max(1, Math.floor(ch / 3.2)));
-    const lineH = 3.15;
-    const totalH = maxLines * lineH;
+    const raw = text.trim();
+    if (!raw) return;
+    let parts = doc.splitTextToSize(raw, Math.max(cw - 2, 4)) as string[];
+    if (parts.length > TABLEAU_MAX_LINES_PAR_CELLULE) {
+      parts = parts.slice(0, TABLEAU_MAX_LINES_PAR_CELLULE);
+      const last = parts[parts.length - 1] ?? "";
+      parts[parts.length - 1] =
+        last.length > 4 ? `${last.slice(0, last.length - 4)}…` : `${last}…`;
+    }
+    const lineH = TABLEAU_CELL_LINE_H;
+    const totalH = parts.length * lineH;
     const cx = x + cw / 2;
-    let ty = yTop + (ch - totalH) / 2 + 3.35;
-    for (let li = 0; li < maxLines; li++) {
-      if (ty > yTop + ch - 0.5) break;
-      doc.text(parts[li] as string, cx, ty, { align: "center" });
+    const ty0 = yTop + (ch - totalH) / 2 + lineH * 0.28;
+    let ty = ty0;
+    for (const line of parts) {
+      doc.text(line, cx, ty, { align: "center" });
       ty += lineH;
     }
   }
@@ -227,11 +272,16 @@ function drawTableauSuiviPdf(
     xi: number,
     rowY: number,
     cw: number,
+    rowH: number,
   ) {
     const pad = 1.1;
-    const side = Math.min(Math.max(cw - pad * 2, 2.8), TABLEAU_ROW_H - pad * 2, 5);
+    const side = Math.min(
+      Math.max(cw - pad * 2, 2.8),
+      rowH - pad * 2,
+      5,
+    );
     const cx = xi + (cw - side) / 2;
-    const cy = rowY + (TABLEAU_ROW_H - side) / 2;
+    const cy = rowY + (rowH - side) / 2;
     doc.setLineWidth(0.15);
     if (!code.trim()) {
       doc.setFillColor(250, 251, 252);
@@ -296,8 +346,11 @@ function drawTableauSuiviPdf(
   y += TABLEAU_HDR_H;
 
   for (const bloc of blocs) {
-    const n = Math.max(bloc.sujets.length, 1);
-    const blockH = n * TABLEAU_ROW_H;
+    const rowHeights =
+      bloc.sujets.length === 0
+        ? [TABLEAU_ROW_H_MIN]
+        : bloc.sujets.map((suj) => hauteurLignePourSujet(suj));
+    const blockH = rowHeights.reduce((acc, h) => acc + h, 0);
     pageBreakIf(blockH + 2);
 
     x = x0;
@@ -318,23 +371,26 @@ function drawTableauSuiviPdf(
     }
     const xAfterDom = x + w0;
 
+    let yRow = y;
     for (let ri = 0; ri < bloc.sujets.length; ri++) {
       const suj = bloc.sujets[ri];
-      const rowY = y + ri * TABLEAU_ROW_H;
+      const rowH = rowHeights[ri] ?? TABLEAU_ROW_H_MIN;
+      const rowY = yRow;
+      yRow += rowH;
       let xi = xAfterDom;
       for (let ci = 1; ci < nc; ci++) {
         const cw = colW(ci);
         doc.setFillColor(...(ci === 1 ? CELL_SUBJ : CELL_BODY));
-        doc.rect(xi, rowY, cw, TABLEAU_ROW_H, "F");
+        doc.rect(xi, rowY, cw, rowH, "F");
         doc.setDrawColor(...BORDER);
-        doc.rect(xi, rowY, cw, TABLEAU_ROW_H, "S");
+        doc.rect(xi, rowY, cw, rowH, "S");
         const colId = colonnes[ci]?.id;
         if (inclutColonneEtat && colId === COL_ETAT_ID) {
           const code = (suj.cellules[colId] ?? "").trim();
-          drawCarreEtat(code, xi, rowY, cw);
+          drawCarreEtat(code, xi, rowY, cw, rowH);
         } else {
           const txt = ci === 1 ? suj.sujet : colId ? (suj.cellules[colId] ?? "") : "";
-          drawCellText(txt, xi, rowY, cw, TABLEAU_ROW_H, ci === 1);
+          drawCellText(txt, xi, rowY, cw, rowH, ci === 1);
         }
         xi += cw;
       }
