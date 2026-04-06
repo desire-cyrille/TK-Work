@@ -302,6 +302,9 @@ function pageTarificationDetaillee(
   /** Séparateurs verticaux (bordures fermées). */
   const vAfterCat = tableLeft + 52;
   const vBeforeTarif = tableLeft + 74;
+  /** Centre de la colonne quantité (alignement des données). */
+  const qtyColCenterX = (colQty + vBeforeTarif) / 2;
+  const qtyColWidth = vBeforeTarif - colQty - 2;
   const rowH = 9;
 
   const chartX = tableLeft + tableW + 12;
@@ -393,7 +396,7 @@ function pageTarificationDetaillee(
   doc.setLineWidth(0.28);
   doc.rect(tableLeft, y, tableW, headerH, "S");
   doc.text("CATÉGORIES", colCat, y + 5.2);
-  doc.text("QUANTITÉ", colQty, y + 5.2);
+  doc.text("QUANTITÉ", qtyColCenterX, y + 5.2, { align: "center" });
   doc.text("TARIF HT", tarRightX, y + 5.2, { align: "right" });
   y += headerH;
 
@@ -454,8 +457,9 @@ function pageTarificationDetaillee(
           yyRow += lineStep;
         }
         setText(doc, [45, 45, 50]);
-        doc.text(textePdfSafe(row.quantite), colQty, startY, {
-          maxWidth: vBeforeTarif - colQty - 2,
+        doc.text(textePdfSafe(row.quantite), qtyColCenterX, startY, {
+          align: "center",
+          maxWidth: qtyColWidth,
         });
         doc.text(formatEuroPdf(row.montant), tarRightX, startY, {
           align: "right",
@@ -474,8 +478,9 @@ function pageTarificationDetaillee(
       setText(doc, [l.actif ? 45 : 140, l.actif ? 45 : 140, l.actif ? 50 : 140]);
       const qtyStr = l.actif ? textePdfSafe(l.quantiteLibelle) : "—";
       const qtyTarY = y + hMain / 2 + 1.5;
-      doc.text(qtyStr, colQty, qtyTarY, {
-        maxWidth: vBeforeTarif - colQty - 2,
+      doc.text(qtyStr, qtyColCenterX, qtyTarY, {
+        align: "center",
+        maxWidth: qtyColWidth,
       });
       doc.text(
         l.actif ? formatEuroPdf(l.montant) : "Hors budget",
@@ -552,42 +557,37 @@ function pageTarificationDetaillee(
   const grille: [string, string, string][] = [
     [
       "Déplacement",
-      "Trajet HT × nombre",
-      `${tarifs.tarifKm.toFixed(2).replace(".", ",")} €/km (suggestion)`,
+      "km",
+      `${tarifs.tarifKm.toFixed(2).replace(".", ",")} €/km`,
     ],
-    ["Exploitation", "Heure", `${tarifs.tarifHeure.toFixed(2).replace(".", ",")} €`],
+    ["Exploitation", "heure", `${tarifs.tarifHeure.toFixed(2).replace(".", ",")} €`],
     ...(d.modeleDevis === "forfaitaire"
       ? ([
           [
-            "Forfait",
-            "Postes (qté × PU HT)",
+            "Fonction",
+            "forfait/jour",
             "—",
           ],
         ] as [string, string, string][])
       : []),
     [
       "Restauration",
-      "Jour (1 repas)",
+      "jour",
       `${tarifs.prixRepasDefaut.toFixed(2).replace(".", ",")} €`,
     ],
     [
       "Petit-déjeuner",
-      "Unité (1 pdj)",
+      "unité",
       `${tarifs.prixPetitDejeunerDefaut.toFixed(2).replace(".", ",")} €`,
     ],
     [
       "Permanence",
       (() => {
         const u = d.contenu.permanence.unite;
-        const lib =
-          u === "heure"
-            ? "Heure"
-            : u === "jour"
-              ? "Jour"
-              : u === "semaine"
-                ? "Semaine"
-                : "Mois";
-        return `${lib} (PU HT)`;
+        if (u === "heure") return "heure";
+        if (u === "jour") return "jour";
+        if (u === "semaine") return "semaine";
+        return "mois";
       })(),
       `${tarifUnitairePermanence(d.contenu.permanence, tarifs)
         .toFixed(2)
