@@ -63,12 +63,18 @@ export type DomaineActionsMultiples = {
 export type ModePermanence = "forfait_jours" | "par_semaine" | "horaire";
 
 export type DomainePermanence = {
-  mode: ModePermanence;
-  tarifJour: number;
+  /** Quantité facturée (ligne principale) */
+  nombre: number;
+  /** Unité de facturation : heure, jour, semaine, mois */
+  unite: UniteTemps;
+  /** Tarifs unitaires HT surchargés (0 = utiliser la grille zone des paramètres) */
   tarifHeure: number;
-  /** Mode forfait_jours */
+  tarifJour: number;
+  tarifSemaine: number;
+  tarifMois: number;
+  /** Paramètres avancés (contexte, PDF) — ne fixent plus le montant seuls */
+  mode: ModePermanence;
   nombreJoursTotal: number;
-  /** Mode par_semaine / horaire */
   nbSemaines: number;
   nbJoursParSemaine: number;
   nbHeuresParJour: number;
@@ -275,9 +281,13 @@ export function contenuDevisVide(): DevisContenu {
     },
     forfait: { lignes: [] },
     permanence: {
-      mode: "par_semaine",
+      nombre: 5,
+      unite: "jour",
       tarifJour: 110,
       tarifHeure: 15.71,
+      tarifSemaine: 0,
+      tarifMois: 0,
+      mode: "par_semaine",
       nombreJoursTotal: 0,
       nbSemaines: 1,
       nbJoursParSemaine: 5,
@@ -364,6 +374,75 @@ export function normaliserLigneDeplacement(l: unknown): LigneDeplacement {
   };
 }
 
+const UNITES_PERM: UniteTemps[] = ["heure", "jour", "semaine", "mois"];
+
+function isUniteTemps(u: unknown): u is UniteTemps {
+  return typeof u === "string" && (UNITES_PERM as string[]).includes(u);
+}
+
+/** Rétrocompatibilité : ancien calcul par mode → nombre + unité. */
+export function normaliserPermanence(p: DomainePermanence): DomainePermanence {
+  const tarifHeure = Number.isFinite(p.tarifHeure) ? p.tarifHeure : 0;
+  const tarifJour = Number.isFinite(p.tarifJour) ? p.tarifJour : 0;
+  const tarifSemaine = Number.isFinite(p.tarifSemaine) ? p.tarifSemaine : 0;
+  const tarifMois = Number.isFinite(p.tarifMois) ? p.tarifMois : 0;
+  const mode = p.mode ?? "par_semaine";
+  const nombreJoursTotal = Number.isFinite(p.nombreJoursTotal)
+    ? p.nombreJoursTotal
+    : 0;
+  const nbSemaines = Number.isFinite(p.nbSemaines) ? p.nbSemaines : 1;
+  const nbJoursParSemaine = Number.isFinite(p.nbJoursParSemaine)
+    ? p.nbJoursParSemaine
+    : 5;
+  const nbHeuresParJour = Number.isFinite(p.nbHeuresParJour)
+    ? p.nbHeuresParJour
+    : 8;
+
+  const base = {
+    tarifHeure,
+    tarifJour,
+    tarifSemaine,
+    tarifMois,
+    mode,
+    nombreJoursTotal,
+    nbSemaines,
+    nbJoursParSemaine,
+    nbHeuresParJour,
+  };
+
+  const hasNombre = typeof p.nombre === "number" && Number.isFinite(p.nombre);
+  if (hasNombre && isUniteTemps(p.unite)) {
+    return {
+      ...base,
+      nombre: Math.max(0, p.nombre),
+      unite: p.unite,
+    };
+  }
+
+  let nombre = 0;
+  let unite: UniteTemps = "jour";
+  switch (mode) {
+    case "forfait_jours":
+      nombre = Math.max(0, nombreJoursTotal);
+      unite = "jour";
+      break;
+    case "par_semaine":
+      nombre = Math.max(0, nbSemaines) * Math.max(0, nbJoursParSemaine);
+      unite = "jour";
+      break;
+    case "horaire":
+      nombre =
+        Math.max(0, nbSemaines) *
+        Math.max(0, nbJoursParSemaine) *
+        Math.max(0, nbHeuresParJour);
+      unite = "heure";
+      break;
+    default:
+      break;
+  }
+  return { ...base, nombre, unite };
+}
+
 export function normaliserContenuDevis(contenu: DevisContenu): DevisContenu {
   const forfaitRaw = contenu.forfait;
   const lignesForfait = Array.isArray(forfaitRaw?.lignes)
@@ -387,5 +466,6 @@ export function normaliserContenuDevis(contenu: DevisContenu): DevisContenu {
         ? contenu.deplacement.lignes.map((x) => normaliserLigneDeplacement(x))
         : [],
     },
+    permanence: normaliserPermanence(contenu.permanence),
   };
 }

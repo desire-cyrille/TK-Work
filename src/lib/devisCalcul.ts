@@ -143,26 +143,30 @@ export function totalActionsMultiples(
   return s;
 }
 
-export function totalPermanence(p: DomainePermanence): number {
-  switch (p.mode) {
-    case "forfait_jours":
-      return Math.max(0, p.nombreJoursTotal) * p.tarifJour;
-    case "par_semaine":
-      return (
-        Math.max(0, p.nbSemaines) *
-        Math.max(0, p.nbJoursParSemaine) *
-        p.tarifJour
-      );
-    case "horaire":
-      return (
-        Math.max(0, p.nbSemaines) *
-        Math.max(0, p.nbJoursParSemaine) *
-        Math.max(0, p.nbHeuresParJour) *
-        p.tarifHeure
-      );
-    default:
-      return 0;
+/** Tarif unitaire HT effectif (€) pour la permanence selon l’unité. */
+export function tarifUnitairePermanence(
+  p: DomainePermanence,
+  tarifs: TarifsZone,
+): number {
+  const u = p.unite;
+  if (u === "heure") {
+    return p.tarifHeure > 0 ? p.tarifHeure : tarifs.tarifHeure;
   }
+  if (u === "jour") {
+    return p.tarifJour > 0 ? p.tarifJour : tarifs.tarifJour;
+  }
+  if (u === "semaine") {
+    return p.tarifSemaine > 0 ? p.tarifSemaine : tarifs.tarifSemaine;
+  }
+  return p.tarifMois > 0 ? p.tarifMois : tarifs.tarifMois;
+}
+
+/** Montant HT = nombre × tarif unitaire selon le type. */
+export function totalPermanence(
+  p: DomainePermanence,
+  tarifs: TarifsZone,
+): number {
+  return Math.max(0, p.nombre) * tarifUnitairePermanence(p, tarifs);
 }
 
 export function lignesBudget(
@@ -207,7 +211,7 @@ export function lignesBudget(
     {
       cle: "permanence",
       libelle: LIBELLES.permanence,
-      montant: totalPermanence(contenu.permanence),
+      montant: totalPermanence(contenu.permanence, tarifs),
       actif: act.permanence,
     },
   ];
@@ -366,13 +370,16 @@ export function quantiteLibelleDomaine(
     }
     case "permanence": {
       const p = contenu.permanence;
-      if (p.mode === "forfait_jours") {
-        return p.nombreJoursTotal > 0 ? `${p.nombreJoursTotal} j.` : "—";
-      }
-      const jours = p.nbSemaines * p.nbJoursParSemaine;
-      return jours > 0
-        ? `${jours.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} j.`
-        : "—";
+      if (p.nombre <= 0) return "—";
+      const suf =
+        p.unite === "heure"
+          ? " h"
+          : p.unite === "jour"
+            ? " j."
+            : p.unite === "semaine"
+              ? " sem."
+              : " m.";
+      return `${p.nombre.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}${suf}`;
     }
     default:
       return "—";
@@ -386,10 +393,12 @@ export function detailSousLignePdf(
   switch (cle) {
     case "permanence": {
       const p = contenu.permanence;
+      const base =
+        "Montant = nombre × tarif unitaire (type) ; tarifs 0 € = grille zone";
       if (p.nbHeuresParJour > 0) {
-        return `Estimé à ${p.nbHeuresParJour} h / jour`;
+        return `${base} — variables : ${p.nbHeuresParJour} h/j`;
       }
-      return undefined;
+      return base;
     }
     case "deplacement":
       return "Synthèse : somme des prix totaux (tarif trajet HT × nombre)";

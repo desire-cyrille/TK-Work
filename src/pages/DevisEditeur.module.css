@@ -185,6 +185,23 @@
   gap: 0.65rem 1rem;
 }
 
+.permanenceVariables {
+  margin-bottom: 1.35rem;
+  padding: 1rem 1rem 0.9rem;
+  border-radius: 10px;
+  border: 1px dashed var(--border, #3d3d48);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.permanenceVariablesTitle {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--workspace-muted, #a8a8b8);
+  text-transform: uppercase;
+}
+
 .label {
   display: flex;
   flex-direction: column;

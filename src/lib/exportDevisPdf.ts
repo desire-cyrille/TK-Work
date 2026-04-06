@@ -3,6 +3,7 @@ import { jsPDF } from "jspdf";
 import {
   PDF_CATEGORIE_COULEUR,
   lignesBudgetPourPdf,
+  tarifUnitairePermanence,
   type LigneBudget,
   type LigneBudgetPdf,
 } from "./devisCalcul";
@@ -576,8 +577,21 @@ function pageTarificationDetaillee(
     ],
     [
       "Permanence",
-      `Jour (${d.contenu.permanence.nbHeuresParJour || 8} h)`,
-      `${d.contenu.permanence.tarifJour.toFixed(2).replace(".", ",")} €`,
+      (() => {
+        const u = d.contenu.permanence.unite;
+        const lib =
+          u === "heure"
+            ? "Heure"
+            : u === "jour"
+              ? "Jour"
+              : u === "semaine"
+                ? "Semaine"
+                : "Mois";
+        return `${lib} (PU HT)`;
+      })(),
+      `${tarifUnitairePermanence(d.contenu.permanence, tarifs)
+        .toFixed(2)
+        .replace(".", ",")} €`,
     ],
     [
       "Frais de gestion",

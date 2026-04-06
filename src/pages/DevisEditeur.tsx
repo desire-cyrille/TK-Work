@@ -11,6 +11,7 @@ import {
   montantLigneForfait,
   montantLigneRestauration,
   tarifsPourZone,
+  tarifUnitairePermanence,
   totalPermanence,
   totauxBudget,
 } from "../lib/devisCalcul";
@@ -1391,146 +1392,263 @@ export function DevisEditeur() {
           {onglet === "permanence" ? (
           <section className={styles.section}>
             <h2>Permanence</h2>
-            <label className={styles.label}>
-              Mode de calcul
-              <select
-                className={styles.select}
-                value={c.permanence.mode}
-                onChange={(e) =>
-                  patchContenu({
-                    ...c,
-                    permanence: {
-                      ...c.permanence,
-                      mode: e.target.value as ModePermanence,
-                    },
-                  })
-                }
-              >
-                {MODES_PERM.map((m) => (
-                  <option key={m.v} value={m.v}>
-                    {m.l}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className={styles.grid2}>
-              <label className={styles.label}>
-                Tarif jour (€)
-                <input
-                  type="number"
-                  step="0.01"
-                  className={styles.input}
-                  value={c.permanence.tarifJour}
+            <p className={styles.hint}>
+              Montant HT = <strong>nombre × tarif unitaire</strong> selon le{" "}
+              <strong>type</strong> (heure, jour, semaine, mois). Les tarifs
+              unitaires et la décomposition ci-dessous sont dans la rubrique{" "}
+              <strong>Variables</strong>.
+            </p>
+
+            <div className={styles.permanenceVariables}>
+              <h3 className={styles.permanenceVariablesTitle}>Variables</h3>
+              <p className={styles.hint} style={{ marginBottom: "0.75rem" }}>
+                Tarifs unitaires HT (0 = grille de la zone dans Réglages). Mode
+                et champs structurants servent de contexte (ex. PDF) et ne
+                remplacent pas la ligne nombre / type ci-dessous.
+              </p>
+              <label className={styles.label} style={{ marginBottom: "0.65rem" }}>
+                Mode (référence)
+                <select
+                  className={styles.select}
+                  value={c.permanence.mode}
                   onChange={(e) =>
                     patchContenu({
                       ...c,
                       permanence: {
                         ...c.permanence,
-                        tarifJour: Number(e.target.value) || 0,
+                        mode: e.target.value as ModePermanence,
                       },
                     })
                   }
-                />
+                >
+                  {MODES_PERM.map((m) => (
+                    <option key={m.v} value={m.v}>
+                      {m.l}
+                    </option>
+                  ))}
+                </select>
               </label>
-              <label className={styles.label}>
-                Tarif horaire (€)
-                <input
-                  type="number"
-                  step="0.01"
-                  className={styles.input}
-                  value={c.permanence.tarifHeure}
-                  onChange={(e) =>
-                    patchContenu({
-                      ...c,
-                      permanence: {
-                        ...c.permanence,
-                        tarifHeure: Number(e.target.value) || 0,
-                      },
-                    })
-                  }
-                />
-              </label>
-              {c.permanence.mode === "forfait_jours" ? (
+              <div className={styles.grid2}>
                 <label className={styles.label}>
-                  Nombre de jours facturés
+                  Tarif heure (€), 0 = zone
                   <input
                     type="number"
                     step="0.01"
                     className={styles.input}
-                    value={c.permanence.nombreJoursTotal}
+                    value={c.permanence.tarifHeure}
                     onChange={(e) =>
                       patchContenu({
                         ...c,
                         permanence: {
                           ...c.permanence,
-                          nombreJoursTotal: Number(e.target.value) || 0,
+                          tarifHeure: Number(e.target.value) || 0,
                         },
                       })
                     }
                   />
                 </label>
-              ) : (
-                <>
+                <label className={styles.label}>
+                  Tarif jour (€), 0 = zone
+                  <input
+                    type="number"
+                    step="0.01"
+                    className={styles.input}
+                    value={c.permanence.tarifJour}
+                    onChange={(e) =>
+                      patchContenu({
+                        ...c,
+                        permanence: {
+                          ...c.permanence,
+                          tarifJour: Number(e.target.value) || 0,
+                        },
+                      })
+                    }
+                  />
+                </label>
+                <label className={styles.label}>
+                  Tarif semaine (€), 0 = zone
+                  <input
+                    type="number"
+                    step="0.01"
+                    className={styles.input}
+                    value={c.permanence.tarifSemaine}
+                    onChange={(e) =>
+                      patchContenu({
+                        ...c,
+                        permanence: {
+                          ...c.permanence,
+                          tarifSemaine: Number(e.target.value) || 0,
+                        },
+                      })
+                    }
+                  />
+                </label>
+                <label className={styles.label}>
+                  Tarif mois (€), 0 = zone
+                  <input
+                    type="number"
+                    step="0.01"
+                    className={styles.input}
+                    value={c.permanence.tarifMois}
+                    onChange={(e) =>
+                      patchContenu({
+                        ...c,
+                        permanence: {
+                          ...c.permanence,
+                          tarifMois: Number(e.target.value) || 0,
+                        },
+                      })
+                    }
+                  />
+                </label>
+                {c.permanence.mode === "forfait_jours" ? (
                   <label className={styles.label}>
-                    Nombre de semaines
+                    Nombre de jours (contexte forfait)
                     <input
                       type="number"
                       step="0.01"
                       className={styles.input}
-                      value={c.permanence.nbSemaines}
+                      value={c.permanence.nombreJoursTotal}
                       onChange={(e) =>
                         patchContenu({
                           ...c,
                           permanence: {
                             ...c.permanence,
-                            nbSemaines: Number(e.target.value) || 0,
+                            nombreJoursTotal: Number(e.target.value) || 0,
                           },
                         })
                       }
                     />
                   </label>
-                  <label className={styles.label}>
-                    Jours par semaine
-                    <input
-                      type="number"
-                      step="0.01"
-                      className={styles.input}
-                      value={c.permanence.nbJoursParSemaine}
-                      onChange={(e) =>
-                        patchContenu({
-                          ...c,
-                          permanence: {
-                            ...c.permanence,
-                            nbJoursParSemaine: Number(e.target.value) || 0,
-                          },
-                        })
-                      }
-                    />
-                  </label>
-                  <label className={styles.label}>
-                    Heures par jour
-                    <input
-                      type="number"
-                      step="0.01"
-                      className={styles.input}
-                      value={c.permanence.nbHeuresParJour}
-                      onChange={(e) =>
-                        patchContenu({
-                          ...c,
-                          permanence: {
-                            ...c.permanence,
-                            nbHeuresParJour: Number(e.target.value) || 0,
-                          },
-                        })
-                      }
-                    />
-                  </label>
-                </>
-              )}
+                ) : (
+                  <>
+                    <label className={styles.label}>
+                      Nombre de semaines
+                      <input
+                        type="number"
+                        step="0.01"
+                        className={styles.input}
+                        value={c.permanence.nbSemaines}
+                        onChange={(e) =>
+                          patchContenu({
+                            ...c,
+                            permanence: {
+                              ...c.permanence,
+                              nbSemaines: Number(e.target.value) || 0,
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                    <label className={styles.label}>
+                      Jours par semaine
+                      <input
+                        type="number"
+                        step="0.01"
+                        className={styles.input}
+                        value={c.permanence.nbJoursParSemaine}
+                        onChange={(e) =>
+                          patchContenu({
+                            ...c,
+                            permanence: {
+                              ...c.permanence,
+                              nbJoursParSemaine: Number(e.target.value) || 0,
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                    <label className={styles.label}>
+                      Heures par jour
+                      <input
+                        type="number"
+                        step="0.01"
+                        className={styles.input}
+                        value={c.permanence.nbHeuresParJour}
+                        onChange={(e) =>
+                          patchContenu({
+                            ...c,
+                            permanence: {
+                              ...c.permanence,
+                              nbHeuresParJour: Number(e.target.value) || 0,
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                  </>
+                )}
+              </div>
             </div>
-            <p className={styles.hint} style={{ marginTop: "0.85rem" }}>
-              <strong>Montant HT (permanence)</strong> :{" "}
-              {formatEuro(totalPermanence(c.permanence))}
+
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Type</th>
+                    <th style={{ textAlign: "right" }}>Tarif HT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className={styles.tableMini}
+                        value={c.permanence.nombre}
+                        onChange={(e) =>
+                          patchContenu({
+                            ...c,
+                            permanence: {
+                              ...c.permanence,
+                              nombre: Number(e.target.value) || 0,
+                            },
+                          })
+                        }
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className={styles.select}
+                        value={c.permanence.unite}
+                        onChange={(e) =>
+                          patchContenu({
+                            ...c,
+                            permanence: {
+                              ...c.permanence,
+                              unite: e.target.value as UniteTemps,
+                            },
+                          })
+                        }
+                      >
+                        {UNITES.map((u) => (
+                          <option key={u.v} value={u.v}>
+                            {u.l}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {formatEuro(totalPermanence(c.permanence, tarifs))}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className={styles.hint} style={{ marginTop: "0.75rem" }}>
+              Prix unitaire appliqué :{" "}
+              {formatEuro(tarifUnitairePermanence(c.permanence, tarifs))}{" "}
+              /{" "}
+              {UNITES.find((u) => u.v === c.permanence.unite)?.l.toLowerCase() ??
+                c.permanence.unite}
             </p>
           </section>
           ) : null}
