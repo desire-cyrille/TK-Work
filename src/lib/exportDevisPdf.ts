@@ -53,13 +53,11 @@ function reserverPageSommaire(doc: jsPDF) {
   remplirPageBlanche(doc);
 }
 
-/** Titre de page centré dans un cadre (style « TARIFICATION DÉTAILLÉE »). */
-function dessinerTitrePageEncadre(
+function dimensionsBoiteTitreEncadre(
   doc: jsPDF,
   titre: string,
-  yTopMm: number,
   options?: { fontSize?: number; boxWidthMm?: number },
-): number {
+): { boxWMm: number; boxHMm: number; lines: string[]; lineHmm: number; fs: number; padMm: number } {
   const fs = options?.fontSize ?? 12;
   const boxWMm = options?.boxWidthMm ?? 100;
   doc.setFont("helvetica", "bold");
@@ -68,6 +66,21 @@ function dessinerTitrePageEncadre(
   const lineHmm = fs * 0.42 + 1.35;
   const padMm = 2.8;
   const boxHMm = Math.max(11, lines.length * lineHmm + padMm * 2);
+  return { boxWMm, boxHMm, lines, lineHmm, fs, padMm };
+}
+
+/** Titre de page centré dans un cadre (style « TARIFICATION DÉTAILLÉE »). */
+function dessinerTitrePageEncadre(
+  doc: jsPDF,
+  titre: string,
+  yTopMm: number,
+  options?: { fontSize?: number; boxWidthMm?: number },
+): number {
+  const { boxWMm, boxHMm, lines, lineHmm, fs, padMm } = dimensionsBoiteTitreEncadre(
+    doc,
+    titre,
+    options,
+  );
   doc.setDrawColor(55, 55, 55);
   doc.setLineWidth(0.35);
   doc.rect((W - boxWMm) / 2, yTopMm, boxWMm, boxHMm);
@@ -209,21 +222,36 @@ function corpsCentre(
   }
   remplirPageBlanche(doc);
   const inset = options?.topInsetMm ?? 0;
-  let y = M + 6 + inset;
-  y = dessinerTitrePageEncadre(doc, titre, y, { fontSize: 12, boxWidthMm: 110 });
-  y += 10;
+  const contentTop = M + 6 + inset;
+  const contentBottom = H - M - RESERVE_BAS_MM;
+  const available = Math.max(0, contentBottom - contentTop);
+
+  const titleOpts = { fontSize: 12, boxWidthMm: 110 } as const;
+  const { boxHMm: titleH } = dimensionsBoiteTitreEncadre(doc, titre, titleOpts);
+  const gapCorps = 10;
+  const lineStep = 6;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10.5);
-  setText(doc, [35, 35, 35]);
   const body = texte.trim() || "—";
-  for (const line of doc.splitTextToSize(body, TEXT_W)) {
+  const bodyLines = doc.splitTextToSize(body, TEXT_W) as string[];
+  const bodyH = bodyLines.length * lineStep;
+  const totalBloc = titleH + gapCorps + bodyH;
+  const centreVertical = totalBloc <= available;
+  let y = centreVertical
+    ? contentTop + (available - totalBloc) / 2
+    : contentTop;
+
+  y = dessinerTitrePageEncadre(doc, titre, y, titleOpts);
+  y += gapCorps;
+  setText(doc, [35, 35, 35]);
+  for (const line of bodyLines) {
     if (y > H - M - RESERVE_BAS_MM) {
       doc.addPage();
       remplirPageBlanche(doc);
       y = M + 8 + inset;
     }
     doc.text(line, W / 2, y, { align: "center" });
-    y += 6;
+    y += lineStep;
   }
   setText(doc, [0, 0, 0]);
 }
