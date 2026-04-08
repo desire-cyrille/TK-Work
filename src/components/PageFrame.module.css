@@ -257,6 +257,7 @@
 
   .workspace {
     padding: 1rem clamp(0.85rem, 3.5vw, 1.35rem);
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
   }
 
   .headerCta,
@@ -264,5 +265,12 @@
   .workspaceCtaSecondary {
     font-size: 0.82rem;
     padding: 0.5rem 0.95rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .workspace {
+    padding-left: max(0.65rem, env(safe-area-inset-left, 0px));
+    padding-right: max(0.65rem, env(safe-area-inset-right, 0px));
   }
 }

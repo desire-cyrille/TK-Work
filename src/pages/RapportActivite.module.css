@@ -1456,13 +1456,289 @@
   cursor: not-allowed;
 }
 
-@media (max-width: 640px) {
+/* ——— Mobile / petit écran ——— */
+@media (max-width: 720px) {
+  .formCard,
+  .paramCard {
+    padding: 0.95rem 0.8rem 1rem;
+    border-radius: 12px;
+  }
+
+  .intro,
+  .syncHint {
+    font-size: 0.86rem;
+  }
+
+  .modeRow {
+    gap: 0.4rem;
+  }
+
+  .modeBtn {
+    padding: 0.5rem 0.75rem;
+    min-height: 2.75rem;
+    font-size: 0.78rem;
+  }
+
+  .formRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.85rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .field {
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 auto;
+  }
+
+  /* Évite le zoom automatique iOS sur les champs */
+  .field input:not([type="date"]),
+  .field select,
+  .field textarea {
+    font-size: 1rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .stat {
+    padding: 0.7rem 0.75rem;
+  }
+
+  .chainBar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.75rem 0.8rem;
+    gap: 0.65rem;
+  }
+
+  .chainBarText {
+    max-width: none;
+    font-size: 0.8rem;
+  }
+
+  .chainBar > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .chainBarActions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .chainBarActions > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .chainListCard {
+    padding: 0.9rem 0.8rem 0.95rem;
+  }
+
+  .chainActions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .redactionTopActions {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.65rem 0.7rem;
+    gap: 0.65rem;
+  }
+
+  .redactionTopActionsHint {
+    flex: none;
+  }
+
+  .redactionTopActions > button {
+    width: 100%;
+    justify-content: center;
+    min-height: 2.65rem;
+  }
+
+  .redactionBottomActionsRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .redactionBottomActionsRow > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .provenanceBanner {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.75rem 0.8rem;
+  }
+
+  .provenanceText {
+    min-width: 0;
+  }
+
+  .provenanceClose {
+    align-self: flex-start;
+  }
+
+  .titreGeneralLigne {
+    font-size: 0.86rem;
+    padding: 0.55rem 0.65rem;
+    word-break: break-word;
+  }
+
+  .rapportVisuelStrip {
+    padding: 0.65rem 0.7rem;
+  }
+
+  .rapportVisuelStripGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .siteTabs {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .siteTab,
+  .siteTabActive {
+    flex-shrink: 0;
+    padding: 0.45rem 0.7rem;
+    min-height: 2.6rem;
+  }
+
+  .mensuelPhotosCard {
+    padding: 0.85rem 0.75rem;
+  }
+
+  .mensuelPhotosGrid {
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    gap: 0.5rem;
+  }
+
+  .mensuelPhotosDomainHead {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .tableauPdfToggleRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+    padding: 0.6rem 0.7rem;
+  }
+
+  .yesNoToggle {
+    align-self: stretch;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .yesNoBtn {
+    flex: 1;
+    min-height: 2.75rem;
+    padding: 0.45rem 0.65rem;
+  }
+
+  .tableauSuiviCard {
+    padding: 0.75rem 0.55rem 0.85rem;
+    margin-left: -0.15rem;
+    margin-right: -0.15rem;
+    border-radius: 12px;
+  }
+
+  .tableauSuiviTable {
+    font-size: 0.7rem;
+    min-width: 32rem;
+  }
+
+  .tableauToolbar {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .yesNoToggle {
-    align-self: flex-start;
+  .tableauToolbarField {
+    max-width: 100%;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.5rem 0.55rem;
+    font-size: 0.78rem;
+  }
+
+  .exportNote {
+    font-size: 0.76rem;
+    line-height: 1.5;
+  }
+
+  .editionTabOn,
+  .editionTabOff {
+    padding: 0.45rem 0.85rem;
+    min-height: 2.65rem;
+    flex-shrink: 0;
+  }
+
+  .independencePanel {
+    padding: 0.85rem 0.75rem;
+  }
+
+  .apercuBackdrop {
+    padding: 0;
+    align-items: stretch;
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+
+  .apercuBox {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    min-height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .apercubar {
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    padding-top: max(0.55rem, env(safe-area-inset-top, 0px));
+  }
+
+  .apercuTitle {
+    flex: 1 1 100%;
+    font-size: 0.84rem;
+  }
+
+  .apercuFermer {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-height: 2.65rem;
+  }
+
+  .apercubar > button:last-of-type {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-height: 2.65rem;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 400px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .rapportVisuelStripGrid {
+    grid-template-columns: 1fr;
   }
 }
