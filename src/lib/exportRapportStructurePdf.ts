@@ -38,6 +38,18 @@ function filtrerBlocsTableauSuiviPourPdf(
     .filter((b) => b.sujets.length > 0);
 }
 
+/** Texte de conclusion fin de mission : `undefined` si vide ou uniquement espaces / caractères invisibles. */
+function texteConclusionPdfSignificatif(
+  s: string | undefined,
+): string | undefined {
+  if (s == null || typeof s !== "string") return undefined;
+  const t = s
+    .replace(/\u200b|\ufeff/g, "")
+    .replace(/\u00a0/g, " ")
+    .trim();
+  return t || undefined;
+}
+
 /** Style TK Pro (rouge + bandeau sombre), aligné sur l’app et tkpro.fr */
 const BRAND_RED: [number, number, number] = [229, 57, 53];
 const HERO_DARK: [number, number, number] = [26, 26, 28];
@@ -100,6 +112,8 @@ export type ExportRapportPdfInput = {
   missionLignes?: string[];
   sectionsParSite: PdfSectionSite[];
   synthese: string;
+  /** Fin de mission : page après la synthèse si renseignée. */
+  conclusionFinMission?: string;
   piedDePage: string;
   nomFichierPrefix: string;
   /** Si `false`, le tableau de suivi n’est pas dessiné (défaut : affiché). */
@@ -1060,6 +1074,35 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     doc.setFontSize(10);
     doc.setTextColor(25);
     for (const part of partsSyn) {
+      if (y > 275) {
+        doc.addPage();
+        y = MARGE;
+      }
+      doc.text(part, PAGE_CENTER_X, y, { align: "center" });
+      y += 5;
+    }
+  }
+
+  const concl = texteConclusionPdfSignificatif(input.conclusionFinMission);
+  if (concl) {
+    doc.addPage();
+    const partsConcl = doc.splitTextToSize(concl, MAX_TXT);
+    const hConclBloc = 13 + partsConcl.length * 5;
+    const zoneConcl = TABLEAU_PAGE_BOTTOM - MARGE;
+    y =
+      MARGE +
+      (hConclBloc < zoneConcl ? Math.max(0, (zoneConcl - hConclBloc) / 2) : 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(...BRAND_RED);
+    doc.text("Conclusion de fin de mission", PAGE_CENTER_X, y, {
+      align: "center",
+    });
+    y += 10;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(25);
+    for (const part of partsConcl) {
       if (y > 275) {
         doc.addPage();
         y = MARGE;

@@ -38,6 +38,8 @@ import {
   libelleMoisCleFr,
   listerMensuelsPourPeriodeMission,
   listerQuotidiensPourMoisCle,
+  listerQuotidiensPourPeriodeMission,
+  premierEtDernierMensuelMission,
   premierEtDernierQuotidienMission,
   premierEtDernierQuotidienMois,
   sauvegarderRapport,
@@ -97,9 +99,11 @@ function rapportAContenuPersistable(
   contenuParSite: ContenuSiteRapport[],
   observations: string,
   titre: string,
+  conclusionFinMission?: string,
 ): boolean {
   if (titre.trim() && titre.trim() !== TITRE_RAPPORT_DEFAUT) return true;
   if (observations.trim()) return true;
+  if (conclusionFinMission?.trim()) return true;
   for (const site of contenuParSite) {
     for (const ax of Object.values(site.axes)) {
       if ((ax.texte ?? "").trim()) return true;
@@ -254,6 +258,7 @@ export function RapportActivite() {
 
   const [titre, setTitre] = useState(TITRE_RAPPORT_DEFAUT);
   const [observations, setObservations] = useState("");
+  const [conclusionFinMission, setConclusionFinMission] = useState("");
   const [rapportEditeId, setRapportEditeId] = useState<string | null>(null);
   const [listeVersion, setListeVersion] = useState(0);
   const [provenanceSynthese, setProvenanceSynthese] = useState<string | null>(null);
@@ -280,6 +285,7 @@ export function RapportActivite() {
     referenceMission: string;
     contenuParSite: ContenuSiteRapport[];
     observations: string;
+    conclusionFinMission: string;
     titre: string;
     sourceIdsSynthese: string[] | undefined;
     mensuelPhotoKeysIncluded: string[] | null;
@@ -307,6 +313,7 @@ export function RapportActivite() {
     setProvenanceSynthese(null);
     setSourceIdsSynthese(undefined);
     setMensuelPhotoKeysIncluded(null);
+    setConclusionFinMission("");
     setInclureTableauSuiviPdf(true);
     setConfirmationSauvegarde(null);
     prevCtxHydrateKeyRef.current = "";
@@ -391,6 +398,7 @@ export function RapportActivite() {
         s.contenuParSite,
         s.observations,
         s.titre,
+        s.conclusionFinMission,
       )
     )
       return;
@@ -407,6 +415,7 @@ export function RapportActivite() {
       referenceMission: s.mode === "fin_mission" ? s.referenceMission : undefined,
       contenuParSite: s.contenuParSite,
       observations: s.observations,
+      conclusionFinMission: s.conclusionFinMission,
       sourceIds: s.sourceIdsSynthese,
       photosMensuelSelection:
         s.mode === "mensuel"
@@ -445,7 +454,9 @@ export function RapportActivite() {
 
     const dom = getDomainesRapportProjet(projetCourant);
     const colsTs = getColonnesTableauSuiviProjet(projetCourant);
+    const ordreSites = projetCourant.sites.map((s) => s.id);
     let contenu = contenuVidePourProjetSites(projetCourant.sites, dom, colsTs);
+
     if (mode === "quotidien") {
       contenu = appliquerVeilleTableauSurContenu(
         contenu,
@@ -454,10 +465,121 @@ export function RapportActivite() {
         dom,
         colsTs,
       );
+      setContenuParSite(contenu);
+      setRapportEditeId(null);
+      setObservations("");
+      setConclusionFinMission("");
+      setTitre(TITRE_RAPPORT_DEFAUT);
+      setSourceIdsSynthese(undefined);
+      setProvenanceSynthese(null);
+      setMensuelPhotoKeysIncluded(null);
+      setInclureTableauSuiviPdf(true);
+      return;
     }
+
+    if (mode === "mensuel") {
+      const qlist = listerQuotidiensPourMoisCle(moisCleMensuel, projetCourant.id);
+      if (qlist.length > 0) {
+        contenu = fusionnerContenuParSiteDepuisRapports(
+          qlist,
+          (r) => libelleJourFr(r.jourDate ?? ""),
+          ordreSites,
+          dom,
+          colsTs,
+          { tableauDepuis: "dernier" },
+        );
+        setContenuParSite(contenu);
+        setObservations(
+          fusionnerObservationsDepuisRapports(qlist, (r) =>
+            libelleJourFr(r.jourDate ?? ""),
+          ),
+        );
+        setSourceIdsSynthese(qlist.map((r) => r.id));
+        setProvenanceSynthese(
+          `Prérempli : ${qlist.length} rapport(s) quotidien(s) (${libellePeriodeMoisFr(mois, annee)}). Observations par jour fusionnées ci-dessous ; chaque domaine regroupe les textes des journées (à garder, résumer ou supprimer). Tableau de suivi = dernier jour du mois ; le PDF affichera en plus le tableau du premier jour sous le même libellé que les sources.`,
+        );
+        setTitre(`Rapport mensuel — ${libellePeriodeMoisFr(mois, annee)}`);
+        setRapportEditeId(null);
+        setConclusionFinMission("");
+        setMensuelPhotoKeysIncluded(null);
+        setInclureTableauSuiviPdf(true);
+        return;
+      }
+    }
+
+    if (mode === "fin_mission" && missionOrdreOk) {
+      const mensuels = listerMensuelsPourPeriodeMission(
+        missionDebut,
+        missionFin,
+        projetCourant.id,
+      );
+      const qMission = listerQuotidiensPourPeriodeMission(
+        missionDebut,
+        missionFin,
+        projetCourant.id,
+      );
+      if (mensuels.length > 0) {
+        contenu = fusionnerContenuParSiteDepuisRapports(
+          mensuels,
+          (r) => libelleMoisCleFr(r.moisCle ?? ""),
+          ordreSites,
+          dom,
+          colsTs,
+          { tableauDepuis: "dernier" },
+        );
+        setContenuParSite(contenu);
+        setObservations(
+          fusionnerObservationsDepuisRapports(mensuels, (r) =>
+            libelleMoisCleFr(r.moisCle ?? ""),
+          ),
+        );
+        setSourceIdsSynthese(mensuels.map((r) => r.id));
+        setProvenanceSynthese(
+          mensuels.length === 1
+            ? `Une seule fiche mensuelle sur la période : contenu repris tel quel. Rédigez la conclusion de fin de mission (champ dédié sous la synthèse). Le PDF montrera le tableau de ce mois puis celui du rapport de fin (modifiable ici).`
+            : `Prérempli : ${mensuels.length} rapport(s) mensuel(s). Domaines fusionnés par mois ; tableau = dernier mensuel de la période. PDF : tableau du premier mois puis tableau de cette fiche (reprise ou mise à jour).`,
+        );
+        setTitre("Rapport de fin de mission");
+        setRapportEditeId(null);
+        setConclusionFinMission("");
+        setMensuelPhotoKeysIncluded(null);
+        setInclureTableauSuiviPdf(true);
+        return;
+      }
+      if (qMission.length > 0) {
+        contenu = fusionnerContenuParSiteDepuisRapports(
+          qMission,
+          (r) => libelleJourFr(r.jourDate ?? ""),
+          ordreSites,
+          dom,
+          colsTs,
+          { tableauDepuis: "dernier" },
+        );
+        setContenuParSite(contenu);
+        setObservations(
+          fusionnerObservationsDepuisRapports(qMission, (r) =>
+            libelleJourFr(r.jourDate ?? ""),
+          ),
+        );
+        setSourceIdsSynthese(qMission.map((r) => r.id));
+        setProvenanceSynthese(
+          qMission.length === 1
+            ? `Un seul quotidien sur la période (aucun mensuel enregistré) : contenu repris. Ajoutez une conclusion de fin de mission dans le champ prévu.`
+            : `Aucun mensuel sur la période : prérempli depuis ${qMission.length} rapport(s) quotidien(s). Tableau = dernier jour de la mission.`,
+        );
+        setTitre("Rapport de fin de mission");
+        setRapportEditeId(null);
+        setConclusionFinMission("");
+        setMensuelPhotoKeysIncluded(null);
+        setInclureTableauSuiviPdf(true);
+        return;
+      }
+    }
+
     setContenuParSite(contenu);
     setRapportEditeId(null);
     setObservations("");
+    setConclusionFinMission("");
     setTitre(TITRE_RAPPORT_DEFAUT);
     setSourceIdsSynthese(undefined);
     setProvenanceSynthese(null);
@@ -471,6 +593,9 @@ export function RapportActivite() {
     moisCleMensuel,
     missionDebut,
     missionFin,
+    missionOrdreOk,
+    mois,
+    annee,
   ]);
 
   useEffect(() => {
@@ -493,6 +618,7 @@ export function RapportActivite() {
     referenceMission,
     contenuParSite,
     observations,
+    conclusionFinMission,
     titre,
     sourceIdsSynthese,
     mensuelPhotoKeysIncluded,
@@ -517,6 +643,7 @@ export function RapportActivite() {
       referenceMission,
       contenuParSite,
       observations,
+      conclusionFinMission,
       titre,
       sourceIdsSynthese,
       mensuelPhotoKeysIncluded,
@@ -535,6 +662,7 @@ export function RapportActivite() {
     referenceMission,
     contenuParSite,
     observations,
+    conclusionFinMission,
     titre,
     sourceIdsSynthese,
     mensuelPhotoKeysIncluded,
@@ -571,6 +699,15 @@ export function RapportActivite() {
     );
   }, [listeVersion, missionOrdreOk, missionDebut, missionFin, projetCourant]);
 
+  const quotidiensPourMission = useMemo(() => {
+    if (!missionOrdreOk || !projetCourant) return [];
+    return listerQuotidiensPourPeriodeMission(
+      missionDebut,
+      missionFin,
+      projetCourant.id,
+    );
+  }, [listeVersion, missionOrdreOk, missionDebut, missionFin, projetCourant]);
+
   const stockTrie = useMemo(
     () =>
       [...stockCourant].sort((a, b) =>
@@ -594,6 +731,7 @@ export function RapportActivite() {
         ordre,
         getDomainesRapportProjet(projetCourant),
         getColonnesTableauSuiviProjet(projetCourant),
+        { tableauDepuis: "dernier" },
       ),
     );
     setObservations(
@@ -623,6 +761,7 @@ export function RapportActivite() {
         ordre,
         getDomainesRapportProjet(projetCourant),
         getColonnesTableauSuiviProjet(projetCourant),
+        { tableauDepuis: "dernier" },
       ),
     );
     setObservations(
@@ -631,8 +770,41 @@ export function RapportActivite() {
       ),
     );
     setSourceIdsSynthese(mensuelsPourMission.map((r) => r.id));
+    setConclusionFinMission("");
     setProvenanceSynthese(
       `Synthèse chaînée : ${mensuelsPourMission.length} rapport(s) mensuel(s) sur la mission. Texte fusionné ; relire avant remise client.`,
+    );
+  }
+
+  function synthetiserDepuisQuotidiensMission() {
+    if (!projetCourant || quotidiensPourMission.length === 0) {
+      setProvenanceSynthese(
+        "Aucun rapport quotidien sur la période — vérifiez les dates ou enregistrez des journées.",
+      );
+      return;
+    }
+    const ordre = projetCourant.sites.map((s) => s.id);
+    setContenuParSite(
+      fusionnerContenuParSiteDepuisRapports(
+        quotidiensPourMission,
+        (r) => libelleJourFr(r.jourDate ?? ""),
+        ordre,
+        getDomainesRapportProjet(projetCourant),
+        getColonnesTableauSuiviProjet(projetCourant),
+        { tableauDepuis: "dernier" },
+      ),
+    );
+    setObservations(
+      fusionnerObservationsDepuisRapports(quotidiensPourMission, (r) =>
+        libelleJourFr(r.jourDate ?? ""),
+      ),
+    );
+    setSourceIdsSynthese(quotidiensPourMission.map((r) => r.id));
+    setConclusionFinMission("");
+    setProvenanceSynthese(
+      quotidiensPourMission.length === 1
+        ? "Une seule journée sur la période : reprise du quotidien ; complétez la conclusion de fin de mission si besoin."
+        : `Synthèse depuis ${quotidiensPourMission.length} quotidien(s) (tableau = dernier jour).`,
     );
   }
 
@@ -652,6 +824,8 @@ export function RapportActivite() {
       referenceMission: mode === "fin_mission" ? referenceMission : undefined,
       contenuParSite,
       observations,
+      conclusionFinMission:
+        mode === "fin_mission" ? conclusionFinMission : undefined,
       sourceIds: sourceIdsSynthese,
       photosMensuelSelection:
         mode === "mensuel"
@@ -685,6 +859,7 @@ export function RapportActivite() {
     setInclureTableauSuiviPdf(r.inclureTableauSuiviPdf !== false);
     setSiteOngletId(projetCourant.sites[0]?.id ?? null);
     setObservations(r.observations);
+    setConclusionFinMission(r.conclusionFinMission ?? "");
     setSourceIdsSynthese(r.sourceIds);
     setRapportEditeId(r.id);
     if (r.mode === "quotidien" && r.jourDate) setJourDate(r.jourDate);
@@ -726,6 +901,7 @@ export function RapportActivite() {
     setProvenanceSynthese(null);
     setSourceIdsSynthese(undefined);
     setMensuelPhotoKeysIncluded(null);
+    setConclusionFinMission("");
     setInclureTableauSuiviPdf(true);
     if (projetCourant) {
       const colsTs = getColonnesTableauSuiviProjet(projetCourant);
@@ -760,6 +936,7 @@ export function RapportActivite() {
       setProvenanceSynthese(null);
       setSourceIdsSynthese(undefined);
       setMensuelPhotoKeysIncluded(null);
+      setConclusionFinMission("");
       setInclureTableauSuiviPdf(true);
     }
     setListeVersion((v) => v + 1);
@@ -841,61 +1018,27 @@ export function RapportActivite() {
 
     const colsPdf = getColonnesTableauSuiviProjet(projetCourant);
 
-    let pdMensuelP: RapportEnregistre | undefined;
-    let pdMensuelD: RapportEnregistre | undefined;
+    let pdMensuelPremier: RapportEnregistre | undefined;
     if (mode === "mensuel") {
       const x = premierEtDernierQuotidienMois(moisCleMensuel, projetCourant.id);
-      pdMensuelP = x.premier;
-      pdMensuelD = x.dernier;
+      pdMensuelPremier = x.premier;
     }
-    let pdMissionP: RapportEnregistre | undefined;
-    let pdMissionD: RapportEnregistre | undefined;
+    let premMissionTableauSource: RapportEnregistre | undefined;
     if (mode === "fin_mission" && missionOrdreOk) {
-      const x = premierEtDernierQuotidienMission(
+      const m = premierEtDernierMensuelMission(
         missionDebut,
         missionFin,
         projetCourant.id,
       );
-      pdMissionP = x.premier;
-      pdMissionD = x.dernier;
-    }
-
-    function pdfTableauxPremierDernier(
-      siteId: string,
-      prem: RapportEnregistre | undefined,
-      der: RapportEnregistre | undefined,
-    ): {
-      tableauSuivi?: PdfBlocTableauSuivi;
-      tableauxSuivi?: PdfBlocTableauSuivi[];
-    } {
-      const csP = prem?.contenuParSite.find((c) => c.siteId === siteId);
-      const csD = der?.contenuParSite.find((c) => c.siteId === siteId);
-      const memeFiche = prem && der && prem.id === der.id;
-      if (memeFiche) {
-        const one = tableauSuiviVersPdfBloc(
-          csP?.tableauSuivi,
-          colsPdf,
-          doms,
-          prem ? libelleEditionTableauPdf(prem) : undefined,
-        );
-        return one ? { tableauSuivi: one } : {};
+      if (m.premier) {
+        premMissionTableauSource = m.premier;
+      } else {
+        premMissionTableauSource = premierEtDernierQuotidienMission(
+          missionDebut,
+          missionFin,
+          projetCourant.id,
+        ).premier;
       }
-      const t1 = tableauSuiviVersPdfBloc(
-        csP?.tableauSuivi,
-        colsPdf,
-        doms,
-        prem ? libelleEditionTableauPdf(prem) : undefined,
-      );
-      const t2 = tableauSuiviVersPdfBloc(
-        csD?.tableauSuivi,
-        colsPdf,
-        doms,
-        der ? libelleEditionTableauPdf(der) : undefined,
-      );
-      const arr = [t1, t2].filter(
-        (x): x is PdfBlocTableauSuivi => x !== undefined,
-      );
-      return arr.length ? { tableauxSuivi: arr } : {};
     }
 
     const sections = projetCourant.sites
@@ -926,21 +1069,51 @@ export function RapportActivite() {
 
         if (inclureTableauSuiviPdf) {
           if (mode === "mensuel") {
-            const tsPdf = pdfTableauxPremierDernier(
-              site.id,
-              pdMensuelP,
-              pdMensuelD,
+            const csPrem = pdMensuelPremier?.contenuParSite.find(
+              (c) => c.siteId === site.id,
             );
-            tableauSuivi = tsPdf.tableauSuivi;
-            tableauxSuivi = tsPdf.tableauxSuivi;
+            const tPremierMois = tableauSuiviVersPdfBloc(
+              csPrem?.tableauSuivi,
+              colsPdf,
+              doms,
+              pdMensuelPremier
+                ? libelleEditionTableauPdf(pdMensuelPremier)
+                : undefined,
+            );
+            const tMensuelCourant = tableauSuiviVersPdfBloc(
+              bloc?.tableauSuivi,
+              colsPdf,
+              doms,
+              "Fin de période — rapport mensuel (reprise ou modification)",
+            );
+            const arrM = [tPremierMois, tMensuelCourant].filter(
+              (x): x is PdfBlocTableauSuivi => x !== undefined,
+            );
+            if (arrM.length === 2) tableauxSuivi = arrM;
+            else if (arrM.length === 1) tableauSuivi = arrM[0];
           } else if (mode === "fin_mission") {
-            const tsPdf = pdfTableauxPremierDernier(
-              site.id,
-              pdMissionP,
-              pdMissionD,
+            const csPremF = premMissionTableauSource?.contenuParSite.find(
+              (c) => c.siteId === site.id,
             );
-            tableauSuivi = tsPdf.tableauSuivi;
-            tableauxSuivi = tsPdf.tableauxSuivi;
+            const tPremierMission = tableauSuiviVersPdfBloc(
+              csPremF?.tableauSuivi,
+              colsPdf,
+              doms,
+              premMissionTableauSource
+                ? libelleEditionTableauPdf(premMissionTableauSource)
+                : undefined,
+            );
+            const tFinCourant = tableauSuiviVersPdfBloc(
+              bloc?.tableauSuivi,
+              colsPdf,
+              doms,
+              "Fin de période — rapport de fin de mission",
+            );
+            const arrF = [tPremierMission, tFinCourant].filter(
+              (x): x is PdfBlocTableauSuivi => x !== undefined,
+            );
+            if (arrF.length === 2) tableauxSuivi = arrF;
+            else if (arrF.length === 1) tableauSuivi = arrF[0];
           } else {
             const tsBloc = bloc?.tableauSuivi;
             const hasTsRows =
@@ -1000,6 +1173,9 @@ export function RapportActivite() {
           : undefined,
       sectionsParSite: sections,
       synthese: observations,
+      ...(mode === "fin_mission" && conclusionFinMission.trim()
+        ? { conclusionFinMission: conclusionFinMission.trim() }
+        : {}),
       piedDePage:
         projetCourant.piedDePageRapport?.trim() ||
         "Document généré depuis le module Rapport — données locales.",
@@ -2080,12 +2256,17 @@ export function RapportActivite() {
             <div className={styles.chainBar}>
               <p className={styles.chainBarText}>
                 <strong>{quotidiensPourMois.length}</strong> rapport(s) quotidien(s)
-                enregistré(s) pour {libellePeriodeMoisFr(mois, annee)}.
+                pour {libellePeriodeMoisFr(mois, annee)}. À l’ouverture d’un brouillon
+                neuf, les domaines se remplissent avec toutes les observations du mois
+                et le tableau reprend le <strong>dernier</strong> jour ; le PDF montre le
+                tableau du <strong>premier</strong> jour puis celui de cette fiche
+                (modifiable). Vous pouvez resynchroniser ici.
               </p>
               <button
                 type="button"
                 className={frameStyles.workspaceCtaSecondary}
                 onClick={synthetiserDepuisQuotidiens}
+                disabled={quotidiensPourMois.length === 0}
               >
                 Synthétiser depuis les quotidiens du mois
               </button>
@@ -2220,17 +2401,31 @@ export function RapportActivite() {
               {missionOrdreOk ? (
                 <div className={styles.chainBar}>
                   <p className={styles.chainBarText}>
-                    <strong>{mensuelsPourMission.length}</strong> rapport(s)
-                    mensuel(s) enregistré(s) entre {fmtCourt(missionDebut)} et{" "}
-                    {fmtCourt(missionFin)}.
+                    <strong>{mensuelsPourMission.length}</strong> mensuel(s) et{" "}
+                    <strong>{quotidiensPourMission.length}</strong> quotidien(s)
+                    enregistré(s) entre {fmtCourt(missionDebut)} et{" "}
+                    {fmtCourt(missionFin)}. La fiche se préremplit depuis les
+                    mensuels s’il y en a, sinon depuis les quotidiens ; vous pouvez
+                    resynchroniser ci-dessous.
                   </p>
-                  <button
-                    type="button"
-                    className={frameStyles.workspaceCtaSecondary}
-                    onClick={synthetiserDepuisMensuels}
-                  >
-                    Synthétiser depuis les mensuels de la mission
-                  </button>
+                  <div className={styles.chainBarActions}>
+                    <button
+                      type="button"
+                      className={frameStyles.workspaceCtaSecondary}
+                      onClick={synthetiserDepuisMensuels}
+                      disabled={mensuelsPourMission.length === 0}
+                    >
+                      Synthétiser depuis les mensuels
+                    </button>
+                    <button
+                      type="button"
+                      className={frameStyles.workspaceCtaSecondary}
+                      onClick={synthetiserDepuisQuotidiensMission}
+                      disabled={quotidiensPourMission.length === 0}
+                    >
+                      Synthétiser depuis les quotidiens
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </>
@@ -2339,6 +2534,8 @@ export function RapportActivite() {
                 Les blocs sans texte ni image sont absents du PDF. Un site sans
                 domaine renseigné et sans ligne utile au tableau de suivi est
                 entièrement omis (y compris la liste « Sites » en page de garde).
+                En quotidien, le tableau de suivi reprend le dernier jour
+                enregistré avant la date choisie.
               </p>
               <div className={styles.tableauPdfToggleRow}>
                 <span className={styles.tableauPdfToggleLabel}>
@@ -2745,6 +2942,25 @@ export function RapportActivite() {
                   placeholder={placeholderObs}
                 />
               </div>
+              {mode === "fin_mission" && missionOrdreOk ? (
+                <div className={styles.field}>
+                  <label htmlFor="rapport-concl-fm">
+                    Conclusion de fin de mission
+                  </label>
+                  <p className={styles.axesIntro} style={{ marginTop: 0 }}>
+                    Si ce champ est vide, aucune page « conclusion » n’est
+                    ajoutée au PDF. S’il est rempli, une page dédiée suit la
+                    synthèse.
+                  </p>
+                  <textarea
+                    id="rapport-concl-fm"
+                    value={conclusionFinMission}
+                    onChange={(e) => setConclusionFinMission(e.target.value)}
+                    placeholder="Bilan, recommandations, clôture de mission…"
+                    rows={5}
+                  />
+                </div>
+              ) : null}
               <p className={styles.exportNote}>
                 <strong>Enregistrer</strong> sauvegarde le brouillon localement ; à droite,{" "}
                 <strong>Valider</strong> ouvre l’édition / aperçu PDF du rapport (raccourcis « Aperçu
