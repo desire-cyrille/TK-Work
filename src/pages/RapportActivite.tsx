@@ -15,6 +15,7 @@ import { useWorkspaceLock } from "../hooks/useWorkspaceLock";
 import { RapportPhotoImport } from "../components/RapportPhotoImport";
 import {
   buildRapportPdfBlob,
+  tableauSuiviPdfANContenu,
   telechargerRapportPdfDepuisBlob,
   type ExportRapportPdfInput,
   type PdfBlocTableauSuivi,
@@ -951,13 +952,12 @@ export function RapportActivite() {
         }
 
         const hasTsPdf =
-          inclureTableauSuiviPdf &&
-          (Boolean(tableauSuivi?.blocs.some((b) => b.sujets.length > 0)) ||
-            Boolean(
-              tableauxSuivi?.some((t) =>
-                t.blocs.some((b) => b.sujets.length > 0),
-              ),
-            ));
+          tableauSuiviPdfANContenu(tableauSuivi, inclureTableauSuiviPdf) ||
+          Boolean(
+            tableauxSuivi?.some((t) =>
+              tableauSuiviPdfANContenu(t, inclureTableauSuiviPdf),
+            ),
+          );
 
         return {
           siteNom: site.nom,
@@ -971,12 +971,7 @@ export function RapportActivite() {
           _hasTsPdf: hasTsPdf,
         };
       })
-      .filter(
-        (s) =>
-          s.domaines.length > 0 ||
-          Boolean(s.sitePhotoDataUrl) ||
-          s._hasTsPdf,
-      )
+      .filter((s) => s.domaines.length > 0 || s._hasTsPdf)
       .map(({ _hasTsPdf: _h, ...rest }) => rest);
 
     return {
@@ -989,7 +984,7 @@ export function RapportActivite() {
       titreDocument: titre.trim() || "Rapport d’activité",
       periodeLibelle,
       genereLeLibelle: `Document généré le ${new Date().toLocaleString("fr-FR")}`,
-      sitesNomsListe: projetCourant.sites.map((s) => s.nom),
+      sitesNomsListe: sections.map((s) => s.siteNom),
       coordonneesEmetteur: projetCourant.coordonneesEmetteur,
       clientRaisonSociale: projetCourant.clientRaisonSociale,
       clientCoordonnees: projetCourant.clientCoordonnees,
@@ -2341,7 +2336,9 @@ export function RapportActivite() {
                 <strong>Domaines pour ce site</strong> — texte et jusqu’à{" "}
                 {MAX_PHOTOS_PAR_DOMAINE_RAPPORT} photos par bloc (
                 <strong>glisser-déposer</strong> ou « Parcourir » pour en ajouter).
-                Les blocs sans texte ni image sont absents du PDF.
+                Les blocs sans texte ni image sont absents du PDF. Un site sans
+                domaine renseigné et sans ligne utile au tableau de suivi est
+                entièrement omis (y compris la liste « Sites » en page de garde).
               </p>
               <div className={styles.tableauPdfToggleRow}>
                 <span className={styles.tableauPdfToggleLabel}>

@@ -65,6 +65,21 @@ export type PdfSectionSite = {
   tableauxSuivi?: PdfBlocTableauSuivi[];
 };
 
+/**
+ * Même critère que le rendu PDF : au moins une ligne avec sujet ou cellule utile
+ * (les lignes entièrement vides sont exclues).
+ */
+export function tableauSuiviPdfANContenu(
+  t: PdfBlocTableauSuivi | undefined,
+  inclureTableauSuiviPdf: boolean | undefined,
+): boolean {
+  if (inclureTableauSuiviPdf === false) return false;
+  return Boolean(
+    t?.colonnes?.length &&
+      filtrerBlocsTableauSuiviPourPdf(t.blocs, t.colonnes).length > 0,
+  );
+}
+
 export type ExportRapportPdfInput = {
   projetTitre: string;
   couvertureDataUrl?: string;
@@ -905,20 +920,18 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
 
   // —— Corps : une section par site (intercalaire) ——
   for (const section of input.sectionsParSite) {
-    const tableauRempli = (t: PdfBlocTableauSuivi | undefined) =>
-      Boolean(
-        t?.colonnes?.length &&
-          filtrerBlocsTableauSuiviPourPdf(t.blocs, t.colonnes).length > 0,
-      );
     const hasTableauPdf =
-      input.inclureTableauSuiviPdf !== false &&
-      (tableauRempli(section.tableauSuivi) ||
-        Boolean(section.tableauxSuivi?.some((t) => tableauRempli(t))));
-    if (
-      !section.domaines.length &&
-      !section.sitePhotoDataUrl?.trim() &&
-      !hasTableauPdf
-    ) {
+      tableauSuiviPdfANContenu(
+        section.tableauSuivi,
+        input.inclureTableauSuiviPdf,
+      ) ||
+      Boolean(
+        section.tableauxSuivi?.some((t) =>
+          tableauSuiviPdfANContenu(t, input.inclureTableauSuiviPdf),
+        ),
+      );
+    /* Pas de page site si aucun domaine (texte / photos d’axes) ni tableau utile. */
+    if (!section.domaines.length && !hasTableauPdf) {
       continue;
     }
 
@@ -953,9 +966,16 @@ export function buildRapportPdfBlob(input: ExportRapportPdfInput): Blob {
     if (input.inclureTableauSuiviPdf !== false) {
       if (section.tableauxSuivi?.length) {
         for (const t of section.tableauxSuivi) {
-          if (tableauRempli(t)) listeTableauxSite.push(t);
+          if (tableauSuiviPdfANContenu(t, input.inclureTableauSuiviPdf)) {
+            listeTableauxSite.push(t);
+          }
         }
-      } else if (tableauRempli(section.tableauSuivi)) {
+      } else if (
+        tableauSuiviPdfANContenu(
+          section.tableauSuivi,
+          input.inclureTableauSuiviPdf,
+        )
+      ) {
         listeTableauxSite.push(section.tableauSuivi!);
       }
     }
