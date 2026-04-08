@@ -367,6 +367,13 @@
   line-height: 1.45;
 }
 
+.chainBarActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .chainListCard {
   background: var(--surface);
   border: 1px solid var(--border-on-light);

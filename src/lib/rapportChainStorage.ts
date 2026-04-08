@@ -55,6 +55,11 @@ export type RapportEnregistre = {
   photosMensuelSelection?: string[];
   /** Si `false`, le tableau de suivi n’apparaît pas dans le PDF (défaut : inclus). */
   inclureTableauSuiviPdf?: boolean;
+  /**
+   * Fin de mission : texte dédié (ex. une seule source mensuelle ou quotidienne sur la période).
+   * Exporté dans le PDF après la synthèse.
+   */
+  conclusionFinMission?: string;
 };
 
 function newId() {
@@ -276,6 +281,10 @@ function normalizeRapport(raw: unknown): RapportEnregistre | null {
     sourceIds,
     photosMensuelSelection,
     inclureTableauSuiviPdf,
+    conclusionFinMission:
+      typeof r.conclusionFinMission === "string" && r.conclusionFinMission.trim()
+        ? r.conclusionFinMission.trim()
+        : undefined,
   };
 }
 
@@ -464,6 +473,9 @@ export function sauvegarderRapport(
     ...(data.inclureTableauSuiviPdf === false
       ? { inclureTableauSuiviPdf: false as const }
       : {}),
+    ...(data.conclusionFinMission?.trim()
+      ? { conclusionFinMission: data.conclusionFinMission.trim() }
+      : {}),
   };
 
   if (idx >= 0) liste[idx] = row;
@@ -550,21 +562,10 @@ export function premierEtDernierQuotidienMission(
   return { premier: arr[0], dernier: arr[arr.length - 1] };
 }
 
-function jourPrecedentISO(jourISO: string): string | null {
-  const j = jourISO.trim().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(j)) return null;
-  const d = new Date(j + "T12:00:00");
-  if (Number.isNaN(d.getTime())) return null;
-  d.setDate(d.getDate() - 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 /**
- * Tableaux de suivi par siteId issus du quotidien « veille » (J-1) ou,
- * à défaut, du dernier jour enregistré strictement avant `jourDateISO`.
+ * Tableaux de suivi par siteId : dernier rapport quotidien enregistré avant le jour
+ * choisi (jour calendaire le plus récent strictement &lt; `jourDateISO`, à égalité le plus
+ * récemment mis à jour). C’est l’état de tableau à reprendre pour le prochain quotidien.
  */
 export function extraireTableauxSuiviVeilleQuotidien(
   projetId: string,
@@ -579,27 +580,14 @@ export function extraireTableauxSuiviVeilleQuotidien(
     (r) => r.projetId === pid && r.mode === "quotidien" && r.jourDate,
   );
 
-  const hier = jourPrecedentISO(jp);
-  let choix: RapportEnregistre[] = [];
-  if (hier) {
-    choix = all.filter((r) => r.jourDate === hier);
-    choix.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  }
-  if (choix.length === 0) {
-    const avant = all
-      .filter((r) => (r.jourDate ?? "") < jp)
-      .sort((a, b) => {
-        const jd = (b.jourDate ?? "").localeCompare(a.jourDate ?? "");
-        if (jd !== 0) return jd;
-        return b.updatedAt.localeCompare(a.updatedAt);
-      });
-    choix = avant.length ? [avant[0]!] : [];
-  } else {
-    choix = [choix[0]!];
-  }
-
-  const r = choix[0];
-  if (!r) return null;
+  const candidats = all.filter((r) => (r.jourDate ?? "") < jp);
+  if (candidats.length === 0) return null;
+  candidats.sort((a, b) => {
+    const jd = (b.jourDate ?? "").localeCompare(a.jourDate ?? "");
+    if (jd !== 0) return jd;
+    return b.updatedAt.localeCompare(a.updatedAt);
+  });
+  const r = candidats[0]!;
 
   const out: Partial<Record<string, TableauSuiviContenu>> = {};
   for (const c of r.contenuParSite) {
@@ -639,7 +627,9 @@ export function libelleEditionTableauPdf(r: RapportEnregistre): string {
   const jour =
     r.mode === "quotidien" && r.jourDate
       ? `Jour du rapport : ${libelleJourFr(r.jourDate)}`
-      : "";
+      : r.mode === "mensuel" && r.moisCle
+        ? `Mensuel : ${libelleMoisCleFr(r.moisCle)}`
+        : "";
   const ed = new Date(r.updatedAt);
   const edStr = Number.isNaN(ed.getTime())
     ? r.updatedAt
@@ -671,6 +661,28 @@ export function listerMensuelsPourPeriodeMission(
     .sort((a, b) => (a.moisCle ?? "").localeCompare(b.moisCle ?? ""));
 }
 
+export function premierEtDernierMensuelMission(
+  missionDebutISO: string,
+  missionFinISO: string,
+  projetId: string,
+): { premier?: RapportEnregistre; dernier?: RapportEnregistre } {
+  const arr = listerMensuelsPourPeriodeMission(
+    missionDebutISO,
+    missionFinISO,
+    projetId,
+  );
+  if (arr.length === 0) return {};
+  return { premier: arr[0], dernier: arr[arr.length - 1] };
+}
+
+export type FusionContenuParSiteOptions = {
+  /**
+   * `fusion` (défaut) : concatène les lignes du tableau sur la période.
+   * `dernier` : reprend uniquement le tableau du dernier rapport de la liste (mensuel / fin de mission).
+   */
+  tableauDepuis?: "fusion" | "dernier";
+};
+
 function ordreSitesDepuisRapports(rapports: RapportEnregistre[]): string[] {
   const seen = new Set<string>();
   const order: string[] = [];
@@ -691,6 +703,7 @@ export function fusionnerContenuParSiteDepuisRapports(
   siteIdsOrdered: string[] | undefined,
   domaines: RapportDomaineDef[],
   colonnesTableau: TableauSuiviColonne[],
+  options?: FusionContenuParSiteOptions,
 ): ContenuSiteRapport[] {
   const explicit =
     Array.isArray(siteIdsOrdered) && siteIdsOrdered.some((s) => s && String(s).trim());
@@ -719,13 +732,32 @@ export function fusionnerContenuParSiteDepuisRapports(
       }
       axes[d.id] = { texte: parts.join("\n\n") };
     }
-    const tableauSuivi = fusionnerTableauSuiviPourSite(
-      rapports,
-      siteId,
-      colonnesTableau,
-      domaines,
-      libelleSource,
-    );
+    const tableauSuivi =
+      options?.tableauDepuis === "dernier" && rapports.length > 0
+        ? (() => {
+            const last = rapports[rapports.length - 1]!;
+            const blocLast = last.contenuParSite.find((c) => c.siteId === siteId);
+            return blocLast?.tableauSuivi
+              ? normalizeTableauSuiviContenu(
+                  clonerTableauSuiviContenu(blocLast.tableauSuivi),
+                  colonnesTableau,
+                  domaines,
+                )
+              : fusionnerTableauSuiviPourSite(
+                  rapports,
+                  siteId,
+                  colonnesTableau,
+                  domaines,
+                  libelleSource,
+                );
+          })()
+        : fusionnerTableauSuiviPourSite(
+            rapports,
+            siteId,
+            colonnesTableau,
+            domaines,
+            libelleSource,
+          );
     return { siteId, axes, tableauSuivi };
   });
 }
