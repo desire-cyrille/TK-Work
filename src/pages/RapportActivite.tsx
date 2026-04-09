@@ -20,6 +20,7 @@ import {
   type ExportRapportPdfInput,
   type PdfBlocTableauSuivi,
 } from "../lib/exportRapportStructurePdf";
+import { FR_TEXTAREA_PROPS } from "../lib/frTextFieldProps";
 import {
   bornesJourPourInputDate,
   libelleDateLongFr,
@@ -1867,6 +1868,7 @@ export function RapportActivite() {
               <span>Coordonnées émetteur (plumeau, adresse, SIRET…)</span>
               <textarea
                 className={styles.paramTextarea}
+                {...FR_TEXTAREA_PROPS}
                 rows={4}
                 defaultValue={projetCourant.coordonneesEmetteur ?? ""}
                 key={`emi-${projetCourant.updatedAt}`}
@@ -1898,6 +1900,7 @@ export function RapportActivite() {
                 <span>Client — coordonnées (adresse, contacts…)</span>
                 <textarea
                   className={styles.paramTextarea}
+                  {...FR_TEXTAREA_PROPS}
                   rows={3}
                   defaultValue={projetCourant.clientCoordonnees ?? ""}
                   key={`cc-${projetCourant.updatedAt}`}
@@ -1915,6 +1918,7 @@ export function RapportActivite() {
               <span>Indications de pied de page (sur chaque page du PDF)</span>
               <textarea
                 className={styles.paramTextarea}
+                {...FR_TEXTAREA_PROPS}
                 rows={2}
                 defaultValue={projetCourant.piedDePageRapport ?? ""}
                 key={`pp-${projetCourant.updatedAt}`}
@@ -1950,6 +1954,7 @@ export function RapportActivite() {
                   />
                   <textarea
                     className={styles.paramTextarea}
+                    {...FR_TEXTAREA_PROPS}
                     rows={2}
                     placeholder="Texte d’aide sous le titre"
                     defaultValue={d.hint}
@@ -2638,6 +2643,7 @@ export function RapportActivite() {
                         />
                         <textarea
                           id={`axe-${sid}-${d.id}`}
+                          {...FR_TEXTAREA_PROPS}
                           value={bloc?.axes[d.id]?.texte ?? ""}
                           onChange={(e) => setAxeTexte(sid, d.id, e.target.value)}
                           placeholder="—"
@@ -2786,6 +2792,7 @@ export function RapportActivite() {
                                 <td className={styles.tableauSuiviTdSujet}>
                                   <textarea
                                     className={styles.tableauSuiviCell}
+                                    {...FR_TEXTAREA_PROPS}
                                     rows={2}
                                     value={suj.sujet}
                                     onChange={(e) =>
@@ -2855,6 +2862,7 @@ export function RapportActivite() {
                                     <td key={cid}>
                                       <textarea
                                         className={styles.tableauSuiviCell}
+                                        {...FR_TEXTAREA_PROPS}
                                         rows={2}
                                         value={suj.cellules[cid] ?? ""}
                                         onChange={(e) =>
@@ -2937,6 +2945,7 @@ export function RapportActivite() {
                 </label>
                 <textarea
                   id="rapport-obs"
+                  {...FR_TEXTAREA_PROPS}
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
                   placeholder={placeholderObs}
@@ -2954,6 +2963,7 @@ export function RapportActivite() {
                   </p>
                   <textarea
                     id="rapport-concl-fm"
+                    {...FR_TEXTAREA_PROPS}
                     value={conclusionFinMission}
                     onChange={(e) => setConclusionFinMission(e.target.value)}
                     placeholder="Bilan, recommandations, clôture de mission…"

@@ -24,6 +24,7 @@ import {
 } from "../lib/devisCalcul";
 import { computeRouteDistanceKm } from "../lib/deplacementDistance";
 import { lireParametresDevisDefaut } from "../lib/devisDefaultsStorage";
+import { FR_TEXTAREA_PROPS } from "../lib/frTextFieldProps";
 import { memoriserClientDevis } from "../lib/devisClientsStorage";
 import {
   getDevis,
@@ -625,6 +626,7 @@ export function DevisEditeur() {
                 Titre affiché
                 <textarea
                   className={styles.textarea}
+                  {...FR_TEXTAREA_PROPS}
                   rows={4}
                   value={c.titrePageGarde}
                   onChange={(e) =>
@@ -636,6 +638,7 @@ export function DevisEditeur() {
                 Sous-titre
                 <textarea
                   className={styles.textarea}
+                  {...FR_TEXTAREA_PROPS}
                   rows={4}
                   value={c.sousTitrePageGarde}
                   onChange={(e) =>
@@ -704,6 +707,7 @@ export function DevisEditeur() {
               Description de la prestation (centrée dans le PDF)
               <textarea
                 className={styles.textarea}
+                {...FR_TEXTAREA_PROPS}
                 rows={5}
                 value={c.descriptionPrestation}
                 onChange={(e) =>
@@ -715,6 +719,7 @@ export function DevisEditeur() {
               Conclusion (centrée dans le PDF)
               <textarea
                 className={styles.textarea}
+                {...FR_TEXTAREA_PROPS}
                 rows={3}
                 value={c.texteConclusion}
                 onChange={(e) =>
@@ -1801,6 +1806,7 @@ export function DevisEditeur() {
             <h2>Notes internes</h2>
             <textarea
               className={styles.textarea}
+              {...FR_TEXTAREA_PROPS}
               rows={3}
               value={devis.notes}
               onChange={(e) => patchDevis({ notes: e.target.value })}

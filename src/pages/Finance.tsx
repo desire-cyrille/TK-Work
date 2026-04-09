@@ -21,6 +21,7 @@ import {
   buildDocumentMoisPdf,
   type TypeDocumentMois,
 } from "../lib/pdfLocatif";
+import { FR_TEXTAREA_PROPS } from "../lib/frTextFieldProps";
 import styles from "./Finance.module.css";
 
 function totalPaiementsContrat(
@@ -840,6 +841,7 @@ function MoisDetailPanel(props: {
         <strong style={{ fontSize: "0.82rem" }}>Observations (PDF)</strong>
         <textarea
           className={styles.obsArea}
+          {...FR_TEXTAREA_PROPS}
           value={obsDraft}
           onChange={(e) => setObsDraft(e.target.value)}
           onBlur={() => {

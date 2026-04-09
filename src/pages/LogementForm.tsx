@@ -8,6 +8,7 @@ import {
   type StatutLogement,
   type TypeBien,
 } from "../types/domain";
+import { FR_TEXTAREA_PROPS } from "../lib/frTextFieldProps";
 import styles from "./NouveauLogement.module.css";
 
 export function emptyLogementFields(): Omit<Logement, "id" | "bailleurId"> {
@@ -303,6 +304,7 @@ export function LogementForm({
             <span className={styles.label}>Notes / équipements</span>
             <textarea
               className={styles.textarea}
+              {...FR_TEXTAREA_PROPS}
               value={fields.notes}
               onChange={(e) => set("notes", e.target.value)}
               placeholder="Cave, parking, chauffage collectif, année de construction, DPE si utile…"
