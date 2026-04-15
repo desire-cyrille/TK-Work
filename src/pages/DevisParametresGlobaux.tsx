@@ -13,7 +13,6 @@ import {
   PIED_PAGE_PDF_DEFAUT,
   newId,
 } from "../lib/devisTypes";
-import { FR_TEXTAREA_PROPS } from "../lib/frTextFieldProps";
 import styles from "./DevisEditeur.module.css";
 
 const LOGO_MAX_BYTES = Math.round(1.5 * 1024 * 1024);
@@ -212,7 +211,6 @@ export function DevisParametresGlobaux() {
                   Adresse
                   <textarea
                     className={styles.textarea}
-                    {...FR_TEXTAREA_PROPS}
                     rows={2}
                     value={c.adresse}
                     onChange={(e) =>
@@ -306,7 +304,6 @@ export function DevisParametresGlobaux() {
             Texte
             <textarea
               className={styles.textarea}
-              {...FR_TEXTAREA_PROPS}
               rows={6}
               value={piedPagePdf}
               onChange={(e) => setPiedPagePdf(e.target.value)}

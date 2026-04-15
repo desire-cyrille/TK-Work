@@ -20,7 +20,6 @@ import {
   type ExportRapportPdfInput,
   type PdfBlocTableauSuivi,
 } from "../lib/exportRapportStructurePdf";
-import { FR_TEXTAREA_PROPS } from "../lib/frTextFieldProps";
 import {
   bornesJourPourInputDate,
   libelleDateLongFr,
@@ -29,7 +28,7 @@ import {
 } from "../lib/rapportActiviteData";
 import {
   alignerContenuAvecProjetSites,
-  appliquerVeilleTableauSurContenu,
+  appliquerVeilleQuotidienSurContenu,
   chargerRapportsEnregistres,
   collecterPhotosQuotidiensPourMensuel,
   fusionnerContenuParSiteDepuisRapports,
@@ -46,6 +45,7 @@ import {
   sauvegarderRapport,
   supprimerRapportEnregistre,
   trouverRapportPourContexteEdition,
+  QUOTIDIEN_PREFILL_ACTIF_DEPUIS_JOUR,
   type ContenuSiteRapport,
   type ModeRapportChain,
   type RapportEnregistre,
@@ -95,6 +95,11 @@ const MOIS_CHOIX = [
 ];
 
 const TITRE_RAPPORT_DEFAUT = "Rapport d’activité";
+
+function libelleDateFrDepuisIsoYYYYMMDD(iso: string): string {
+  const [y, m, d] = iso.trim().slice(0, 10).split("-");
+  return y && m && d ? `${d}/${m}/${y}` : iso;
+}
 
 function rapportAContenuPersistable(
   contenuParSite: ContenuSiteRapport[],
@@ -459,7 +464,7 @@ export function RapportActivite() {
     let contenu = contenuVidePourProjetSites(projetCourant.sites, dom, colsTs);
 
     if (mode === "quotidien") {
-      contenu = appliquerVeilleTableauSurContenu(
+      contenu = appliquerVeilleQuotidienSurContenu(
         contenu,
         projetCourant.id,
         jourDate,
@@ -475,7 +480,31 @@ export function RapportActivite() {
       setProvenanceSynthese(null);
       setMensuelPhotoKeysIncluded(null);
       setInclureTableauSuiviPdf(true);
-      return;
+
+      const pidHydr = projetCourant.id;
+      const jourHydr = jourDate;
+      let cancelled = false;
+      const tid = window.setTimeout(() => {
+        if (cancelled) return;
+        suspendAutosaveJusquA.current = 0;
+        const snap = snapshotSauvegardeRef.current;
+        if (!snap?.projetCourant || snap.mode !== "quotidien") return;
+        if (snap.projetCourant.id !== pidHydr || snap.jourDate !== jourHydr) return;
+        if (
+          rapportAContenuPersistable(
+            snap.contenuParSite,
+            snap.observations,
+            snap.titre,
+            snap.conclusionFinMission,
+          )
+        ) {
+          sauvegarderDepuisSnapshot();
+        }
+      }, 1000);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(tid);
+      };
     }
 
     if (mode === "mensuel") {
@@ -1868,7 +1897,6 @@ export function RapportActivite() {
               <span>Coordonnées émetteur (plumeau, adresse, SIRET…)</span>
               <textarea
                 className={styles.paramTextarea}
-                {...FR_TEXTAREA_PROPS}
                 rows={4}
                 defaultValue={projetCourant.coordonneesEmetteur ?? ""}
                 key={`emi-${projetCourant.updatedAt}`}
@@ -1900,7 +1928,6 @@ export function RapportActivite() {
                 <span>Client — coordonnées (adresse, contacts…)</span>
                 <textarea
                   className={styles.paramTextarea}
-                  {...FR_TEXTAREA_PROPS}
                   rows={3}
                   defaultValue={projetCourant.clientCoordonnees ?? ""}
                   key={`cc-${projetCourant.updatedAt}`}
@@ -1918,7 +1945,6 @@ export function RapportActivite() {
               <span>Indications de pied de page (sur chaque page du PDF)</span>
               <textarea
                 className={styles.paramTextarea}
-                {...FR_TEXTAREA_PROPS}
                 rows={2}
                 defaultValue={projetCourant.piedDePageRapport ?? ""}
                 key={`pp-${projetCourant.updatedAt}`}
@@ -1954,7 +1980,6 @@ export function RapportActivite() {
                   />
                   <textarea
                     className={styles.paramTextarea}
-                    {...FR_TEXTAREA_PROPS}
                     rows={2}
                     placeholder="Texte d’aide sous le titre"
                     defaultValue={d.hint}
@@ -2539,8 +2564,12 @@ export function RapportActivite() {
                 Les blocs sans texte ni image sont absents du PDF. Un site sans
                 domaine renseigné et sans ligne utile au tableau de suivi est
                 entièrement omis (y compris la liste « Sites » en page de garde).
-                En quotidien, le tableau de suivi reprend le dernier jour
-                enregistré avant la date choisie.
+                En quotidien, à partir du{" "}
+                {libelleDateFrDepuisIsoYYYYMMDD(QUOTIDIEN_PREFILL_ACTIF_DEPUIS_JOUR)}, chaque
+                domaine et le tableau de suivi reprennent le dernier jour
+                enregistré avant la date choisie (s’il existe). Un premier
+                enregistrement automatique est déclenché lorsque le brouillon contient
+                des données reprises, pour limiter la perte en changeant de page.
               </p>
               <div className={styles.tableauPdfToggleRow}>
                 <span className={styles.tableauPdfToggleLabel}>
@@ -2643,7 +2672,6 @@ export function RapportActivite() {
                         />
                         <textarea
                           id={`axe-${sid}-${d.id}`}
-                          {...FR_TEXTAREA_PROPS}
                           value={bloc?.axes[d.id]?.texte ?? ""}
                           onChange={(e) => setAxeTexte(sid, d.id, e.target.value)}
                           placeholder="—"
@@ -2792,7 +2820,6 @@ export function RapportActivite() {
                                 <td className={styles.tableauSuiviTdSujet}>
                                   <textarea
                                     className={styles.tableauSuiviCell}
-                                    {...FR_TEXTAREA_PROPS}
                                     rows={2}
                                     value={suj.sujet}
                                     onChange={(e) =>
@@ -2862,7 +2889,6 @@ export function RapportActivite() {
                                     <td key={cid}>
                                       <textarea
                                         className={styles.tableauSuiviCell}
-                                        {...FR_TEXTAREA_PROPS}
                                         rows={2}
                                         value={suj.cellules[cid] ?? ""}
                                         onChange={(e) =>
@@ -2945,7 +2971,6 @@ export function RapportActivite() {
                 </label>
                 <textarea
                   id="rapport-obs"
-                  {...FR_TEXTAREA_PROPS}
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
                   placeholder={placeholderObs}
@@ -2963,7 +2988,6 @@ export function RapportActivite() {
                   </p>
                   <textarea
                     id="rapport-concl-fm"
-                    {...FR_TEXTAREA_PROPS}
                     value={conclusionFinMission}
                     onChange={(e) => setConclusionFinMission(e.target.value)}
                     placeholder="Bilan, recommandations, clôture de mission…"

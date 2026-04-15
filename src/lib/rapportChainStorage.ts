@@ -25,6 +25,18 @@ export type ModeRapportChain = "quotidien" | "mensuel" | "fin_mission";
 
 const STORAGE_KEY = "tk-gestion-rapports-chain-v1";
 
+/**
+ * Préremplissage « veille » (domaines + tableau) : actif lorsque la date du rapport
+ * quotidien édité (`jourDate`) est **≥** cette date (inclus le 14/04/2026). Les
+ * sources possibles sont tous les quotidiens enregistrés avec une date strictement
+ * antérieure à ce jour (la plus récente ; sans plancher sur la date de la source).
+ */
+export const QUOTIDIEN_PREFILL_ACTIF_DEPUIS_JOUR = "2026-04-14";
+
+function estDateIsoYYYYMMDD(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s.trim().slice(0, 10));
+}
+
 export type ContenuSiteRapport = {
   siteId: string;
   axes: Record<string, AxeContenu>;
@@ -563,23 +575,22 @@ export function premierEtDernierQuotidienMission(
 }
 
 /**
- * Tableaux de suivi par siteId : dernier rapport quotidien enregistré avant le jour
- * choisi (jour calendaire le plus récent strictement &lt; `jourDateISO`, à égalité le plus
- * récemment mis à jour). C’est l’état de tableau à reprendre pour le prochain quotidien.
+ * Dernier rapport quotidien enregistré **strictement avant** `jourDateISO` (jour le
+ * plus récent, à égalité le plus récemment mis à jour). Inactif si `jourDateISO` est
+ * strictement avant {@link QUOTIDIEN_PREFILL_ACTIF_DEPUIS_JOUR}.
  */
-export function extraireTableauxSuiviVeilleQuotidien(
+export function trouverRapportQuotidienVeillePourPrefill(
   projetId: string,
   jourDateISO: string,
-  domaines: RapportDomaineDef[],
-  colonnes: TableauSuiviColonne[],
-): Partial<Record<string, TableauSuiviContenu>> | null {
+): RapportEnregistre | null {
   const pid = projetId.trim();
   const jp = jourDateISO.trim().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(jp)) return null;
+  if (!estDateIsoYYYYMMDD(jp)) return null;
+  const jActif = QUOTIDIEN_PREFILL_ACTIF_DEPUIS_JOUR.trim().slice(0, 10);
+  if (!estDateIsoYYYYMMDD(jActif) || jp < jActif) return null;
   const all = chargerRapportsEnregistres().filter(
     (r) => r.projetId === pid && r.mode === "quotidien" && r.jourDate,
   );
-
   const candidats = all.filter((r) => (r.jourDate ?? "") < jp);
   if (candidats.length === 0) return null;
   candidats.sort((a, b) => {
@@ -587,8 +598,44 @@ export function extraireTableauxSuiviVeilleQuotidien(
     if (jd !== 0) return jd;
     return b.updatedAt.localeCompare(a.updatedAt);
   });
-  const r = candidats[0]!;
+  return candidats[0] ?? null;
+}
 
+function clonerAxeContenuPourSaisie(a: AxeContenu): AxeContenu {
+  const texte = a.texte ?? "";
+  const pics = photosAxeContenu(a);
+  if (pics.length === 0) return { texte };
+  if (pics.length === 1) return { texte, photoDataUrl: pics[0] };
+  return { texte, photoDataUrl: pics[0], photosDataUrls: [...pics] };
+}
+
+/** Reprend les textes et photos des domaines depuis le rapport « veille » (par site). */
+export function appliquerVeilleDomainesSurContenu(
+  contenu: ContenuSiteRapport[],
+  veille: RapportEnregistre,
+  domaines: RapportDomaineDef[],
+): ContenuSiteRapport[] {
+  const bySite = new Map(veille.contenuParSite.map((c) => [c.siteId, c]));
+  const empty = axesContenuVidesPourDomaines(domaines);
+  return contenu.map((c) => {
+    const prev = bySite.get(c.siteId);
+    if (!prev) return c;
+    const merged = fusionnerAxesVersDomaines(prev.axes, empty, domaines);
+    const axes = Object.fromEntries(
+      domaines.map((d) => [
+        d.id,
+        clonerAxeContenuPourSaisie(merged[d.id] ?? { texte: "" }),
+      ]),
+    ) as Record<string, AxeContenu>;
+    return { ...c, axes };
+  });
+}
+
+function extraireTableauxSuiviDepuisRapportQuotidien(
+  r: RapportEnregistre,
+  domaines: RapportDomaineDef[],
+  colonnes: TableauSuiviColonne[],
+): Partial<Record<string, TableauSuiviContenu>> | null {
   const out: Partial<Record<string, TableauSuiviContenu>> = {};
   for (const c of r.contenuParSite) {
     if (!c.tableauSuivi) continue;
@@ -599,6 +646,50 @@ export function extraireTableauxSuiviVeilleQuotidien(
     );
   }
   return Object.keys(out).length > 0 ? out : null;
+}
+
+/**
+ * Préremplit un brouillon quotidien : domaines (texte + photos) puis tableau de suivi,
+ * à partir du même rapport « veille » que {@link trouverRapportQuotidienVeillePourPrefill}.
+ */
+export function appliquerVeilleQuotidienSurContenu(
+  contenu: ContenuSiteRapport[],
+  projetId: string,
+  jourDateISO: string,
+  domaines: RapportDomaineDef[],
+  colonnes: TableauSuiviColonne[],
+): ContenuSiteRapport[] {
+  const veille = trouverRapportQuotidienVeillePourPrefill(projetId, jourDateISO);
+  let out = contenu;
+  if (!veille) return out;
+  out = appliquerVeilleDomainesSurContenu(out, veille, domaines);
+  const tsMap = extraireTableauxSuiviDepuisRapportQuotidien(
+    veille,
+    domaines,
+    colonnes,
+  );
+  if (!tsMap) return out;
+  return out.map((c) => {
+    const ts = tsMap[c.siteId];
+    if (!ts) return c;
+    return { ...c, tableauSuivi: clonerTableauSuiviContenu(ts) };
+  });
+}
+
+/**
+ * Tableaux de suivi par siteId : dernier rapport quotidien enregistré avant le jour
+ * choisi (jour calendaire le plus récent strictement &lt; `jourDateISO`, à égalité le plus
+ * récemment mis à jour), avec la même condition d’activation que le préremplissage des domaines.
+ */
+export function extraireTableauxSuiviVeilleQuotidien(
+  projetId: string,
+  jourDateISO: string,
+  domaines: RapportDomaineDef[],
+  colonnes: TableauSuiviColonne[],
+): Partial<Record<string, TableauSuiviContenu>> | null {
+  const r = trouverRapportQuotidienVeillePourPrefill(projetId, jourDateISO);
+  if (!r) return null;
+  return extraireTableauxSuiviDepuisRapportQuotidien(r, domaines, colonnes);
 }
 
 export function appliquerVeilleTableauSurContenu(

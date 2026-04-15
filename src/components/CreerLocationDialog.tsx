@@ -28,7 +28,6 @@ import {
   ligneRepresentantLegalBailleur,
   locataireEstRattacheAuLogement,
 } from "../types/domain";
-import { FR_TEXTAREA_PROPS } from "../lib/frTextFieldProps";
 import styles from "./CreerLocationDialog.module.css";
 
 /** Plafond pour stocker le bail signé en local (localStorage). */
@@ -1127,7 +1126,6 @@ export function CreerLocationDialog({
                 <span className={fs.label}>Clauses particulières</span>
                 <textarea
                   className={fs.textarea}
-                  {...FR_TEXTAREA_PROPS}
                   rows={3}
                   value={draft.clauseParticuliere}
                   onChange={(e) =>
@@ -1140,7 +1138,6 @@ export function CreerLocationDialog({
                 <span className={fs.label}>Informations complémentaires</span>
                 <textarea
                   className={fs.textarea}
-                  {...FR_TEXTAREA_PROPS}
                   rows={4}
                   value={draft.infosComplementaires}
                   onChange={(e) =>
@@ -1222,7 +1219,6 @@ export function CreerLocationDialog({
                 <span className={fs.label}>Garants (noms et qualités)</span>
                 <textarea
                   className={fs.textarea}
-                  {...FR_TEXTAREA_PROPS}
                   rows={3}
                   value={draft.nomsGarants}
                   onChange={(e) => set("nomsGarants", e.target.value)}
@@ -1329,7 +1325,6 @@ export function CreerLocationDialog({
                 <span className={fs.label}>Notes assurances</span>
                 <textarea
                   className={fs.textarea}
-                  {...FR_TEXTAREA_PROPS}
                   rows={3}
                   value={draft.notesAssurance}
                   onChange={(e) => set("notesAssurance", e.target.value)}
@@ -1370,7 +1365,6 @@ export function CreerLocationDialog({
                 </span>
                 <textarea
                   className={fs.textarea}
-                  {...FR_TEXTAREA_PROPS}
                   rows={5}
                   value={draft.etatDesLieuxRempli}
                   onChange={(e) =>
@@ -1409,7 +1403,6 @@ export function CreerLocationDialog({
                 </span>
                 <textarea
                   className={fs.textarea}
-                  {...FR_TEXTAREA_PROPS}
                   rows={4}
                   value={draft.autresDocuments}
                   onChange={(e) =>

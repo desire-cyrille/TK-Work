@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useProofreadDialog } from "../context/ProofreadDialogContext";
 import { useThemeSettings } from "../context/ThemeSettingsContext";
 import { BrandTitle } from "./BrandTitle";
 import { ProfileDialog } from "./ProfileDialog";
@@ -33,7 +32,6 @@ export function Sidebar() {
   const location = useLocation();
   const { settings } = useThemeSettings();
   const { logout } = useAuth();
-  const { openProofreadDialog } = useProofreadDialog();
   const [profilOuvert, setProfilOuvert] = useState(false);
   const immobilierActif = estCheminImmobilier(location.pathname);
   const [immobilierOuvert, setImmobilierOuvert] = useState(immobilierActif);
@@ -48,13 +46,6 @@ export function Sidebar() {
         <NavLink to="/fonctions" className={styles.changerFonction}>
           Changer de fonction
         </NavLink>
-        <button
-          type="button"
-          className={styles.proofreadBtn}
-          onClick={openProofreadDialog}
-        >
-          Orthographe & grammaire
-        </button>
         <button
           type="button"
           className={styles.profilBtn}

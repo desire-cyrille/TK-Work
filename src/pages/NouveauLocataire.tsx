@@ -10,7 +10,6 @@ import {
   type Locataire,
   type TypeOccupantLocataire,
 } from "../types/domain";
-import { FR_TEXTAREA_PROPS } from "../lib/frTextFieldProps";
 import styles from "./NouveauLogement.module.css";
 
 const emptyFields = (): Omit<Locataire, "id"> => ({
@@ -562,7 +561,6 @@ export function NouveauLocataire() {
               <span className={styles.label}>Notes</span>
               <textarea
                 className={styles.textarea}
-                {...FR_TEXTAREA_PROPS}
                 value={fields.notes}
                 onChange={(e) => set("notes", e.target.value)}
                 placeholder="Garant, colocataire, animaux, particularités du bail…"

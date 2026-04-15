@@ -22,7 +22,6 @@ import {
 } from "../lib/irlInsee";
 import { nomCompletLocataire } from "../lib/locataireUi";
 import { parseEuro } from "../lib/money";
-import { FR_TEXTAREA_PROPS } from "../lib/frTextFieldProps";
 import { ratioProrataTemporisMoisCivils } from "../lib/prorataLoyer";
 import formStyles from "../pages/NouveauLogement.module.css";
 import styles from "./CreerLocationDialog.module.css";
@@ -1086,7 +1085,6 @@ export function BienLoueTabFields({
         <span className={fs.label}>Justification du complément</span>
         <textarea
           className={fs.textarea}
-          {...FR_TEXTAREA_PROPS}
           rows={3}
           value={draft.complementLoyerDescription}
           onChange={(e) =>
