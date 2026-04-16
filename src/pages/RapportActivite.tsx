@@ -408,33 +408,41 @@ export function RapportActivite() {
       )
     )
       return;
-    const row = sauvegarderRapport({
-      id: s.rapportEditeId ?? undefined,
-      projetId: s.projetCourant.id,
-      mode: s.mode,
-      titre: s.titre.trim() || "Rapport",
-      jourDate: s.mode === "quotidien" ? s.jourDate : undefined,
-      moisCle: s.mode === "mensuel" ? s.moisCleMensuel : undefined,
-      missionDebut: s.mode === "fin_mission" ? s.missionDebut : undefined,
-      missionFin: s.mode === "fin_mission" ? s.missionFin : undefined,
-      clientNom: s.mode === "fin_mission" ? s.clientNom : undefined,
-      referenceMission: s.mode === "fin_mission" ? s.referenceMission : undefined,
-      contenuParSite: s.contenuParSite,
-      observations: s.observations,
-      conclusionFinMission: s.conclusionFinMission,
-      sourceIds: s.sourceIdsSynthese,
-      photosMensuelSelection:
-        s.mode === "mensuel"
-          ? s.mensuelPhotoKeysIncluded === null
-            ? undefined
-            : [...s.mensuelPhotoKeysIncluded]
-          : undefined,
-      ...(s.inclureTableauSuiviPdf === false
-        ? { inclureTableauSuiviPdf: false as const }
-        : {}),
-    });
-    setRapportEditeId(row.id);
-    setListeVersion((v) => v + 1);
+    try {
+      const row = sauvegarderRapport({
+        id: s.rapportEditeId ?? undefined,
+        projetId: s.projetCourant.id,
+        mode: s.mode,
+        titre: s.titre.trim() || "Rapport",
+        jourDate: s.mode === "quotidien" ? s.jourDate : undefined,
+        moisCle: s.mode === "mensuel" ? s.moisCleMensuel : undefined,
+        missionDebut: s.mode === "fin_mission" ? s.missionDebut : undefined,
+        missionFin: s.mode === "fin_mission" ? s.missionFin : undefined,
+        clientNom: s.mode === "fin_mission" ? s.clientNom : undefined,
+        referenceMission: s.mode === "fin_mission" ? s.referenceMission : undefined,
+        contenuParSite: s.contenuParSite,
+        observations: s.observations,
+        conclusionFinMission: s.conclusionFinMission,
+        sourceIds: s.sourceIdsSynthese,
+        photosMensuelSelection:
+          s.mode === "mensuel"
+            ? s.mensuelPhotoKeysIncluded === null
+              ? undefined
+              : [...s.mensuelPhotoKeysIncluded]
+            : undefined,
+        ...(s.inclureTableauSuiviPdf === false
+          ? { inclureTableauSuiviPdf: false as const }
+          : {}),
+      });
+      setRapportEditeId(row.id);
+      setListeVersion((v) => v + 1);
+    } catch {
+      const now = Date.now();
+      suspendAutosaveJusquA.current = now + 6000;
+      setConfirmationSauvegarde(
+        "Sauvegarde automatique impossible (stockage saturé ou indisponible). Supprimez quelques brouillons/rapports, retirez des photos trop lourdes, puis réessayez.",
+      );
+    }
   }
 
   useEffect(() => {
@@ -841,37 +849,43 @@ export function RapportActivite() {
   function enregistrerDansLaChaine() {
     if (!projetCourant) return;
     if (mode === "fin_mission" && !missionOrdreOk) return;
-    const row = sauvegarderRapport({
-      id: rapportEditeId ?? undefined,
-      projetId: projetCourant.id,
-      mode,
-      titre: titre.trim() || "Rapport",
-      jourDate: mode === "quotidien" ? jourDate : undefined,
-      moisCle: mode === "mensuel" ? moisCleMensuel : undefined,
-      missionDebut: mode === "fin_mission" ? missionDebut : undefined,
-      missionFin: mode === "fin_mission" ? missionFin : undefined,
-      clientNom: mode === "fin_mission" ? clientNom : undefined,
-      referenceMission: mode === "fin_mission" ? referenceMission : undefined,
-      contenuParSite,
-      observations,
-      conclusionFinMission:
-        mode === "fin_mission" ? conclusionFinMission : undefined,
-      sourceIds: sourceIdsSynthese,
-      photosMensuelSelection:
-        mode === "mensuel"
-          ? mensuelPhotoKeysIncluded === null
-            ? undefined
-            : [...mensuelPhotoKeysIncluded]
-          : undefined,
-      ...(inclureTableauSuiviPdf === false
-        ? { inclureTableauSuiviPdf: false as const }
-        : {}),
-    });
-    setRapportEditeId(row.id);
-    setListeVersion((v) => v + 1);
-    setConfirmationSauvegarde(
-      "Brouillon enregistré — le fichier est bien sauvegardé sur cet appareil. Il apparaît dans la liste « Chaîne de rapports » ci-dessous.",
-    );
+    try {
+      const row = sauvegarderRapport({
+        id: rapportEditeId ?? undefined,
+        projetId: projetCourant.id,
+        mode,
+        titre: titre.trim() || "Rapport",
+        jourDate: mode === "quotidien" ? jourDate : undefined,
+        moisCle: mode === "mensuel" ? moisCleMensuel : undefined,
+        missionDebut: mode === "fin_mission" ? missionDebut : undefined,
+        missionFin: mode === "fin_mission" ? missionFin : undefined,
+        clientNom: mode === "fin_mission" ? clientNom : undefined,
+        referenceMission: mode === "fin_mission" ? referenceMission : undefined,
+        contenuParSite,
+        observations,
+        conclusionFinMission:
+          mode === "fin_mission" ? conclusionFinMission : undefined,
+        sourceIds: sourceIdsSynthese,
+        photosMensuelSelection:
+          mode === "mensuel"
+            ? mensuelPhotoKeysIncluded === null
+              ? undefined
+              : [...mensuelPhotoKeysIncluded]
+            : undefined,
+        ...(inclureTableauSuiviPdf === false
+          ? { inclureTableauSuiviPdf: false as const }
+          : {}),
+      });
+      setRapportEditeId(row.id);
+      setListeVersion((v) => v + 1);
+      setConfirmationSauvegarde(
+        "Brouillon enregistré — le fichier est bien sauvegardé sur cet appareil. Il apparaît dans la liste « Chaîne de rapports » ci-dessous.",
+      );
+    } catch {
+      setConfirmationSauvegarde(
+        "Enregistrement impossible (stockage saturé ou indisponible). Supprimez quelques brouillons/rapports ou retirez des photos trop lourdes, puis réessayez.",
+      );
+    }
   }
 
   function chargerEnregistre(r: RapportEnregistre) {
