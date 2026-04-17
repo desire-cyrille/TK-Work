@@ -161,7 +161,7 @@ function debutMissionDefaut(): string {
   return formatDateInput(d);
 }
 
-const MAX_IMAGE_OCTETS = 2 * 1024 * 1024;
+const MAX_IMAGE_OCTETS = 4 * 1024 * 1024;
 const MAX_PHOTOS_PAR_DOMAINE_RAPPORT = 15;
 
 function lireImageVersDataUrl(f: File):
@@ -172,7 +172,7 @@ function lireImageVersDataUrl(f: File):
   if (f.size > MAX_IMAGE_OCTETS) {
     return Promise.resolve({
       ok: false,
-      raison: "Image trop volumineuse (max. 2 Mo).",
+      raison: "Image trop volumineuse (max. 4 Mo).",
     });
   }
   return new Promise((resolve) => {

@@ -25,7 +25,7 @@ export function RapportPhotoImport({
   onPick,
   disabled,
   hint = "Glissez-déposez une image ici",
-  sub = "Fichiers image — max. 2 Mo",
+  sub = "Fichiers image — max. 4 Mo",
   browseLabel = "Parcourir…",
   compact,
   previewSrc,
