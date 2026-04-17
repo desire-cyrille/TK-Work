@@ -13,6 +13,7 @@ import frameStyles from "../components/PageFrame.module.css";
 import { useAuth } from "../context/AuthContext";
 import { useWorkspaceLock } from "../hooks/useWorkspaceLock";
 import { RapportPhotoImport } from "../components/RapportPhotoImport";
+import { cloudPush } from "../lib/cloudSync";
 import {
   buildRapportPdfBlob,
   tableauSuiviPdfANContenu,
@@ -304,6 +305,42 @@ export function RapportActivite() {
   const prevCtxHydrateKeyRef = useRef("");
   const chargerEnregistreRef = useRef<(r: RapportEnregistre) => void>(() => {});
 
+  const cloudPushTimerRef = useRef<number | null>(null);
+  const cloudPushInFlightRef = useRef(false);
+  const cloudPushRequestedRef = useRef(false);
+
+  function scheduleCloudPush() {
+    if (!isAuthenticated) return;
+    cloudPushRequestedRef.current = true;
+    if (cloudPushTimerRef.current !== null) return;
+    cloudPushTimerRef.current = window.setTimeout(() => {
+      cloudPushTimerRef.current = null;
+      if (!cloudPushRequestedRef.current) return;
+      if (cloudPushInFlightRef.current) {
+        scheduleCloudPush();
+        return;
+      }
+      cloudPushInFlightRef.current = true;
+      cloudPushRequestedRef.current = false;
+      void cloudPush()
+        .catch((e) => {
+          console.warn("Sync nuage (auto) :", e);
+        })
+        .finally(() => {
+          cloudPushInFlightRef.current = false;
+          if (cloudPushRequestedRef.current) scheduleCloudPush();
+        });
+    }, 2000);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (cloudPushTimerRef.current !== null) {
+        window.clearTimeout(cloudPushTimerRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!confirmationSauvegarde) return;
     const t = window.setTimeout(() => setConfirmationSauvegarde(null), 5000);
@@ -436,6 +473,7 @@ export function RapportActivite() {
       });
       setRapportEditeId(row.id);
       setListeVersion((v) => v + 1);
+      scheduleCloudPush();
     } catch {
       const now = Date.now();
       suspendAutosaveJusquA.current = now + 6000;
@@ -878,6 +916,7 @@ export function RapportActivite() {
       });
       setRapportEditeId(row.id);
       setListeVersion((v) => v + 1);
+      scheduleCloudPush();
       setConfirmationSauvegarde(
         "Brouillon enregistré — le fichier est bien sauvegardé sur cet appareil. Il apparaît dans la liste « Chaîne de rapports » ci-dessous.",
       );
