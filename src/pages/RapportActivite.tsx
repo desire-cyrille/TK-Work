@@ -2015,7 +2015,6 @@ export function RapportActivite() {
                 className={styles.paramTextarea}
                 rows={4}
                 defaultValue={projetCourant.coordonneesEmetteur ?? ""}
-                key={`emi-${projetCourant.updatedAt}`}
                 onBlur={(e) => {
                   mettreAJourProjetComplet(projetCourant.id, {
                     coordonneesEmetteur: e.target.value,
@@ -2031,7 +2030,6 @@ export function RapportActivite() {
                 <input
                   className={styles.paramInput}
                   defaultValue={projetCourant.clientRaisonSociale ?? ""}
-                  key={`cr-${projetCourant.updatedAt}`}
                   onBlur={(e) => {
                     mettreAJourProjetComplet(projetCourant.id, {
                       clientRaisonSociale: e.target.value,
@@ -2046,7 +2044,6 @@ export function RapportActivite() {
                   className={styles.paramTextarea}
                   rows={3}
                   defaultValue={projetCourant.clientCoordonnees ?? ""}
-                  key={`cc-${projetCourant.updatedAt}`}
                   onBlur={(e) => {
                     mettreAJourProjetComplet(projetCourant.id, {
                       clientCoordonnees: e.target.value,
@@ -2063,7 +2060,6 @@ export function RapportActivite() {
                 className={styles.paramTextarea}
                 rows={2}
                 defaultValue={projetCourant.piedDePageRapport ?? ""}
-                key={`pp-${projetCourant.updatedAt}`}
                 onBlur={(e) => {
                   mettreAJourProjetComplet(projetCourant.id, {
                     piedDePageRapport: e.target.value,
@@ -2085,7 +2081,6 @@ export function RapportActivite() {
                     className={styles.paramInput}
                     defaultValue={d.label}
                     aria-label={`Libellé domaine ${idx + 1}`}
-                    key={`dl-${d.id}-${projetCourant.updatedAt}`}
                     onBlur={(e) => {
                       const label = e.target.value.trim() || d.label;
                       const next = projetCourant.domainesRapport.map((x) =>
@@ -2099,7 +2094,6 @@ export function RapportActivite() {
                     rows={2}
                     placeholder="Texte d’aide sous le titre"
                     defaultValue={d.hint}
-                    key={`dh-${d.id}-${projetCourant.updatedAt}`}
                     onBlur={(e) => {
                       const hint = e.target.value;
                       const next = projetCourant.domainesRapport.map((x) =>
@@ -2159,7 +2153,6 @@ export function RapportActivite() {
                       className={styles.paramInput}
                       defaultValue={col.label}
                       aria-label={`En-tête colonne ${idx + 1}`}
-                      key={`tcl-${col.id}-${projetCourant.updatedAt}`}
                       onBlur={(e) => {
                         const label = e.target.value;
                         const next = cols.map((x) =>
