@@ -146,6 +146,8 @@ export function CloudAutoSync() {
     inFlightPush.current = true;
     try {
       const entries = collectEntriesForCloudPush();
+      // Protection: ne jamais écraser le serveur avec un état "vide" depuis un appareil vidé.
+      if (Object.keys(entries).length === 0) return;
       const curHash = hashEntries(entries);
       if (curHash && curHash === lastPushedHash.current) return;
       const r = await cloudPush();

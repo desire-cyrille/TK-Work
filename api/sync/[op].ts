@@ -126,6 +126,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(400).json({ error: normalized.error });
         return;
       }
+      if (!merge && Object.keys(normalized.entries).length === 0) {
+        res.status(400).json({
+          error:
+            "Refus de remplacer les données serveur par un contenu vide. (Protection anti-effacement) Utilisez reset:true si vous voulez vraiment tout effacer.",
+        });
+        return;
+      }
 
       const json = JSON.stringify(normalized.entries);
       const sql = merge

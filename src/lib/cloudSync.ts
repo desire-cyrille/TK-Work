@@ -12,6 +12,7 @@ import {
 
 const LEGACY_CLOUD_TOKEN = "tk_gestion_cloud_token";
 const LEGACY_CLOUD_EMAIL = "tk_gestion_cloud_email";
+const AUTOBACKUP_BEFORE_PULL_KEY = "tk-gestion-autobackup-before-cloudpull-v1";
 
 function isAuthOrSessionKey(key: string): boolean {
   return (
@@ -36,8 +37,39 @@ export function collectEntriesForCloudPush(): Record<string, string> {
   return entries;
 }
 
+function collectTkGestionEntriesWithoutAuth(): Record<string, string> {
+  const entries: Record<string, string> = {};
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key || !isTkGestionStorageKey(key)) continue;
+    if (isAuthOrSessionKey(key)) continue;
+    const v = localStorage.getItem(key);
+    if (v !== null) entries[key] = v;
+  }
+  return entries;
+}
+
+function saveAutoBackupBeforePull(): void {
+  try {
+    const entries = collectTkGestionEntriesWithoutAuth();
+    if (Object.keys(entries).length === 0) return;
+    const payload = {
+      format: TK_GESTION_BACKUP_FORMAT,
+      version: TK_GESTION_BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      entries,
+    };
+    localStorage.setItem(AUTOBACKUP_BEFORE_PULL_KEY, JSON.stringify(payload));
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Applique une copie serveur en conservant connexion et jeton sur cet appareil. */
 export function applyCloudPullEntries(entries: Record<string, string>) {
+  // Sauvegarde locale automatique (dernier recours) avant tout écrasement.
+  saveAutoBackupBeforePull();
+
   const sessionKeep = localStorage.getItem("tk_gestion_session");
   const tokenKeep = localStorage.getItem(AUTH_TOKEN_KEY);
   const emailKeep = localStorage.getItem(AUTH_EMAIL_KEY);
