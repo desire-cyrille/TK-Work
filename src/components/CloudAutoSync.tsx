@@ -8,6 +8,7 @@ import {
 
 const PULL_INTERVAL_MS = 30_000;
 const PUSH_DEBOUNCE_MS = 1_500;
+const APPLIED_PULL_VERSION_KEY = "tk-gestion-cloud-autosync-applied-version-v1";
 
 /**
  * Synchronisation automatique multi-appareil.
@@ -21,6 +22,26 @@ export function CloudAutoSync() {
   const inFlightPush = useRef(false);
   const lastPushedHash = useRef<string>("");
   const pushTimer = useRef<number | null>(null);
+  const lastAppliedPullVersionRef = useRef<number>(0);
+
+  function readLastAppliedPullVersion(): number {
+    try {
+      const raw = sessionStorage.getItem(APPLIED_PULL_VERSION_KEY);
+      const n = raw ? Number(raw) : 0;
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  function writeLastAppliedPullVersion(v: number) {
+    try {
+      if (!Number.isFinite(v) || v <= 0) return;
+      sessionStorage.setItem(APPLIED_PULL_VERSION_KEY, String(v));
+    } catch {
+      /* ignore */
+    }
+  }
 
   function hashEntries(entries: Record<string, string>): string {
     // Hash léger (non cryptographique) pour éviter des push inutiles.
@@ -43,8 +64,14 @@ export function CloudAutoSync() {
       const r = await cloudPull();
       if (!r.ok) return;
       if (r.version === 0 || Object.keys(r.entries).length === 0) return;
+      const lastApplied =
+        lastAppliedPullVersionRef.current || readLastAppliedPullVersion();
+      // Empêche les boucles de rechargement: ne réapplique pas une version déjà appliquée.
+      if (r.version <= lastApplied) return;
       const applied = applyCloudPullEntries(r.entries);
       if (!applied.ok) return;
+      lastAppliedPullVersionRef.current = r.version;
+      writeLastAppliedPullVersion(r.version);
       // L'état React courant est obsolète après restauration du localStorage.
       window.location.reload();
     } finally {
@@ -75,6 +102,9 @@ export function CloudAutoSync() {
   }
 
   useEffect(() => {
+    // Charge la dernière version déjà appliquée dans cette session.
+    lastAppliedPullVersionRef.current = readLastAppliedPullVersion();
+
     // Pull initial dès que possible.
     if (navigator.onLine) void doPull();
     // Push initial (si des données existent déjà).
