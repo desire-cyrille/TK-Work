@@ -533,6 +533,25 @@ export function RapportActivite() {
     }
   }, [projetCourant?.id, ctxHydrateKey, contenuParSite]);
 
+  // Si, à contexte égal, les textes deviennent soudainement vides (reset/remount), on restaure
+  // le dernier snapshot connu de la session (sans toucher aux photos / tableau).
+  useEffect(() => {
+    if (!projetCourant || !ctxHydrateKey) return;
+    try {
+      const cur = snapshotTextes(contenuParSite);
+      if (Object.keys(cur).length > 0) return;
+      const raw = sessionStorage.getItem(sessionDraftTextKey(projetCourant.id));
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as DraftTexteSnapshot;
+      if (!parsed?.textes) return;
+      if (parsed.ctxHydrateKey !== ctxHydrateKey) return;
+      if (Object.keys(parsed.textes).length === 0) return;
+      setContenuParSite((prev) => appliquerSnapshotTextes(prev, parsed.textes));
+    } catch {
+      /* ignore */
+    }
+  }, [projetCourant?.id, ctxHydrateKey, contenuParSite]);
+
   function sauvegarderDepuisSnapshot(options?: { forcerMemeVide?: boolean }) {
     const s = snapshotSauvegardeRef.current;
     if (!s?.projetCourant) return;
