@@ -309,6 +309,10 @@ export function RapportActivite() {
   const cloudPushInFlightRef = useRef(false);
   const cloudPushRequestedRef = useRef(false);
 
+  function sessionDraftKey(projetId: string): string {
+    return `tk-gestion:rapport-activite:last-draft:${projetId}`;
+  }
+
   function scheduleCloudPush() {
     if (!isAuthenticated) return;
     cloudPushRequestedRef.current = true;
@@ -361,6 +365,41 @@ export function RapportActivite() {
     setConfirmationSauvegarde(null);
     prevCtxHydrateKeyRef.current = "";
   }, [pidBrut]);
+
+  // Mémorise le brouillon en cours pour reprise après navigation (retour Projets/Liste, refresh, etc.).
+  useEffect(() => {
+    if (!projetCourant) return;
+    try {
+      const payload = {
+        rapportId: rapportEditeId,
+        ctx: {
+          mode,
+          jourDate,
+          mois,
+          annee,
+          missionDebut,
+          missionFin,
+          clientNom,
+          referenceMission,
+        },
+        updatedAt: Date.now(),
+      };
+      sessionStorage.setItem(sessionDraftKey(projetCourant.id), JSON.stringify(payload));
+    } catch {
+      /* ignore */
+    }
+  }, [
+    projetCourant?.id,
+    rapportEditeId,
+    mode,
+    jourDate,
+    mois,
+    annee,
+    missionDebut,
+    missionFin,
+    clientNom,
+    referenceMission,
+  ]);
 
   function refreshProjet() {
     setProjetNonce((n) => n + 1);
@@ -488,6 +527,30 @@ export function RapportActivite() {
     if (prevCtxHydrateKeyRef.current === ctxHydrateKey) return;
     prevCtxHydrateKeyRef.current = ctxHydrateKey;
     suspendAutosaveJusquA.current = Date.now() + 900;
+
+    // Reprise "intelligente" au retour sur la page : si on n'a encore rien chargé dans cette session,
+    // tenter d'ouvrir le dernier brouillon du projet avant d'initialiser un formulaire vide/prérempli.
+    if (!rapportEditeId) {
+      try {
+        const raw = sessionStorage.getItem(sessionDraftKey(projetCourant.id));
+        if (raw) {
+          const parsed = JSON.parse(raw) as unknown;
+          const o = parsed as { rapportId?: unknown };
+          const rid = typeof o.rapportId === "string" ? o.rapportId.trim() : "";
+          if (rid) {
+            const r = chargerRapportsEnregistres().find(
+              (x) => x.id === rid && x.projetId === projetCourant.id,
+            );
+            if (r) {
+              chargerEnregistreRef.current(r);
+              return;
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
 
     const trouve = trouverRapportPourContexteEdition(projetCourant.id, {
       mode,
