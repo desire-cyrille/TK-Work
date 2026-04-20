@@ -313,6 +313,50 @@ export function RapportActivite() {
     return `tk-gestion:rapport-activite:last-draft:${projetId}`;
   }
 
+  function sessionDraftTextKey(projetId: string): string {
+    return `tk-gestion:rapport-activite:last-text:${projetId}`;
+  }
+
+  type DraftTexteSnapshot = {
+    ctxHydrateKey: string;
+    // siteId -> domaineId -> texte
+    textes: Record<string, Record<string, string>>;
+    updatedAt: number;
+  };
+
+  function snapshotTextes(contenu: ContenuSiteRapport[]): DraftTexteSnapshot["textes"] {
+    const out: DraftTexteSnapshot["textes"] = {};
+    for (const c of contenu) {
+      const byDom: Record<string, string> = {};
+      for (const [domId, ax] of Object.entries(c.axes ?? {})) {
+        const t = (ax?.texte ?? "").toString();
+        if (t.trim()) byDom[domId] = t;
+      }
+      if (Object.keys(byDom).length) out[c.siteId] = byDom;
+    }
+    return out;
+  }
+
+  function appliquerSnapshotTextes(
+    contenu: ContenuSiteRapport[],
+    textes: DraftTexteSnapshot["textes"],
+  ): ContenuSiteRapport[] {
+    return contenu.map((c) => {
+      const byDom = textes[c.siteId];
+      if (!byDom) return c;
+      const nextAxes: Record<string, AxeContenu> = { ...c.axes };
+      let changed = false;
+      for (const [domId, texte] of Object.entries(byDom)) {
+        const cur = nextAxes[domId];
+        if (!cur) continue;
+        if ((cur.texte ?? "") === texte) continue;
+        nextAxes[domId] = { ...cur, texte };
+        changed = true;
+      }
+      return changed ? { ...c, axes: nextAxes } : c;
+    });
+  }
+
   function scheduleCloudPush() {
     if (!isAuthenticated) return;
     cloudPushRequestedRef.current = true;
@@ -400,6 +444,26 @@ export function RapportActivite() {
     clientNom,
     referenceMission,
   ]);
+
+  // Sauvegarde de secours uniquement des textes (pas les photos) pour éviter une perte en cas de remount/hydratation.
+  useEffect(() => {
+    if (!projetCourant || !ctxHydrateKey) return;
+    try {
+      const textes = snapshotTextes(contenuParSite);
+      if (Object.keys(textes).length === 0) return;
+      const payload: DraftTexteSnapshot = {
+        ctxHydrateKey,
+        textes,
+        updatedAt: Date.now(),
+      };
+      sessionStorage.setItem(
+        sessionDraftTextKey(projetCourant.id),
+        JSON.stringify(payload),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [projetCourant?.id, ctxHydrateKey, contenuParSite]);
 
   function refreshProjet() {
     setProjetNonce((n) => n + 1);
@@ -571,6 +635,19 @@ export function RapportActivite() {
     const colsTs = getColonnesTableauSuiviProjet(projetCourant);
     const ordreSites = projetCourant.sites.map((s) => s.id);
     let contenu = contenuVidePourProjetSites(projetCourant.sites, dom, colsTs);
+
+    // Si on a un snapshot texte pour CE contexte, on le réapplique avant tout préremplissage/reset.
+    try {
+      const raw = sessionStorage.getItem(sessionDraftTextKey(projetCourant.id));
+      if (raw) {
+        const parsed = JSON.parse(raw) as DraftTexteSnapshot;
+        if (parsed?.ctxHydrateKey === ctxHydrateKey && parsed.textes) {
+          contenu = appliquerSnapshotTextes(contenu, parsed.textes);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
 
     if (mode === "quotidien") {
       contenu = appliquerVeilleQuotidienSurContenu(
