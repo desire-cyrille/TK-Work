@@ -1,50 +1,25 @@
 import { useEffect, useRef } from "react";
 import {
-  applyCloudPullEntries,
-  cloudPull,
   cloudPush,
   collectEntriesForCloudPush,
 } from "../lib/cloudSync";
 
-const PULL_INTERVAL_MS = 30_000;
 const PUSH_DEBOUNCE_MS = 1_500;
-const APPLIED_PULL_VERSION_KEY = "tk-gestion-cloud-autosync-applied-version-v1";
 const LAST_PUSHED_HASH_KEY = "tk-gestion-cloud-autosync-last-pushed-hash-v1";
-const HAS_PULLED_ONCE_KEY = "tk-gestion-cloud-autosync-has-pulled-once-v1";
 
 /**
  * Synchronisation automatique multi-appareil.
- * - Pull au démarrage + périodique (si l'appareil est en ligne)
  * - Push périodique sur activité (meilleure-effort)
  *
- * Objectif: éviter toute perte en navigation / appareil, sans action manuelle.
+ * Objectif: éviter toute perte en navigation / appareil, sans provoquer de reload.
+ *
+ * Important: aucun "pull/apply" automatique ici, car appliquer une copie serveur
+ * implique souvent un rechargement et peut écraser des saisies en cours.
  */
 export function CloudAutoSync() {
-  const inFlightPull = useRef(false);
   const inFlightPush = useRef(false);
   const lastPushedHash = useRef<string>("");
   const pushTimer = useRef<number | null>(null);
-  const lastAppliedPullVersionRef = useRef<number>(0);
-  const hasPulledOnceRef = useRef<boolean>(false);
-
-  function readLastAppliedPullVersion(): number {
-    try {
-      const raw = sessionStorage.getItem(APPLIED_PULL_VERSION_KEY);
-      const n = raw ? Number(raw) : 0;
-      return Number.isFinite(n) && n > 0 ? n : 0;
-    } catch {
-      return 0;
-    }
-  }
-
-  function writeLastAppliedPullVersion(v: number) {
-    try {
-      if (!Number.isFinite(v) || v <= 0) return;
-      sessionStorage.setItem(APPLIED_PULL_VERSION_KEY, String(v));
-    } catch {
-      /* ignore */
-    }
-  }
 
   function readStringSession(key: string): string {
     try {
@@ -93,54 +68,6 @@ export function CloudAutoSync() {
     return String(h);
   }
 
-  function isLocalWorkspaceEmpty(): boolean {
-    const entries = collectEntriesForCloudPush();
-    return Object.keys(entries).length === 0;
-  }
-
-  async function doPull() {
-    if (inFlightPull.current) return;
-    inFlightPull.current = true;
-    try {
-      // Ne jamais écraser des changements locaux non envoyés.
-      const currentHash = hashEntries(collectEntriesForCloudPush());
-      const lastHash = lastPushedHash.current || readStringSession(LAST_PUSHED_HASH_KEY);
-      if (currentHash && lastHash && currentHash !== lastHash) {
-        // On a des changements locaux: on pousse d'abord.
-        schedulePush();
-        return;
-      }
-
-      const r = await cloudPull();
-      if (!r.ok) return;
-      if (r.version === 0 || Object.keys(r.entries).length === 0) return;
-      const lastApplied =
-        lastAppliedPullVersionRef.current || readLastAppliedPullVersion();
-      // Empêche les boucles de rechargement: ne réapplique pas une version déjà appliquée.
-      if (r.version <= lastApplied) return;
-
-      // Après le premier démarrage, on ne fait pas de pull auto si l'appareil a déjà des données.
-      // Cela évite de remplacer un appareil "source de vérité" par une copie serveur plus ancienne.
-      const hasPulledOnce = hasPulledOnceRef.current || readBoolSession(HAS_PULLED_ONCE_KEY);
-      if (!hasPulledOnce && !isLocalWorkspaceEmpty()) {
-        hasPulledOnceRef.current = true;
-        writeBoolSession(HAS_PULLED_ONCE_KEY, true);
-        return;
-      }
-
-      const applied = applyCloudPullEntries(r.entries);
-      if (!applied.ok) return;
-      lastAppliedPullVersionRef.current = r.version;
-      writeLastAppliedPullVersion(r.version);
-      hasPulledOnceRef.current = true;
-      writeBoolSession(HAS_PULLED_ONCE_KEY, true);
-      // L'état React courant est obsolète après restauration du localStorage.
-      window.location.reload();
-    } finally {
-      inFlightPull.current = false;
-    }
-  }
-
   async function doPush() {
     if (inFlightPush.current) return;
     inFlightPush.current = true;
@@ -169,23 +96,20 @@ export function CloudAutoSync() {
   }
 
   useEffect(() => {
-    // Charge la dernière version déjà appliquée dans cette session.
-    lastAppliedPullVersionRef.current = readLastAppliedPullVersion();
     lastPushedHash.current = readStringSession(LAST_PUSHED_HASH_KEY);
-    hasPulledOnceRef.current = readBoolSession(HAS_PULLED_ONCE_KEY);
+    // Gardé pour compat : certaines anciennes sessions ont pu écrire ces clés.
+    // (Ne sert plus tant qu'on ne fait pas de pull automatique.)
+    void readBoolSession;
+    void writeBoolSession;
 
-    // Pull initial dès que possible.
-    if (navigator.onLine) void doPull();
     // Push initial (si des données existent déjà).
     schedulePush();
 
     const onOnline = () => {
-      void doPull();
       schedulePush();
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        void doPull();
         schedulePush();
       }
     };
@@ -196,15 +120,10 @@ export function CloudAutoSync() {
     const events = ["click", "keydown", "touchstart", "paste"] as const;
     for (const ev of events) document.addEventListener(ev, onUserActivity, true);
 
-    const pullInterval = window.setInterval(() => {
-      if (navigator.onLine) void doPull();
-    }, PULL_INTERVAL_MS);
-
     return () => {
       window.removeEventListener("online", onOnline);
       document.removeEventListener("visibilitychange", onVisibility);
       for (const ev of events) document.removeEventListener(ev, onUserActivity, true);
-      window.clearInterval(pullInterval);
       if (pushTimer.current !== null) window.clearTimeout(pushTimer.current);
     };
   }, []);
