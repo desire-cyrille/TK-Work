@@ -445,26 +445,6 @@ export function RapportActivite() {
     referenceMission,
   ]);
 
-  // Sauvegarde de secours uniquement des textes (pas les photos) pour éviter une perte en cas de remount/hydratation.
-  useEffect(() => {
-    if (!projetCourant || !ctxHydrateKey) return;
-    try {
-      const textes = snapshotTextes(contenuParSite);
-      if (Object.keys(textes).length === 0) return;
-      const payload: DraftTexteSnapshot = {
-        ctxHydrateKey,
-        textes,
-        updatedAt: Date.now(),
-      };
-      sessionStorage.setItem(
-        sessionDraftTextKey(projetCourant.id),
-        JSON.stringify(payload),
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [projetCourant?.id, ctxHydrateKey, contenuParSite]);
-
   function refreshProjet() {
     setProjetNonce((n) => n + 1);
   }
@@ -532,6 +512,26 @@ export function RapportActivite() {
     missionDebut,
     missionFin,
   ]);
+
+  // Sauvegarde de secours uniquement des textes (pas les photos) pour éviter une perte en cas de remount/hydratation.
+  useEffect(() => {
+    if (!projetCourant || !ctxHydrateKey) return;
+    try {
+      const textes = snapshotTextes(contenuParSite);
+      if (Object.keys(textes).length === 0) return;
+      const payload: DraftTexteSnapshot = {
+        ctxHydrateKey,
+        textes,
+        updatedAt: Date.now(),
+      };
+      sessionStorage.setItem(
+        sessionDraftTextKey(projetCourant.id),
+        JSON.stringify(payload),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [projetCourant?.id, ctxHydrateKey, contenuParSite]);
 
   function sauvegarderDepuisSnapshot(options?: { forcerMemeVide?: boolean }) {
     const s = snapshotSauvegardeRef.current;
