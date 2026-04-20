@@ -1,10 +1,8 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export function RequireAdmin() {
-  const { isAdmin } = useAuth();
-  if (!isAdmin) {
-    return <Navigate to="/fonctions" replace />;
-  }
+  // Profil unique admin: tout le monde est admin.
+  useAuth();
   return <Outlet />;
 }

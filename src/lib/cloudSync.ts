@@ -116,11 +116,8 @@ export async function cloudPull(): Promise<
   | { ok: false; error: string }
 > {
   const token = getAuthToken();
-  if (!token) {
-    return { ok: false, error: "Non connecté." };
-  }
   const r = await fetch("/api/sync/pull", {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     cache: "no-store",
   });
   const data = (await readJson(r)) as ApiErr & {
@@ -185,21 +182,17 @@ export async function cloudPush(): Promise<
   { ok: true } | { ok: false; error: string }
 > {
   const token = getAuthToken();
-  if (!token) {
-    return { ok: false, error: "Non connecté." };
-  }
   const entries = collectEntriesForCloudPush();
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  } as const;
+  const headers: HeadersInit = token
+    ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+    : { "Content-Type": "application/json" };
 
   async function pushBody(
     body: unknown,
   ): Promise<{ ok: true } | { ok: false; error: string }> {
     const r = await fetch("/api/sync/push", {
       method: "POST",
-      headers: { ...headers },
+      headers,
       body: JSON.stringify(body),
       cache: "no-store",
     });

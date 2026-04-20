@@ -586,11 +586,25 @@ export function trouverRapportQuotidienVeillePourPrefill(
   const pid = projetId.trim();
   const jp = jourDateISO.trim().slice(0, 10);
   if (!estDateIsoYYYYMMDD(jp)) return null;
-  const jActif = QUOTIDIEN_PREFILL_ACTIF_DEPUIS_JOUR.trim().slice(0, 10);
-  if (!estDateIsoYYYYMMDD(jActif) || jp < jActif) return null;
   const all = chargerRapportsEnregistres().filter(
     (r) => r.projetId === pid && r.mode === "quotidien" && r.jourDate,
   );
+
+  // Priorité: la veille calendaire (J-1) si elle existe; sinon le plus récent avant.
+  try {
+    const d = new Date(`${jp}T12:00:00Z`);
+    if (Number.isFinite(d.getTime())) {
+      d.setUTCDate(d.getUTCDate() - 1);
+      const jPrev = d.toISOString().slice(0, 10);
+      const veilleExacte = all
+        .filter((r) => (r.jourDate ?? "").slice(0, 10) === jPrev)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+      if (veilleExacte) return veilleExacte;
+    }
+  } catch {
+    /* ignore */
+  }
+
   const candidats = all.filter((r) => (r.jourDate ?? "") < jp);
   if (candidats.length === 0) return null;
   candidats.sort((a, b) => {

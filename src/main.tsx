@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { SentenceCapitalizeDom } from "./components/SentenceCapitalizeDom";
+import { CloudAutoSync } from "./components/CloudAutoSync";
 import { AuthProvider } from "./context/AuthContext";
 import { BiensProvider } from "./context/BiensContext";
 import { FinanceProvider } from "./context/FinanceContext";
@@ -13,6 +14,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <SentenceCapitalizeDom />
+      <CloudAutoSync />
       <AuthProvider>
         <ThemeSettingsProvider>
           <BiensProvider>

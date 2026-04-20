@@ -414,8 +414,20 @@ export function RapportActivite() {
   useEffect(() => {
     if (!projetCourant) return;
     try {
+      // Ne jamais écraser un id de brouillon existant par `null` (cas typique: remount,
+      // `rapportEditeId` repasse à null avant hydratation => sinon on perd la reprise).
+      let rapportId: string | null = rapportEditeId;
+      if (!rapportId) {
+        const prevRaw = sessionStorage.getItem(sessionDraftKey(projetCourant.id));
+        if (prevRaw) {
+          const parsed = JSON.parse(prevRaw) as unknown;
+          const o = parsed as { rapportId?: unknown };
+          const rid = typeof o.rapportId === "string" ? o.rapportId.trim() : "";
+          if (rid) rapportId = rid;
+        }
+      }
       const payload = {
-        rapportId: rapportEditeId,
+        rapportId,
         ctx: {
           mode,
           jourDate,
@@ -860,6 +872,26 @@ export function RapportActivite() {
     inclureTableauSuiviPdf,
     missionOrdreOk,
   ]);
+
+  // Dernier filet de sécurité: sauvegarde avant de quitter la page / changer de route.
+  useEffect(() => {
+    function onBeforeUnload() {
+      try {
+        sauvegarderDepuisSnapshot();
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      try {
+        sauvegarderDepuisSnapshot();
+      } catch {
+        /* ignore */
+      }
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (!projetCourant) {
