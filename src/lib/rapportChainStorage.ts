@@ -373,13 +373,35 @@ function cleNaturelle(
     | "referenceMission"
   >,
 ): string {
-  if (r.mode === "quotidien" && r.jourDate) return `q:${r.jourDate}`;
-  if (r.mode === "mensuel" && r.moisCle) return `m:${r.moisCle}`;
-  if (r.mode === "fin_mission" && r.missionDebut && r.missionFin) {
-    const c = (r.clientNom ?? "").trim() || (r.referenceMission ?? "").trim() || "_";
-    return `f:${c}:${r.missionDebut}:${r.missionFin}`;
-  }
+  const stable = cleNaturelleStable(r);
+  if (stable) return stable;
   return `u:${newId()}`;
+}
+
+/** Même logique que {@link cleNaturelle} sans valeur aléatoire (pour comparaisons fiables). */
+function cleNaturelleStable(
+  r: Pick<
+    RapportEnregistre,
+    | "mode"
+    | "jourDate"
+    | "moisCle"
+    | "missionDebut"
+    | "missionFin"
+    | "clientNom"
+    | "referenceMission"
+  >,
+): string | null {
+  if (r.mode === "quotidien" && r.jourDate?.trim()) {
+    return `q:${r.jourDate.trim().slice(0, 10)}`;
+  }
+  if (r.mode === "mensuel" && r.moisCle?.trim()) {
+    return `m:${r.moisCle.trim()}`;
+  }
+  if (r.mode === "fin_mission" && r.missionDebut?.trim() && r.missionFin?.trim()) {
+    const c = (r.clientNom ?? "").trim() || (r.referenceMission ?? "").trim() || "_";
+    return `f:${c}:${r.missionDebut.trim()}:${r.missionFin.trim()}`;
+  }
+  return null;
 }
 
 export type ContexteEditionRapport = {
@@ -391,6 +413,27 @@ export type ContexteEditionRapport = {
   clientNom?: string;
   referenceMission?: string;
 };
+
+/** Indique si un rapport enregistré correspond au contexte d’édition (jour / mois / mission). */
+export function rapportCorrespondContexteEdition(
+  r: RapportEnregistre,
+  projetId: string,
+  ctx: ContexteEditionRapport,
+): boolean {
+  if (r.projetId.trim() !== projetId.trim() || r.mode !== ctx.mode) return false;
+  const cr = cleNaturelleStable(r);
+  const ck = cleNaturelleStable({
+    mode: ctx.mode,
+    jourDate: ctx.jourDate,
+    moisCle: ctx.moisCle,
+    missionDebut: ctx.missionDebut,
+    missionFin: ctx.missionFin,
+    clientNom: ctx.clientNom,
+    referenceMission: ctx.referenceMission,
+  });
+  if (!cr || !ck) return false;
+  return cr === ck;
+}
 
 /** Rapport déjà enregistré pour le même projet et la même période (clé naturelle), si elle est stable. */
 export function trouverRapportPourContexteEdition(

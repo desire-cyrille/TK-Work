@@ -43,11 +43,13 @@ import {
   premierEtDernierMensuelMission,
   premierEtDernierQuotidienMission,
   premierEtDernierQuotidienMois,
+  rapportCorrespondContexteEdition,
   sauvegarderRapport,
   supprimerRapportEnregistre,
   trouverRapportPourContexteEdition,
   QUOTIDIEN_PREFILL_ACTIF_DEPUIS_JOUR,
   type ContenuSiteRapport,
+  type ContexteEditionRapport,
   type ModeRapportChain,
   type RapportEnregistre,
 } from "../lib/rapportChainStorage";
@@ -96,6 +98,52 @@ const MOIS_CHOIX = [
 ];
 
 const TITRE_RAPPORT_DEFAUT = "Rapport d’activité";
+
+/** Le brouillon sessionStorage ne doit être repris que si le contexte (jour / mois / mission) est le même. */
+function sessionDraftAligneAvecUi(
+  parsed: unknown,
+  ui: {
+    mode: ModeRapportChain;
+    jourDate: string;
+    mois: number;
+    annee: number;
+    moisCleMensuel: string;
+    missionDebut: string;
+    missionFin: string;
+    clientNom: string;
+    referenceMission: string;
+  },
+): boolean {
+  if (!parsed || typeof parsed !== "object") return false;
+  const o = parsed as Record<string, unknown>;
+  const ctx = o.ctx;
+  if (!ctx || typeof ctx !== "object") return false;
+  const c = ctx as Record<string, unknown>;
+  if (c.mode !== ui.mode) return false;
+  if (ui.mode === "quotidien") {
+    const jd = typeof c.jourDate === "string" ? c.jourDate.trim().slice(0, 10) : "";
+    return jd === ui.jourDate.trim().slice(0, 10);
+  }
+  if (ui.mode === "mensuel") {
+    const m = Number(c.mois);
+    const y = Number(c.annee);
+    if (!Number.isFinite(m) || !Number.isFinite(y)) return false;
+    return moisClePour(y, m) === ui.moisCleMensuel;
+  }
+  if (ui.mode === "fin_mission") {
+    const md = typeof c.missionDebut === "string" ? c.missionDebut.trim() : "";
+    const mf = typeof c.missionFin === "string" ? c.missionFin.trim() : "";
+    const cn = typeof c.clientNom === "string" ? c.clientNom.trim() : "";
+    const rf = typeof c.referenceMission === "string" ? c.referenceMission.trim() : "";
+    return (
+      md === ui.missionDebut.trim() &&
+      mf === ui.missionFin.trim() &&
+      cn === ui.clientNom.trim() &&
+      rf === ui.referenceMission.trim()
+    );
+  }
+  return false;
+}
 
 function libelleDateFrDepuisIsoYYYYMMDD(iso: string): string {
   const [y, m, d] = iso.trim().slice(0, 10).split("-");
@@ -623,6 +671,16 @@ export function RapportActivite() {
     prevCtxHydrateKeyRef.current = ctxHydrateKey;
     suspendAutosaveJusquA.current = Date.now() + 900;
 
+    const ctxEdition: ContexteEditionRapport = {
+      mode,
+      jourDate: mode === "quotidien" ? jourDate : undefined,
+      moisCle: mode === "mensuel" ? moisCleMensuel : undefined,
+      missionDebut: mode === "fin_mission" ? missionDebut : undefined,
+      missionFin: mode === "fin_mission" ? missionFin : undefined,
+      clientNom: mode === "fin_mission" ? clientNom : undefined,
+      referenceMission: mode === "fin_mission" ? referenceMission : undefined,
+    };
+
     // Reprise "intelligente" au retour sur la page : si on n'a encore rien chargé dans cette session,
     // tenter d'ouvrir le dernier brouillon du projet avant d'initialiser un formulaire vide/prérempli.
     if (!rapportEditeId) {
@@ -630,15 +688,29 @@ export function RapportActivite() {
         const raw = sessionStorage.getItem(sessionDraftKey(projetCourant.id));
         if (raw) {
           const parsed = JSON.parse(raw) as unknown;
-          const o = parsed as { rapportId?: unknown };
-          const rid = typeof o.rapportId === "string" ? o.rapportId.trim() : "";
-          if (rid) {
-            const r = chargerRapportsEnregistres().find(
-              (x) => x.id === rid && x.projetId === projetCourant.id,
-            );
-            if (r) {
-              chargerEnregistreRef.current(r);
-              return;
+          if (
+            sessionDraftAligneAvecUi(parsed, {
+              mode,
+              jourDate,
+              mois,
+              annee,
+              moisCleMensuel,
+              missionDebut,
+              missionFin,
+              clientNom,
+              referenceMission,
+            })
+          ) {
+            const o = parsed as { rapportId?: unknown };
+            const rid = typeof o.rapportId === "string" ? o.rapportId.trim() : "";
+            if (rid) {
+              const r = chargerRapportsEnregistres().find(
+                (x) => x.id === rid && x.projetId === projetCourant.id,
+              );
+              if (r && rapportCorrespondContexteEdition(r, projetCourant.id, ctxEdition)) {
+                chargerEnregistreRef.current(r);
+                return;
+              }
             }
           }
         }
@@ -647,15 +719,7 @@ export function RapportActivite() {
       }
     }
 
-    const trouve = trouverRapportPourContexteEdition(projetCourant.id, {
-      mode,
-      jourDate: mode === "quotidien" ? jourDate : undefined,
-      moisCle: mode === "mensuel" ? moisCleMensuel : undefined,
-      missionDebut: mode === "fin_mission" ? missionDebut : undefined,
-      missionFin: mode === "fin_mission" ? missionFin : undefined,
-      clientNom: mode === "fin_mission" ? clientNom : undefined,
-      referenceMission: mode === "fin_mission" ? referenceMission : undefined,
-    });
+    const trouve = trouverRapportPourContexteEdition(projetCourant.id, ctxEdition);
 
     if (trouve) {
       chargerEnregistreRef.current(trouve);
