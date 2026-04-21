@@ -69,9 +69,23 @@ export function resoudreIdDomaine(
   cleStockage: string,
   domaines: RapportDomaineDef[],
 ): string | null {
-  const mapped = LEGACY_AXE_KEY_TO_DEF_ID[cleStockage];
+  const raw = cleStockage.trim();
+  if (!raw) return null;
+
+  const mapped = LEGACY_AXE_KEY_TO_DEF_ID[raw];
   if (mapped && domaines.some((d) => d.id === mapped)) return mapped;
-  if (domaines.some((d) => d.id === cleStockage)) return cleStockage;
+
+  if (domaines.some((d) => d.id === raw)) return raw;
+
+  const low = raw.toLowerCase();
+  const byIdCi = domaines.find((d) => d.id.toLowerCase() === low);
+  if (byIdCi) return byIdCi.id;
+
+  const byLabel = domaines.find(
+    (d) => d.label.trim().toLowerCase() === low,
+  );
+  if (byLabel) return byLabel.id;
+
   return null;
 }
 

@@ -717,7 +717,7 @@ export function RapportActivite() {
         ) {
           sauvegarderDepuisSnapshot();
         }
-      }, 1000);
+      }, 2000);
       return () => {
         cancelled = true;
         window.clearTimeout(tid);
@@ -851,7 +851,7 @@ export function RapportActivite() {
     if (Date.now() < suspendAutosaveJusquA.current) return;
     const t = window.setTimeout(() => {
       sauvegarderDepuisSnapshot();
-    }, 550);
+    }, 1400);
     return () => window.clearTimeout(t);
   }, [
     projetCourant?.id,
