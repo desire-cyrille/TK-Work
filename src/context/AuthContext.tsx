@@ -2,12 +2,16 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import {
   clearAuthSession,
+  decodeAuthTokenClaims,
+  getAuthEmail,
+  getAuthToken,
   setAuthSession,
 } from "../lib/authToken";
 
@@ -39,35 +43,89 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Profil unique admin: l'app fonctionne en accès direct, sans écran de connexion.
-  // On conserve les clés existantes (token/email) pour compatibilité, mais elles ne sont plus requises.
-  const [isAuthenticated] = useState(true);
   const [profileEmail, setProfileEmail] = useState("admin@local");
-  const [role] = useState<"USER" | "ADMIN">("ADMIN");
-  const [mustChangePassword] = useState(false);
+  const [role, setRole] = useState<"USER" | "ADMIN">("USER");
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const tok = getAuthToken();
+    if (!tok) {
+      setIsAuthenticated(false);
+      setRole("USER");
+      setMustChangePassword(false);
+      setProfileEmail(getAuthEmail() ?? "admin@local");
+      return;
+    }
+    const claims = decodeAuthTokenClaims(tok);
+    if (!claims) {
+      setIsAuthenticated(false);
+      setRole("USER");
+      setMustChangePassword(false);
+      setProfileEmail(getAuthEmail() ?? "admin@local");
+      return;
+    }
+    setIsAuthenticated(true);
+    setProfileEmail(claims.email);
+    setRole(claims.role);
+    setMustChangePassword(claims.mustChangePassword);
+  }, []);
 
   const applySessionToken = useCallback((token: string, email: string) => {
     setAuthSession(token, email);
     setProfileEmail(email.trim().toLowerCase());
+    const claims = decodeAuthTokenClaims(token);
+    setRole(claims?.role ?? "USER");
+    setMustChangePassword(claims?.mustChangePassword ?? false);
+    setIsAuthenticated(true);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    void password;
-    // Accès direct: on accepte.
-    setProfileEmail(email.trim().toLowerCase() || "admin@local");
+    const em = email.trim().toLowerCase();
+    const r = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: em, password }),
+      cache: "no-store",
+    });
+    const data = (await r.json().catch(() => ({}))) as {
+      token?: string;
+      email?: string;
+      error?: string;
+    };
+    if (!r.ok || typeof data.token !== "string" || typeof data.email !== "string") {
+      return { ok: false as const, error: data.error ?? `Erreur ${r.status}` };
+    }
+    applySessionToken(data.token, data.email);
     return { ok: true as const };
   }, [applySessionToken]);
 
   const signup = useCallback(async (email: string, password: string) => {
-    void password;
-    setProfileEmail(email.trim().toLowerCase() || "admin@local");
+    const em = email.trim().toLowerCase();
+    const r = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: em, password }),
+      cache: "no-store",
+    });
+    const data = (await r.json().catch(() => ({}))) as {
+      token?: string;
+      email?: string;
+      error?: string;
+    };
+    if (!r.ok || typeof data.token !== "string" || typeof data.email !== "string") {
+      return { ok: false as const, error: data.error ?? `Erreur ${r.status}` };
+    }
+    applySessionToken(data.token, data.email);
     return { ok: true as const };
   }, [applySessionToken]);
 
   const logout = useCallback(async () => {
-    // Mode admin unique: on ne déconnecte pas, mais on garde l'action pour compat UI.
     clearAuthSession();
     setProfileEmail("admin@local");
+    setRole("USER");
+    setMustChangePassword(false);
+    setIsAuthenticated(false);
   }, []);
 
   const updatePassword = useCallback(
@@ -76,12 +134,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       newPassword: string,
       confirmNewPassword: string,
     ): Promise<ProfileUpdateResult> => {
-      void currentPassword;
-      void newPassword;
-      void confirmNewPassword;
-      return { ok: true };
+      const tok = getAuthToken();
+      if (!tok) return { ok: false, error: "Non authentifié." };
+      const r = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tok}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+          confirmNewPassword,
+        }),
+        cache: "no-store",
+      });
+      const data = (await r.json().catch(() => ({}))) as {
+        token?: string;
+        email?: string;
+        error?: string;
+      };
+      if (!r.ok || typeof data.token !== "string" || typeof data.email !== "string") {
+        return { ok: false as const, error: data.error ?? `Erreur ${r.status}` };
+      }
+      applySessionToken(data.token, data.email);
+      return { ok: true as const };
     },
-    [],
+    [applySessionToken],
   );
 
   const value = useMemo(

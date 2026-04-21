@@ -3,6 +3,7 @@ import {
   cloudPush,
   collectEntriesForCloudPush,
 } from "../lib/cloudSync";
+import { getAuthToken } from "../lib/authToken";
 
 const PUSH_DEBOUNCE_MS = 1_500;
 const LAST_PUSHED_HASH_KEY = "tk-gestion-cloud-autosync-last-pushed-hash-v1";
@@ -70,6 +71,8 @@ export function CloudAutoSync() {
 
   async function doPush() {
     if (inFlightPush.current) return;
+    // Pas d'auto-sync sans connexion (évite de spammer /api/sync en 401).
+    if (!getAuthToken()) return;
     inFlightPush.current = true;
     try {
       const entries = collectEntriesForCloudPush();

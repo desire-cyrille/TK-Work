@@ -5,14 +5,6 @@ import { cors, readJsonBody } from "../_lib/http.js";
 import { signSessionToken } from "../_lib/jwt.js";
 import { prisma } from "../_lib/prisma.js";
 
-function boolFromEnv(name: string, fallback: boolean): boolean {
-  const v = process.env[name]?.trim().toLowerCase();
-  if (!v) return fallback;
-  if (v === "1" || v === "true" || v === "yes" || v === "on") return true;
-  if (v === "0" || v === "false" || v === "no" || v === "off") return false;
-  return fallback;
-}
-
 function handleJwtConfigError(e: unknown, res: VercelResponse): boolean {
   const msg = e instanceof Error ? e.message : String(e);
   if (msg.includes("JWT_SECRET")) {
@@ -34,12 +26,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const publicSignup = boolFromEnv("PUBLIC_SIGNUP", true);
-  if (!publicSignup) {
-    res.status(403).json({ error: "Création de compte désactivée." });
-    return;
-  }
-
   const body = readJsonBody(req) as { email?: unknown; password?: unknown } | null;
   const emailRaw = typeof body?.email === "string" ? body.email : "";
   const password = typeof body?.password === "string" ? body.password : "";
@@ -49,45 +35,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(400).json({ error: "E-mail invalide." });
     return;
   }
-  if (password.length < 8) {
-    res.status(400).json({ error: "Mot de passe trop court (8 caractères min.)." });
+  if (!password) {
+    res.status(400).json({ error: "Mot de passe manquant." });
     return;
   }
 
   try {
-    const created = await prisma.user.create({
-      data: {
-        email,
-        passwordHash: bcrypt.hashSync(password, 10),
-        role: "USER",
-        mustChangePassword: false,
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        role: true,
+        mustChangePassword: true,
       },
-      select: { id: true, email: true, role: true, mustChangePassword: true },
     });
 
+    if (!user) {
+      res.status(401).json({ error: "Identifiants incorrects." });
+      return;
+    }
+
+    const ok = bcrypt.compareSync(password, user.passwordHash);
+    if (!ok) {
+      res.status(401).json({ error: "Identifiants incorrects." });
+      return;
+    }
+
     const token = await signSessionToken(
-      created.id,
-      created.email,
-      created.role === "ADMIN" ? "ADMIN" : "USER",
-      created.mustChangePassword,
+      user.id,
+      user.email,
+      user.role === "ADMIN" ? "ADMIN" : "USER",
+      user.mustChangePassword,
     );
 
     res.setHeader("Cache-Control", "no-store");
     res.status(200).json({
       token,
-      email: created.email,
-      role: created.role === "ADMIN" ? "ADMIN" : "USER",
-      mustChangePassword: created.mustChangePassword,
+      email: user.email,
+      role: user.role === "ADMIN" ? "ADMIN" : "USER",
+      mustChangePassword: user.mustChangePassword,
     });
   } catch (e) {
     if (handleJwtConfigError(e, res)) return;
-    // Contrainte unique email
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.toLowerCase().includes("unique") || msg.toLowerCase().includes("email")) {
-      res.status(409).json({ error: "Un compte existe déjà avec cet e-mail." });
-      return;
-    }
     console.error(e);
-    res.status(500).json({ error: "Inscription impossible." });
+    res.status(500).json({ error: "Connexion impossible." });
   }
 }
+

@@ -6,16 +6,7 @@ export async function requireUser(
   req: VercelRequest,
 ): Promise<SessionClaims | null> {
   const raw = req.headers.authorization;
-  // Mode "profil unique admin" : si aucun jeton n'est fourni, on accepte quand même.
-  // Cela permet une synchronisation multi-appareil sans écran de connexion.
-  if (!raw?.startsWith("Bearer ")) {
-    return {
-      userId: "admin",
-      email: "admin@local",
-      role: "ADMIN",
-      mustChangePassword: false,
-    };
-  }
+  if (!raw?.startsWith("Bearer ")) return null;
   const token = raw.slice(7).trim();
   if (!token) return null;
   try {
