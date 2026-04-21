@@ -16,27 +16,33 @@ export async function lockAcquire(
   const token = getAuthToken();
   if (!token) return { ok: true };
 
-  const r = await fetch("/api/locks/acquire", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ resourceKey }),
-    cache: "no-store",
-  });
-  const data = (await r.json().catch(() => ({}))) as {
-    ok?: boolean;
-    error?: string;
-    lockedByLabel?: string;
-  };
-  if (r.ok && data.ok !== false) return { ok: true };
-  return {
-    ok: false,
-    lockedByLabel: data.lockedByLabel ?? "un autre utilisateur",
-    error:
-      data.error ??
-      (r.status === 401
-        ? "Session expirée. Reconnectez-vous."
-        : "Document déjà en cours d’utilisation."),
-  };
+  try {
+    const r = await fetch("/api/locks/acquire", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ resourceKey }),
+      cache: "no-store",
+    });
+    const data = (await r.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      lockedByLabel?: string;
+    };
+    if (r.ok && data.ok !== false) return { ok: true };
+    return {
+      ok: false,
+      lockedByLabel: data.lockedByLabel ?? "un autre utilisateur",
+      error:
+        data.error ??
+        (r.status === 401
+          ? "Session expirée. Reconnectez-vous."
+          : "Document déjà en cours d’utilisation."),
+    };
+  } catch {
+    // API de verrouillage indisponible (dev local sans `vercel dev`, offline, etc.)
+    // → on bascule en mode local (pas de verrou), pour ne pas bloquer l’édition.
+    return { ok: true };
+  }
 }
 
 export async function lockRelease(resourceKey: string): Promise<void> {
