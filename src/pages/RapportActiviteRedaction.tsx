@@ -106,6 +106,9 @@ export function RapportActiviteRedaction() {
   const [sitesEd, setSitesEd] = useState<RapportActiviteSite[]>([]);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
+  const draftRef = useRef<RapportBrouillonState | null>(null);
+  draftRef.current = draft;
+
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pdfApercuUrlRef = useRef<string | null>(null);
   pdfApercuUrlRef.current = pdfPreviewUrl;
@@ -137,23 +140,27 @@ export function RapportActiviteRedaction() {
     // le brouillon React non encore flushé (perte de saisie au changement de site / onglet).
   }, [projetId]);
 
-  const debouncedSaveBrouillon = useCallback(
-    (projetId: string, b: RapportBrouillonState) => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => {
-        sauvegarderBrouillonProjet(projetId, b);
-      }, 450);
-    },
-    [],
-  );
-
   useEffect(() => {
     if (!projet || !draft) return;
-    debouncedSaveBrouillon(projet.id, draft);
+    const pid = projet.id;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    saveTimer.current = setTimeout(() => {
+      const b = draftRef.current;
+      if (b) sauvegarderBrouillonProjet(pid, b);
+      saveTimer.current = null;
+    }, 450);
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      const b = draftRef.current;
+      if (b) sauvegarderBrouillonProjet(pid, b);
     };
-  }, [projet, draft, debouncedSaveBrouillon]);
+  }, [projet, draft]);
 
   const fermerApercuPdf = useCallback(() => {
     setPdfPreviewUrl((prev) => {
