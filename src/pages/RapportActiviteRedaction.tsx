@@ -13,14 +13,17 @@ import {
   supprimerRapportFiche,
 } from "../lib/rapportActiviteStorage";
 import {
+  appliquerTexteDomaineVersTableau,
   COL_ETAT_ID,
   contenuSiteVide,
   enrichirBrouillonDomaines,
   type RapportActiviteProjet,
+  type RapportActiviteSite,
   type RapportBrouillonState,
   type RapportColonneTableau,
   type RapportDomaineDef,
   nouvelleLigneTableau,
+  synchroniserTableauAvecTousLesDomaines,
 } from "../lib/rapportActiviteTypes";
 import styles from "./RapportActiviteRedaction.module.css";
 
@@ -99,6 +102,7 @@ export function RapportActiviteRedaction() {
   const [msgFin, setMsgFin] = useState("");
   const [domEd, setDomEd] = useState<RapportDomaineDef[]>([]);
   const [colEd, setColEd] = useState<RapportColonneTableau[]>([]);
+  const [sitesEd, setSitesEd] = useState<RapportActiviteSite[]>([]);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -118,6 +122,7 @@ export function RapportActiviteRedaction() {
     setMsgFin(p.dernierePageMessage);
     setDomEd(p.domaines.map((d) => ({ ...d })));
     setColEd(p.colonnesTableau.map((c) => ({ ...c })));
+    setSitesEd(p.sites.map((s) => ({ ...s })));
   }, [projetId, projet?.updatedAt]);
 
   const debouncedSaveBrouillon = useCallback(
@@ -209,15 +214,20 @@ export function RapportActiviteRedaction() {
         label: c.label.trim() || "Colonne",
       }))
       .filter((c) => c.id);
+    const sites = sitesEd.map((s, i) => ({
+      id: s.id,
+      nom: s.nom.trim() || `Site ${i + 1}`,
+    }));
     const nextDraft = enrichirBrouillonDomaines(draft, domaines);
     const projetMisAJour: RapportActiviteProjet = {
       ...projet,
+      sites,
       domaines,
       colonnesTableau: colonnes,
       clientNom: clientNom.trim(),
       piedPagePdf: piedPage.trim(),
       dernierePageMessage: msgFin.trim(),
-      brouillon: nextDraft,
+      brouillon: alignerParSite(nextDraft, { ...projet, sites }),
     };
     sauvegarderProjetRapportActivite(projetMisAJour);
     setDraft(alignerParSite(nextDraft, projetMisAJour));
@@ -495,12 +505,15 @@ export function RapportActiviteRedaction() {
                             const v = e.target.value;
                             majDraft((d) => {
                               const ps = { ...d.parSite };
-                              const sc = { ...ps[d.siteActifId]! };
-                              sc.domainesTexte = {
-                                ...sc.domainesTexte,
-                                [dom.id]: { ...sc.domainesTexte[dom.id]!, texte: v },
-                              };
-                              ps[d.siteActifId] = sc;
+                              const sid = d.siteActifId;
+                              const sc = ps[sid];
+                              if (!sc) return d;
+                              ps[sid] = appliquerTexteDomaineVersTableau(
+                                sc,
+                                projetCourant.domaines,
+                                dom.id,
+                                v,
+                              );
                               return { ...d, parSite: ps };
                             });
                           }}
@@ -549,7 +562,35 @@ export function RapportActiviteRedaction() {
 
               {subRedac === "tableau" ? (
                 <div className={styles.panel} style={{ marginBottom: 0 }}>
+                  <p className={styles.hint}>
+                    Les textes saisis dans l’onglet Domaines alimentent la colonne « Observation »
+                    (1re ligne par domaine pour le site actif). Vous pouvez aussi forcer une mise à jour
+                    complète ci-dessous.
+                  </p>
                   <div className={styles.btnRow}>
+                    <button
+                      type="button"
+                      className={styles.btn}
+                      onClick={() =>
+                        majDraft((d) => {
+                          const sid = d.siteActifId;
+                          const sc = d.parSite[sid];
+                          if (!sc) return d;
+                          return {
+                            ...d,
+                            parSite: {
+                              ...d.parSite,
+                              [sid]: synchroniserTableauAvecTousLesDomaines(
+                                sc,
+                                projetCourant.domaines,
+                              ),
+                            },
+                          };
+                        })
+                      }
+                    >
+                      Reprendre tous les domaines dans le tableau
+                    </button>
                     <button
                       type="button"
                       className={styles.btn}
@@ -788,6 +829,29 @@ export function RapportActiviteRedaction() {
                 onChange={(e) => setClientNom(e.target.value)}
               />
             </label>
+            <strong style={{ display: "block", marginTop: "0.75rem" }}>Noms des sites</strong>
+            <p className={styles.hint} style={{ marginTop: "0.25rem" }}>
+              Les identifiants internes ne changent pas : seul le libellé affiché (PDF, onglets) est modifié.
+            </p>
+            <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 1rem" }}>
+              {sitesEd.map((s, i) => (
+                <li key={s.id} className={styles.fieldRow} style={{ alignItems: "flex-end" }}>
+                  <label className={styles.label}>
+                    Site {i + 1}
+                    <input
+                      className={styles.input}
+                      value={s.nom}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSitesEd((prev) =>
+                          prev.map((x, j) => (j === i ? { ...x, nom: v } : x)),
+                        );
+                      }}
+                    />
+                  </label>
+                </li>
+              ))}
+            </ul>
             <label className={styles.label}>
               Pied de page (PDF)
               <textarea

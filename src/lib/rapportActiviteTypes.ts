@@ -147,6 +147,65 @@ export function nouvelleLigneTableau(
   };
 }
 
+/** Après saisie dans un domaine : recopie le texte vers la 1re ligne du tableau ayant ce domaine (sinon nouvelle ligne). */
+export function appliquerTexteDomaineVersTableau(
+  sc: SiteContenuRapport,
+  domaines: RapportDomaineDef[],
+  domId: string,
+  texte: string,
+): SiteContenuRapport {
+  const prevBloc = sc.domainesTexte[domId] ?? { texte: "", photos: [] };
+  const domainesTexte = {
+    ...sc.domainesTexte,
+    [domId]: { ...prevBloc, texte },
+  };
+  const lines = [...sc.tableauLignes];
+  const idx = lines.findIndex((l) => l.domaineId === domId);
+  const labelDom = domaines.find((d) => d.id === domId)?.label ?? "";
+  if (idx >= 0) {
+    const L = { ...lines[idx]! };
+    L.observation = texte;
+    if (!L.sujet.trim() && labelDom) L.sujet = labelDom;
+    lines[idx] = L;
+  } else {
+    const nl = nouvelleLigneTableau(domaines);
+    lines.push({
+      ...nl,
+      domaineId: domId,
+      sujet: labelDom,
+      observation: texte,
+    });
+  }
+  return { ...sc, domainesTexte, tableauLignes: lines };
+}
+
+/** Pour chaque domaine : met à jour la 1re ligne associée (observation = texte domaine) ou ajoute une ligne. */
+export function synchroniserTableauAvecTousLesDomaines(
+  sc: SiteContenuRapport,
+  domaines: RapportDomaineDef[],
+): SiteContenuRapport {
+  const lines = [...sc.tableauLignes];
+  for (const dom of domaines) {
+    const texte = sc.domainesTexte[dom.id]?.texte ?? "";
+    const idx = lines.findIndex((l) => l.domaineId === dom.id);
+    if (idx >= 0) {
+      const L = { ...lines[idx]! };
+      L.observation = texte;
+      if (!L.sujet.trim()) L.sujet = dom.label;
+      lines[idx] = L;
+    } else {
+      const nl = nouvelleLigneTableau(domaines);
+      lines.push({
+        ...nl,
+        domaineId: dom.id,
+        sujet: dom.label,
+        observation: texte,
+      });
+    }
+  }
+  return { ...sc, tableauLignes: lines };
+}
+
 export function contenuSiteVide(
   domaines: RapportDomaineDef[],
 ): SiteContenuRapport {
