@@ -27,19 +27,33 @@ function imageFormat(dataUrl: string): "PNG" | "JPEG" {
   return "PNG";
 }
 
-function tryAddImage(
+/** Dessine l’image dans le rectangle en conservant le ratio (type « contain »). */
+function addImageContain(
   doc: jsPDF,
   dataUrl: string | undefined,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
+  boxX: number,
+  boxY: number,
+  boxW: number,
+  boxH: number,
 ): boolean {
   if (!dataUrl || !dataUrl.startsWith("data:") || dataUrl.length < 80) {
     return false;
   }
   try {
-    doc.addImage(dataUrl, imageFormat(dataUrl), x, y, w, h, undefined, "FAST");
+    const fmt = imageFormat(dataUrl);
+    const props = doc.getImageProperties(dataUrl);
+    const iw = Math.max(1, props.width);
+    const ih = Math.max(1, props.height);
+    const ratio = iw / ih;
+    let dw = boxW;
+    let dh = dw / ratio;
+    if (dh > boxH) {
+      dh = boxH;
+      dw = dh * ratio;
+    }
+    const x = boxX + (boxW - dw) / 2;
+    const y = boxY + (boxH - dh) / 2;
+    doc.addImage(dataUrl, fmt, x, y, dw, dh, undefined, "FAST");
     return true;
   } catch {
     return false;
@@ -84,25 +98,60 @@ export function genererRapportActivitePdfBlob(
   /* — Page de garde — */
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, W, pageH, "F");
-  tryAddImage(doc, b.visuels.logoPrincipal, M, M, 42, 18);
-  tryAddImage(doc, b.visuels.logoClient, W - M - 42, M, 42, 18);
+
+  const logoPrincipalBoxW = 44;
+  const logoPrincipalBoxH = 18;
+  addImageContain(
+    doc,
+    b.visuels.logoPrincipal,
+    M,
+    M,
+    logoPrincipalBoxW,
+    logoPrincipalBoxH,
+  );
+
+  const logoClientBoxW = 28;
+  const logoClientBoxH = 10;
+  const logoClientX = W - M - logoClientBoxW;
+  addImageContain(
+    doc,
+    b.visuels.logoClient,
+    logoClientX,
+    M,
+    logoClientBoxW,
+    logoClientBoxH,
+  );
+
+  const nomClient = projet.clientNom?.trim() || projet.titre;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
+  doc.setFontSize(13);
   doc.setTextColor(30, 30, 40);
-  doc.text(projet.clientNom?.trim() || projet.titre, M, 42);
+  const clientTextMaxW = 78;
+  const clientLines = doc.splitTextToSize(nomClient, clientTextMaxW) as string[];
+  let yClientNom = M + logoClientBoxH + 2.5;
+  const maxClientLines = 5;
+  for (let i = 0; i < clientLines.length && i < maxClientLines; i += 1) {
+    doc.text(clientLines[i]!, W - M, yClientNom, { align: "right" });
+    yClientNom += 5;
+  }
+
+  const yLeftMeta = M + logoPrincipalBoxH + 5;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text(fmtType(b.typeRapport), M, 50);
-  doc.setFontSize(13);
-  doc.text(b.titreDocument || "Rapport d’activité", M, 60);
+  doc.setTextColor(50, 50, 55);
+  doc.text(fmtType(b.typeRapport), M, yLeftMeta);
+  doc.setFontSize(12.5);
+  doc.setTextColor(30, 30, 40);
+  doc.text(b.titreDocument || "Rapport d’activité", M, yLeftMeta + 9);
   doc.setFontSize(10);
   doc.setTextColor(70, 70, 80);
-  doc.text(`Période / date du rapport : ${b.dateRapport}`, M, 68);
-  doc.text(`Document généré le ${genLe}`, M, 74);
+  doc.text(`Période / date du rapport : ${b.dateRapport}`, M, yLeftMeta + 18);
+  doc.text(`Document généré le ${genLe}`, M, yLeftMeta + 24);
+
   const coverH = 95;
-  const coverY = 82;
   const coverW = W - 2 * M;
-  if (!tryAddImage(doc, b.visuels.couverture, M, coverY, coverW, coverH)) {
+  const coverY = Math.max(yLeftMeta + 32, yClientNom + 4, 72);
+  if (!addImageContain(doc, b.visuels.couverture, M, coverY, coverW, coverH)) {
     doc.setDrawColor(200);
     doc.rect(M, coverY, coverW, coverH);
     doc.text("Couverture (image)", M + 4, coverY + 8);
@@ -124,7 +173,7 @@ export function genererRapportActivitePdfBlob(
     const contenu = b.parSite[site.id];
     const photosSite = b.visuels.photosParSite[site.id] ?? [];
     for (let i = 0; i < Math.min(photosSite.length, 3); i += 1) {
-      if (tryAddImage(doc, photosSite[i], M + i * 58, y, 52, 34)) {
+      if (addImageContain(doc, photosSite[i], M + i * 58, y, 52, 34)) {
         /* ok */
       }
     }
@@ -152,7 +201,7 @@ export function genererRapportActivitePdfBlob(
           doc.addPage();
           y = M + 6;
         }
-        if (tryAddImage(doc, ph, M, y, 70, 45)) y += 48;
+        if (addImageContain(doc, ph, M, y, 70, 45)) y += 48;
       }
       y += 4;
       if (y > pageH - 30) {
@@ -231,7 +280,7 @@ export function genererRapportActivitePdfBlob(
   doc.addPage();
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, W, pageH, "F");
-  tryAddImage(doc, b.visuels.couverture, M, M, W - 2 * M, 100);
+  addImageContain(doc, b.visuels.couverture, M, M, W - 2 * M, 100);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   const msgLines = doc.splitTextToSize(
