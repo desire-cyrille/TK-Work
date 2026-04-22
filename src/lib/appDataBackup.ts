@@ -21,6 +21,8 @@ export const TK_GESTION_MANAGED_STORAGE_KEYS = [
   "tk-gestion-devis-v1",
   "tk-gestion-devis-defaults-v1",
   "tk-gestion-devis-clients-v1",
+  "tk-gestion-rapport-activite-projets-v2",
+  "tk-gestion-rapport-activite-rapports-v2",
   "tk-gestion-theme-v1",
   "tk-gestion-theme-v2",
   "tk_gestion_session",
@@ -162,6 +164,8 @@ const RESTORE_KEY_PRIORITY: readonly string[] = [
   "tk-gestion-devis-v1",
   "tk-gestion-devis-defaults-v1",
   "tk-gestion-devis-clients-v1",
+  "tk-gestion-rapport-activite-projets-v2",
+  "tk-gestion-rapport-activite-rapports-v2",
 ];
 
 export function sortRestoreKeys(keys: string[]): string[] {

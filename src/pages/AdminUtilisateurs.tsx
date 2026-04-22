@@ -176,7 +176,7 @@ export function AdminUtilisateurs() {
         <p className={styles.intro}>
           Création des comptes, mots de passe provisoires et rôles. Vous êtes connecté
           en tant que <strong>{profileEmail}</strong>. Les données métier (biens,
-          devis) sont <strong>partagées</strong> entre tous les comptes
+          devis, rapports d’activité) sont <strong>partagées</strong> entre tous les comptes
           après synchronisation (page{" "}
           <NavLink to="/fonctions" className={styles.introLink}>
             Fonctions

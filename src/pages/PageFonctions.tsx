@@ -21,6 +21,14 @@ const items = [
     to: "/devis",
     cta: "Accéder aux devis",
   },
+  {
+    num: 3,
+    title: "Rapport d’activité",
+    description:
+      "Projets, sites et rapports enregistrés : tableau de bord et création de projets.",
+    to: "/rapport-activite",
+    cta: "Ouvrir les rapports",
+  },
 ] as const;
 
 export function PageFonctions() {

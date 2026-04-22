@@ -706,7 +706,7 @@ export function Reglages() {
                 Enregistre dans un fichier JSON <strong>toutes</strong> les clés
                 locales de l’application (préfixes <code>tk-gestion-</code> et{" "}
                 <code>tk_gestion_</code>) : biens, baux, locataires, finances,
-                Airbnb, thème, session / profil. Utile pour copier vos données vers un autre ordinateur
+                Airbnb, rapports d’activité (projets et fiches), thème, session / profil. Utile pour copier vos données vers un autre ordinateur
                 ou vers la <strong>version en ligne</strong> (navigateur ouvert
                 sur votre déploiement), ou pour archiver.
               </p>

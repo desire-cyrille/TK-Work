@@ -91,7 +91,7 @@ export function Connexion() {
         </h1>
         <p className={styles.hint}>
           Chaque personne a <strong>ses identifiants</strong> ; les données
-          métier (biens, devis) sont <strong>communes</strong> sur le
+          métier (biens, devis, rapports d’activité) sont <strong>communes</strong> sur le
           serveur : une récupération depuis le nuage est tentée à chaque connexion ;
           les réglages manuels sont sur la page <strong>Fonctions</strong> (section
           Nuage).

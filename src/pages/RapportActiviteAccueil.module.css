@@ -1,0 +1,185 @@
+.page {
+  max-width: 52rem;
+  margin: 0 auto;
+  color: var(--workspace-text, #fff);
+}
+
+.intro {
+  margin: 0 0 1.5rem;
+  line-height: 1.55;
+  color: var(--workspace-muted, #a8a8b8);
+  font-size: 0.95rem;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+@media (max-width: 720px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.statCard {
+  border: 1px solid var(--border, #3d3d48);
+  border-radius: 12px;
+  padding: 1.1rem 1.15rem;
+  background: var(--surface-elevated, #2e2e2e);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.statValue {
+  font-size: 1.85rem;
+  font-weight: 700;
+  line-height: 1.1;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.statLabel {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--workspace-text, #fff);
+}
+
+.statHint {
+  font-size: 0.8rem;
+  color: var(--workspace-muted, #a8a8b8);
+}
+
+.ctaRow {
+  margin-bottom: 2rem;
+}
+
+.btnPrimary {
+  padding: 0.55rem 1.1rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--gradient-brand);
+  box-shadow: var(--shadow-cta, 0 4px 14px rgba(255, 65, 108, 0.25));
+}
+
+.btnPrimary:hover {
+  filter: brightness(1.05);
+}
+
+.btnPrimary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.section {
+  border: 1px solid var(--border, #3d3d48);
+  border-radius: 12px;
+  padding: 1.25rem 1.35rem;
+  background: var(--surface, #252525);
+}
+
+.sectionTitle {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.empty {
+  margin: 0;
+  color: var(--workspace-muted, #a8a8b8);
+  font-size: 0.92rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.listItem {
+  margin: 0;
+}
+
+.listLink {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #3d3d48);
+  background: var(--surface-elevated, #2e2e2e);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.listLink:hover {
+  border-color: rgba(255, 65, 108, 0.45);
+  box-shadow: var(--shadow-card-light, 0 2px 8px rgba(0, 0, 0, 0.2));
+}
+
+.listTitle {
+  font-weight: 600;
+  font-size: 0.98rem;
+}
+
+.listMeta {
+  font-size: 0.82rem;
+  color: var(--workspace-muted, #a8a8b8);
+}
+
+.fieldBlock {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.45rem;
+  color: var(--workspace-text, #fff);
+}
+
+.textInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border, #3d3d48);
+  border-radius: 8px;
+  font: inherit;
+  background: var(--surface-elevated, #2e2e2e);
+  color: var(--workspace-text, #fff);
+}
+
+.textInput:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.btnSecondary {
+  padding: 0.5rem 0.95rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #3d3d48);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+  background: var(--surface-elevated, #2e2e2e);
+  color: var(--workspace-text, #fff);
+}
+
+.btnSecondary:hover {
+  border-color: rgba(255, 65, 108, 0.4);
+}

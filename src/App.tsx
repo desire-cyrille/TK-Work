@@ -28,6 +28,9 @@ import { DevisEditeur } from "./pages/DevisEditeur";
 import { DevisListe } from "./pages/DevisListe";
 import { DevisParametresGlobaux } from "./pages/DevisParametresGlobaux";
 import { MustChangePassword } from "./pages/MustChangePassword";
+import { RapportActiviteAccueil } from "./pages/RapportActiviteAccueil";
+import { RapportActiviteNouveauProjet } from "./pages/RapportActiviteNouveauProjet";
+import { RapportActiviteProjetDetail } from "./pages/RapportActiviteProjetDetail";
 
 export default function App() {
   return (
@@ -132,6 +135,12 @@ export default function App() {
             <Route index element={<DevisListe />} />
             <Route path="parametres" element={<DevisParametresGlobaux />} />
             <Route path="edition/:id" element={<DevisEditeur />} />
+          </Route>
+          <Route path="rapport-activite" element={<Outlet />}>
+            <Route index element={<Navigate to="accueil" replace />} />
+            <Route path="accueil" element={<RapportActiviteAccueil />} />
+            <Route path="projet/nouveau" element={<RapportActiviteNouveauProjet />} />
+            <Route path="projet/:id" element={<RapportActiviteProjetDetail />} />
           </Route>
         </Route>
 
