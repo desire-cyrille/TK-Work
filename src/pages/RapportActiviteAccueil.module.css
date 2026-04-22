@@ -183,3 +183,70 @@
 .btnSecondary:hover {
   border-color: rgba(255, 65, 108, 0.4);
 }
+
+.tabsMain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.tabMain,
+.tabMainActive {
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--border, #3d3d48);
+  background: var(--surface, #252525);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.tabMainActive {
+  border-color: rgba(255, 65, 108, 0.55);
+  background: rgba(255, 65, 108, 0.12);
+  font-weight: 600;
+}
+
+.rowCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.65rem;
+}
+
+.rowCard .listLink {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.btnArchive {
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #3d3d48);
+  background: var(--surface-elevated, #2e2e2e);
+  color: var(--workspace-text, #fff);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  align-self: center;
+}
+
+.btnDanger {
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  background: rgba(127, 29, 29, 0.25);
+  color: #fecaca;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+}

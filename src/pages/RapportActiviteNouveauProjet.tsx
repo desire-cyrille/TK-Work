@@ -8,20 +8,21 @@ import styles from "./RapportActiviteAccueil.module.css";
 export function RapportActiviteNouveauProjet() {
   const navigate = useNavigate();
   const [titre, setTitre] = useState("");
-  const [siteNom, setSiteNom] = useState("");
+  const [nombreSites, setNombreSites] = useState("1");
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     const t = titre.trim();
     if (!t) {
-      window.alert("Indiquez un titre pour le projet.");
+      window.alert("Indiquez le nom du projet.");
       return;
     }
-    const sn = siteNom.trim();
-    creerProjetRapportActivite({
-      titre: t,
-      sitesNoms: sn ? [sn] : undefined,
-    });
+    const n = Number.parseInt(nombreSites, 10);
+    if (!Number.isFinite(n) || n < 1 || n > 50) {
+      window.alert("Le nombre de sites doit être compris entre 1 et 50.");
+      return;
+    }
+    creerProjetRapportActivite({ titre: t, nombreSites: n });
     navigate("/rapport-activite/accueil", { replace: true });
   }
 
@@ -40,8 +41,9 @@ export function RapportActiviteNouveauProjet() {
     >
       <div className={styles.page}>
         <p className={styles.intro}>
-          Donnez un titre au projet. Vous pouvez préciser le nom du premier site ;
-          sinon un site « Site principal » sera créé automatiquement.
+          Indiquez le <strong>nom du projet</strong> et le <strong>nombre de sites</strong> à
+          gérer. Les sites seront nommés « Site 1 », « Site 2 », etc. (modifiables plus tard
+          dans la rédaction si besoin).
         </p>
         <form
           onSubmit={onSubmit}
@@ -49,7 +51,7 @@ export function RapportActiviteNouveauProjet() {
           style={{ maxWidth: "28rem" }}
         >
           <label className={styles.fieldBlock}>
-            <span className={styles.fieldLabel}>Titre du projet *</span>
+            <span className={styles.fieldLabel}>Nom du projet *</span>
             <input
               className={styles.textInput}
               value={titre}
@@ -59,12 +61,14 @@ export function RapportActiviteNouveauProjet() {
             />
           </label>
           <label className={styles.fieldBlock}>
-            <span className={styles.fieldLabel}>Premier site (optionnel)</span>
+            <span className={styles.fieldLabel}>Nombre de sites à gérer *</span>
             <input
               className={styles.textInput}
-              value={siteNom}
-              onChange={(e) => setSiteNom(e.target.value)}
-              placeholder="Ex. : Zone nord"
+              type="number"
+              min={1}
+              max={50}
+              value={nombreSites}
+              onChange={(e) => setNombreSites(e.target.value)}
             />
           </label>
           <div className={styles.ctaRow} style={{ marginTop: "0.25rem" }}>

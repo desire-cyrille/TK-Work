@@ -31,6 +31,7 @@ import { MustChangePassword } from "./pages/MustChangePassword";
 import { RapportActiviteAccueil } from "./pages/RapportActiviteAccueil";
 import { RapportActiviteNouveauProjet } from "./pages/RapportActiviteNouveauProjet";
 import { RapportActiviteProjetDetail } from "./pages/RapportActiviteProjetDetail";
+import { RapportActiviteRedaction } from "./pages/RapportActiviteRedaction";
 
 export default function App() {
   return (
@@ -140,6 +141,7 @@ export default function App() {
             <Route index element={<Navigate to="accueil" replace />} />
             <Route path="accueil" element={<RapportActiviteAccueil />} />
             <Route path="projet/nouveau" element={<RapportActiviteNouveauProjet />} />
+            <Route path="projet/:id/redaction" element={<RapportActiviteRedaction />} />
             <Route path="projet/:id" element={<RapportActiviteProjetDetail />} />
           </Route>
         </Route>
