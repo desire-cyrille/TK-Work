@@ -8,6 +8,7 @@ import type {
   RapportBrouillonState,
   RapportColonneTableau,
   RapportDomaineDef,
+  TypeRapportActivite,
 } from "./rapportActiviteTypes";
 import {
   brouillonVidePourProjet,
@@ -422,6 +423,43 @@ export function listerRapportsPourProjet(projetId: string): RapportActiviteFiche
 export function supprimerRapportFiche(id: string): void {
   const liste = readRapportsBrut().filter((r) => r.id !== id.trim());
   writeRapports(liste);
+}
+
+/** Met à jour le contenu d’un rapport déjà validé (même id, liste des rapports). */
+export function miseAJourRapportFiche(
+  ficheId: string,
+  payload: RapportBrouillonState,
+): boolean {
+  const liste = readRapportsBrut();
+  const fid = ficheId.trim();
+  const idx = liste.findIndex((r) => r.id === fid);
+  if (idx < 0) return false;
+  const r = liste[idx]!;
+  const now = new Date().toISOString();
+  const td = payload.titreDocument?.trim() || r.titreDocument;
+  const dr = payload.dateRapport?.slice(0, 10) || r.dateRapport;
+  const typeRapport: TypeRapportActivite =
+    payload.typeRapport === "quotidien" ||
+    payload.typeRapport === "mensuel" ||
+    payload.typeRapport === "fin_mission"
+      ? payload.typeRapport
+      : "simple";
+  const titre = `${td} — ${dr}`;
+  liste[idx] = {
+    ...r,
+    typeRapport,
+    titreDocument: td,
+    dateRapport: dr,
+    moisCle:
+      payload.moisCle && String(payload.moisCle).trim()
+        ? String(payload.moisCle).trim().slice(0, 7)
+        : undefined,
+    titre,
+    payload: JSON.parse(JSON.stringify(payload)) as RapportBrouillonState,
+    updatedAt: now,
+  };
+  writeRapports(liste);
+  return true;
 }
 
 export function compterRapportsPourProjet(projetId: string): number {

@@ -19,6 +19,7 @@ import {
   enregistrerRapportValide,
   getProjetRapportActivite,
   listerRapportsPourProjet,
+  miseAJourRapportFiche,
   sauvegarderBrouillonProjet,
   sauvegarderProjetRapportActivite,
   supprimerRapportFiche,
@@ -29,6 +30,7 @@ import {
   contenuSiteVide,
   enrichirBrouillonDomaines,
   ligneTableauSuiviVisible,
+  type RapportActiviteFiche,
   type RapportActiviteProjet,
   type RapportActiviteSite,
   type RapportBrouillonState,
@@ -105,6 +107,8 @@ export function RapportActiviteRedaction() {
   const [colEd, setColEd] = useState<RapportColonneTableau[]>([]);
   const [sitesEd, setSitesEd] = useState<RapportActiviteSite[]>([]);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  /** Si défini, « Valider le rapport » met à jour cette fiche au lieu d’en créer une nouvelle. */
+  const [editingFicheId, setEditingFicheId] = useState<string | null>(null);
 
   const draftRef = useRef<RapportBrouillonState | null>(null);
   draftRef.current = draft;
@@ -135,6 +139,7 @@ export function RapportActiviteRedaction() {
     setDomEd(p.domaines.map((d) => ({ ...d })));
     setColEd(p.colonnesTableau.map((c) => ({ ...c })));
     setSitesEd(p.sites.map((s) => ({ ...s })));
+    setEditingFicheId(null);
     // Ne pas dépendre de projet.updatedAt : chaque sauvegarde du brouillon incrémente
     // updatedAt ; au prochain tick / refresh, l’effet relisait le stockage et écrasait
     // le brouillon React non encore flushé (perte de saisie au changement de site / onglet).
@@ -161,6 +166,21 @@ export function RapportActiviteRedaction() {
       if (b) sauvegarderBrouillonProjet(pid, b);
     };
   }, [projet, draft]);
+
+  useEffect(() => {
+    const flush = () => {
+      const b = draftRef.current;
+      const pid = projetId.trim();
+      if (!b || !pid) return;
+      try {
+        sauvegarderBrouillonProjet(pid, clone(b));
+      } catch {
+        /* quota ou navigateur */
+      }
+    };
+    window.addEventListener("beforeunload", flush);
+    return () => window.removeEventListener("beforeunload", flush);
+  }, [projetId]);
 
   const fermerApercuPdf = useCallback(() => {
     setPdfPreviewUrl((prev) => {
@@ -230,14 +250,55 @@ export function RapportActiviteRedaction() {
     });
     if (next) {
       setDraft(alignerParSite(next, projet));
+      setEditingFicheId(null);
       refresh();
     }
+  }
+
+  function enregistrerBrouillonMaintenant(message?: string) {
+    const b = draftRef.current;
+    if (!projet || !b) return;
+    sauvegarderBrouillonProjet(projet.id, clone(b));
+    refresh();
+    window.alert(message ?? "Contenu enregistré sur cet appareil.");
+  }
+
+  function ouvrirRapportPourEdition(fiche: RapportActiviteFiche) {
+    if (!projet) return;
+    if (
+      editingFicheId &&
+      editingFicheId !== fiche.id &&
+      !window.confirm(
+        "Un autre rapport est en cours d’édition. Charger celui-ci et abandonner l’édition en cours ?",
+      )
+    ) {
+      return;
+    }
+    const next = alignerParSite(clone(fiche.payload), projet);
+    setDraft(next);
+    setEditingFicheId(fiche.id);
+    sauvegarderBrouillonProjet(projet.id, next);
+    setTabMain("redaction");
+    setSubRedac("domaines");
+    refresh();
   }
 
   function onValiderPdf() {
     if (!projet || !draft) return;
     const p = getProjetRapportActivite(projet.id);
     if (!p) return;
+    if (editingFicheId) {
+      if (!miseAJourRapportFiche(editingFicheId, draft)) {
+        window.alert("Impossible de mettre à jour ce rapport enregistré.");
+        return;
+      }
+      telechargerRapportActivitePdf(p, draft, draft.titreDocument);
+      setEditingFicheId(null);
+      refresh();
+      setTabMain("rapports");
+      window.alert("Rapport mis à jour et PDF régénéré.");
+      return;
+    }
     enregistrerRapportValide(projet.id, draft);
     telechargerRapportActivitePdf(p, draft, draft.titreDocument);
     refresh();
@@ -323,12 +384,20 @@ export function RapportActiviteRedaction() {
             className={frameStyles.headerCtaSecondary}
             onClick={() => onValiderPdf()}
           >
-            Valider le rapport (PDF)
+            {editingFicheId
+              ? "Enregistrer les modifications (PDF)"
+              : "Valider le rapport (PDF)"}
           </button>
         </>
       }
     >
       <div className={styles.page}>
+        {editingFicheId ? (
+          <p className={styles.hint} style={{ marginBottom: "0.75rem" }}>
+            Édition d’un rapport déjà validé : les changements remplacent la fiche
+            enregistrée lorsque vous cliquez sur « Enregistrer les modifications (PDF) ».
+          </p>
+        ) : null}
         <div className={styles.tabsMain} role="tablist">
           <button
             type="button"
@@ -589,6 +658,10 @@ export function RapportActiviteRedaction() {
 
               {subRedac === "domaines" ? (
                 <div className={styles.panel} style={{ marginBottom: 0 }}>
+                  <p className={styles.hint}>
+                    Utilisez « Enregistrer » sous chaque domaine (ou sous le tableau) pour
+                    forcer l’écriture immédiate sur cet appareil.
+                  </p>
                   {projet.domaines.map((dom) => {
                     const bloc = siteBloc.domainesTexte[dom.id] ?? {
                       texte: "",
@@ -654,6 +727,19 @@ export function RapportActiviteRedaction() {
                               });
                             }}
                           />
+                        </div>
+                        <div className={styles.btnRow}>
+                          <button
+                            type="button"
+                            className={styles.btnPrimary}
+                            onClick={() =>
+                              enregistrerBrouillonMaintenant(
+                                `« ${dom.label} » et le reste du brouillon sont enregistrés.`,
+                              )
+                            }
+                          >
+                            Enregistrer (ce domaine et le brouillon)
+                          </button>
                         </div>
                       </div>
                     );
@@ -866,6 +952,19 @@ export function RapportActiviteRedaction() {
                       </tbody>
                     </table>
                   </div>
+                  <div className={styles.btnRow} style={{ marginTop: "1rem" }}>
+                    <button
+                      type="button"
+                      className={styles.btnPrimary}
+                      onClick={() =>
+                        enregistrerBrouillonMaintenant(
+                          "Tableau de suivi et brouillon complets enregistrés.",
+                        )
+                      }
+                    >
+                      Enregistrer le tableau et le brouillon
+                    </button>
+                  </div>
                 </div>
               ) : null}
 
@@ -889,7 +988,9 @@ export function RapportActiviteRedaction() {
         {tabMain === "rapports" ? (
           <div className={styles.panel}>
             <p className={styles.hint}>
-              Rapports validés (enregistrés). Vous pouvez supprimer une fiche ou régénérer le PDF.
+              Rapports validés (enregistrés). Modifier charge le rapport dans l’onglet Rédaction ;
+              Valider le PDF met à jour la fiche existante. Vous pouvez aussi supprimer une fiche ou
+              régénérer le PDF.
             </p>
             <ul className={styles.listRapports}>
               {rapportsListe.length === 0 ? (
@@ -909,6 +1010,13 @@ export function RapportActiviteRedaction() {
                       }}
                     >
                       PDF
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.btn}
+                      onClick={() => ouvrirRapportPourEdition(r)}
+                    >
+                      Modifier
                     </button>
                     <button
                       type="button"
