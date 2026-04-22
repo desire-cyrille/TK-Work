@@ -132,7 +132,10 @@ export function RapportActiviteRedaction() {
     setDomEd(p.domaines.map((d) => ({ ...d })));
     setColEd(p.colonnesTableau.map((c) => ({ ...c })));
     setSitesEd(p.sites.map((s) => ({ ...s })));
-  }, [projetId, projet?.updatedAt]);
+    // Ne pas dépendre de projet.updatedAt : chaque sauvegarde du brouillon incrémente
+    // updatedAt ; au prochain tick / refresh, l’effet relisait le stockage et écrasait
+    // le brouillon React non encore flushé (perte de saisie au changement de site / onglet).
+  }, [projetId]);
 
   const debouncedSaveBrouillon = useCallback(
     (projetId: string, b: RapportBrouillonState) => {
