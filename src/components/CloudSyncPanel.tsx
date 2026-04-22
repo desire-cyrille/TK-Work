@@ -77,14 +77,11 @@ export function CloudSyncPanel() {
         <p className={styles.hint}>
           <strong>Nuage unique pour l’organisation.</strong> Tous les utilisateurs
           partagent la même copie des données sur le serveur : biens, finances,
-          Airbnb, thème, <strong>devis</strong>,{" "}
-          <strong>projets et rapports d’activité</strong> (y compris photos
-          embarquées). La synchronisation s’authentifie avec{" "}
+          Airbnb, thème, <strong>devis</strong>. La synchronisation s’authentifie avec{" "}
           <strong>votre compte personnel</strong>, mais envoie et récupère le
           même contenu pour tous. Dernière copie envoyée gagne (pas de fusion
-          détaillée). Les rapports très lourds peuvent exiger plusieurs envois ;
-          en cas d’erreur de taille, allégez les images ou utilisez une sauvegarde
-          fichier.
+          détaillée). En cas d’erreur de taille, réduisez la quantité de données
+          ou utilisez une sauvegarde fichier.
         </p>
         <p className={styles.hint}>
           À la <strong>connexion</strong>, une récupération automatique est faite

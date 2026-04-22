@@ -21,14 +21,6 @@ const items = [
     to: "/devis",
     cta: "Accéder aux devis",
   },
-  {
-    num: 3,
-    title: "Rapport d’activité",
-    description:
-      "Rapports quotidiens, mensuels et fin de mission pour vos clients (synthèse + PDF).",
-    to: "/rapport-activite",
-    cta: "Ouvrir les rapports",
-  },
 ] as const;
 
 export function PageFonctions() {

@@ -4,9 +4,8 @@ export const TK_GESTION_BACKUP_FORMAT = "tk-gestion-backup" as const;
 export const TK_GESTION_BACKUP_VERSION = 1 as const;
 
 /**
- * Préfixes des clés appartenant à TK Gestion (biens, finance, Airbnb, rapports, thème, session…).
+ * Préfixes des clés appartenant à TK Gestion (biens, finance, Airbnb, thème, session…).
  * L’export parcourt tout le localStorage et inclut chaque clé qui correspond, pour ne rien omettre
- * (ex. rapports : `tk-gestion-rapports-projets-v1`, `tk-gestion-rapports-chain-v1`).
  */
 export function isTkGestionStorageKey(key: string): boolean {
   return key.startsWith("tk-gestion-") || key.startsWith("tk_gestion_");
@@ -19,8 +18,6 @@ export const TK_GESTION_MANAGED_STORAGE_KEYS = [
   "tk-gestion-biens-v1",
   "tk-gestion-finance-v1",
   "tk-gestion-airbnb-ventilation-v1",
-  "tk-gestion-rapports-projets-v1",
-  "tk-gestion-rapports-chain-v1",
   "tk-gestion-devis-v1",
   "tk-gestion-devis-defaults-v1",
   "tk-gestion-devis-clients-v1",
@@ -152,8 +149,7 @@ function clearAllTkGestionStorageKeys(): void {
 }
 
 /**
- * Ordre de restauration : métadonnées légères d’abord, puis projets rapports **avant** la chaîne
- * (souvent très volumineuse à cause des photos), pour limiter l’état incohérent si le quota lâche en cours de route.
+ * Ordre de restauration : métadonnées légères d’abord, puis données métier.
  */
 const RESTORE_KEY_PRIORITY: readonly string[] = [
   "tk_gestion_profile",
@@ -166,8 +162,6 @@ const RESTORE_KEY_PRIORITY: readonly string[] = [
   "tk-gestion-devis-v1",
   "tk-gestion-devis-defaults-v1",
   "tk-gestion-devis-clients-v1",
-  "tk-gestion-rapports-projets-v1",
-  "tk-gestion-rapports-chain-v1",
 ];
 
 export function sortRestoreKeys(keys: string[]): string[] {
@@ -228,7 +222,7 @@ export function applyTkGestionBackupV1(
       return {
         ok: false,
         error:
-          "Stockage du navigateur plein (quota dépassé). Les rapports avec beaucoup de photos en dépassent souvent la limite (~5 Mo par site). Essayez avec Chrome sur ordinateur, ou allégez les images dans les rapports puis refaites une sauvegarde depuis le poste local.",
+          "Stockage du navigateur plein (quota dépassé). Essayez avec Chrome sur ordinateur, ou réduisez la quantité de données stockées localement, puis refaites une sauvegarde.",
       };
     }
     return {

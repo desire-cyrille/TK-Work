@@ -20,7 +20,7 @@ export type ThemeSettings = {
   /** Vide = translucide par défaut */
   navInactiveBg: string;
   /**
-   * Couleur d’accent : bandeaux PageFrame, onglets modules (Rapport…), dégradés `--gradient-brand`, focus.
+   * Couleur d’accent : bandeaux PageFrame, onglets modules, dégradés `--gradient-brand`, focus.
    * @default #e53935
    */
   accentPrimary: string;

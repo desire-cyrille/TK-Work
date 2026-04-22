@@ -228,7 +228,7 @@ export function Reglages() {
               </h2>
               <p className={styles.hint}>
                 S’applique à la barre latérale du bandeau de page, aux onglets
-                actifs (ex. Rapport), aux boutons principaux et au dégradé global
+                actifs, aux boutons principaux et au dégradé global
                 de l’application. La couleur secondaire termine le dégradé ; laissez
                 le champ vide pour un ton automatiquement plus foncé.
               </p>
@@ -706,8 +706,7 @@ export function Reglages() {
                 Enregistre dans un fichier JSON <strong>toutes</strong> les clés
                 locales de l’application (préfixes <code>tk-gestion-</code> et{" "}
                 <code>tk_gestion_</code>) : biens, baux, locataires, finances,
-                Airbnb, <strong>rapports d’activité et projets associés</strong>,
-                thème, session / profil. Utile pour copier vos données vers un autre ordinateur
+                Airbnb, thème, session / profil. Utile pour copier vos données vers un autre ordinateur
                 ou vers la <strong>version en ligne</strong> (navigateur ouvert
                 sur votre déploiement), ou pour archiver.
               </p>
@@ -738,12 +737,7 @@ export function Reglages() {
                 Remplace <strong>toutes</strong> les données TK Gestion
                 stockées dans ce navigateur par le contenu du fichier. Les pages
                 ouvertes ne verront le changement qu’après rechargement : la
-                restauration redémarrera l’application automatiquement. Si les{" "}
-                <strong>rapports</strong> ne réapparaissent pas, ouvrez le fichier{" "}
-                <code>.json</code> et vérifiez la présence de{" "}
-                <code>tk-gestion-rapports-projets-v1</code> et{" "}
-                <code>tk-gestion-rapports-chain-v1</code> sous « entries » — et
-                surveillez un message d’erreur de quota (photos trop lourdes).
+                restauration redémarrera l’application automatiquement.
               </p>
               <input
                 ref={backupFileRef}
@@ -766,13 +760,8 @@ export function Reglages() {
                     const n = Object.keys(parsed.data.entries).length;
                     const bytes = estimateTkGestionBackupWriteBytes(parsed.data);
                     const mb = bytes / (1024 * 1024);
-                    const hasRapportProjets =
-                      "tk-gestion-rapports-projets-v1" in parsed.data.entries;
-                    const hasRapportChain =
-                      "tk-gestion-rapports-chain-v1" in parsed.data.entries;
                     const msg = [
                       `Fichier du ${new Date(parsed.data.exportedAt).toLocaleString("fr-FR")} — ${n} bloc(s) à restaurer.`,
-                      `Rapports : projets ${hasRapportProjets ? "oui" : "non"}, chaîne ${hasRapportChain ? "oui" : "non"}.`,
                       mb >= 3
                         ? `Taille indicative ~${mb.toFixed(1)} Mo — risque de refus par le navigateur (quota).`
                         : "",

@@ -22,18 +22,12 @@ import { Locations } from "./pages/Locations";
 import { Airbnb } from "./pages/Airbnb";
 import { Reglages } from "./pages/Reglages";
 import { Finance } from "./pages/Finance";
-import { RapportModuleLayout } from "./components/RapportModuleLayout";
 import { PageFonctions } from "./pages/PageFonctions";
 import { AdminUtilisateurs } from "./pages/AdminUtilisateurs";
 import { DevisEditeur } from "./pages/DevisEditeur";
 import { DevisListe } from "./pages/DevisListe";
 import { DevisParametresGlobaux } from "./pages/DevisParametresGlobaux";
 import { MustChangePassword } from "./pages/MustChangePassword";
-import { RapportAccueil } from "./pages/RapportAccueil";
-import { RapportActivite } from "./pages/RapportActivite";
-import { RapportArchive } from "./pages/RapportArchive";
-import { RapportProjets } from "./pages/RapportProjets";
-import { RapportProjetListe } from "./pages/RapportProjetListe";
 
 export default function App() {
   return (
@@ -138,14 +132,6 @@ export default function App() {
             <Route index element={<DevisListe />} />
             <Route path="parametres" element={<DevisParametresGlobaux />} />
             <Route path="edition/:id" element={<DevisEditeur />} />
-          </Route>
-          <Route path="rapport-activite" element={<RapportModuleLayout />}>
-            <Route index element={<Navigate to="accueil" replace />} />
-            <Route path="accueil" element={<RapportAccueil />} />
-            <Route path="projets" element={<RapportProjets />} />
-            <Route path="archive" element={<RapportArchive />} />
-            <Route path="projet/:projetId/rapports" element={<RapportProjetListe />} />
-            <Route path="edition/:projetId" element={<RapportActivite />} />
           </Route>
         </Route>
 
