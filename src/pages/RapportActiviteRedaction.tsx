@@ -1,8 +1,19 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
 import frameStyles from "../components/PageFrame.module.css";
-import { telechargerRapportActivitePdf } from "../lib/exportRapportActivitePdf";
+import {
+  genererRapportActivitePdfBlob,
+  telechargerRapportActivitePdf,
+} from "../lib/exportRapportActivitePdf";
+import { importerImageEnDataUrl } from "../lib/rapportImageImport";
 import {
   appliquerPrefillType,
   enregistrerRapportValide,
@@ -32,22 +43,11 @@ type TabMain = "redaction" | "rapports" | "reglages";
 type SubRedac = "meta" | "visuels" | "domaines" | "tableau" | "synthese";
 
 const MAX_PHOTOS = 4;
+/** Photos d’aperçu par site (onglet Visuels) — augmenté pour limiter moins les imports. */
+const MAX_PHOTOS_VISUELS_PAR_SITE = 12;
 
 function clone<T>(x: T): T {
   return JSON.parse(JSON.stringify(x)) as T;
-}
-
-async function fichierVersDataUrl(f: File): Promise<string | null> {
-  return new Promise((resolve) => {
-    if (!f.type.startsWith("image/")) {
-      resolve(null);
-      return;
-    }
-    const r = new FileReader();
-    r.onload = () => resolve(typeof r.result === "string" ? r.result : null);
-    r.onerror = () => resolve(null);
-    r.readAsDataURL(f);
-  });
 }
 
 function brouillonDepuisProjet(p: RapportActiviteProjet): RapportBrouillonState {
@@ -104,8 +104,16 @@ export function RapportActiviteRedaction() {
   const [domEd, setDomEd] = useState<RapportDomaineDef[]>([]);
   const [colEd, setColEd] = useState<RapportColonneTableau[]>([]);
   const [sitesEd, setSitesEd] = useState<RapportActiviteSite[]>([]);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pdfApercuUrlRef = useRef<string | null>(null);
+  pdfApercuUrlRef.current = pdfPreviewUrl;
+  useEffect(() => {
+    return () => {
+      if (pdfApercuUrlRef.current) URL.revokeObjectURL(pdfApercuUrlRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!projetId) {
@@ -143,6 +151,22 @@ export function RapportActiviteRedaction() {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, [projet, draft, debouncedSaveBrouillon]);
+
+  const fermerApercuPdf = useCallback(() => {
+    setPdfPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!pdfPreviewUrl) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") fermerApercuPdf();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [pdfPreviewUrl, fermerApercuPdf]);
 
   if (!projetId) return <Navigate to="/rapport-activite/accueil" replace />;
   if (!projet) {
@@ -210,6 +234,24 @@ export function RapportActiviteRedaction() {
     setTabMain("rapports");
   }
 
+  function ouvrirApercuPdfBrouillon() {
+    if (!projet || !draft) return;
+    const p = getProjetRapportActivite(projet.id);
+    if (!p) return;
+    try {
+      const blob = genererRapportActivitePdfBlob(p, draft);
+      const url = URL.createObjectURL(blob);
+      setPdfPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+    } catch {
+      window.alert(
+        "Impossible de générer l’aperçu PDF. Réduisez la taille des images ou le contenu, puis réessayez.",
+      );
+    }
+  }
+
   function saveReglages(e: FormEvent) {
     e.preventDefault();
     if (!projet || !draft) return;
@@ -247,6 +289,7 @@ export function RapportActiviteRedaction() {
   }
 
   return (
+    <>
     <PageFrame
       title={projet.titre}
       actions={
@@ -258,6 +301,13 @@ export function RapportActiviteRedaction() {
           >
             Accueil
           </Link>
+          <button
+            type="button"
+            className={frameStyles.headerCtaSecondary}
+            onClick={() => ouvrirApercuPdfBrouillon()}
+          >
+            Aperçu PDF
+          </button>
           <button
             type="button"
             className={frameStyles.headerCtaSecondary}
@@ -421,21 +471,36 @@ export function RapportActiviteRedaction() {
                 <div className={styles.panel} style={{ marginBottom: 0 }}>
                   <p className={styles.hint}>
                     Logos et couverture apparaissent sur le PDF (page de garde et dernière
-                    page).
+                    page). Les images sont redimensionnées automatiquement (max. 2400 px de côté)
+                    pour éviter les échecs d’enregistrement et de génération PDF.
                   </p>
+                  <div className={styles.btnRow} style={{ marginBottom: "0.75rem" }}>
+                    <button
+                      type="button"
+                      className={styles.btn}
+                      onClick={() => ouvrirApercuPdfBrouillon()}
+                    >
+                      Aperçu du PDF (brouillon)
+                    </button>
+                  </div>
                   <div className={styles.fieldRow}>
                     <label className={styles.label}>
                       Logo principal (haut gauche)
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
                         className={styles.input}
                         onChange={async (e) => {
                           const f = e.target.files?.[0];
                           e.target.value = "";
                           if (!f) return;
-                          const u = await fichierVersDataUrl(f);
-                          if (u) majDraft((d) => ({ ...d, visuels: { ...d.visuels, logoPrincipal: u } }));
+                          const r = await importerImageEnDataUrl(f);
+                          if (r.ok) {
+                            majDraft((d) => ({
+                              ...d,
+                              visuels: { ...d.visuels, logoPrincipal: r.dataUrl },
+                            }));
+                          } else window.alert(r.message);
                         }}
                       />
                     </label>
@@ -443,14 +508,19 @@ export function RapportActiviteRedaction() {
                       Logo client (haut droite)
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
                         className={styles.input}
                         onChange={async (e) => {
                           const f = e.target.files?.[0];
                           e.target.value = "";
                           if (!f) return;
-                          const u = await fichierVersDataUrl(f);
-                          if (u) majDraft((d) => ({ ...d, visuels: { ...d.visuels, logoClient: u } }));
+                          const r = await importerImageEnDataUrl(f);
+                          if (r.ok) {
+                            majDraft((d) => ({
+                              ...d,
+                              visuels: { ...d.visuels, logoClient: r.dataUrl },
+                            }));
+                          } else window.alert(r.message);
                         }}
                       />
                     </label>
@@ -458,22 +528,30 @@ export function RapportActiviteRedaction() {
                       Photo de couverture
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
                         className={styles.input}
                         onChange={async (e) => {
                           const f = e.target.files?.[0];
                           e.target.value = "";
                           if (!f) return;
-                          const u = await fichierVersDataUrl(f);
-                          if (u) majDraft((d) => ({ ...d, visuels: { ...d.visuels, couverture: u } }));
+                          const r = await importerImageEnDataUrl(f);
+                          if (r.ok) {
+                            majDraft((d) => ({
+                              ...d,
+                              visuels: { ...d.visuels, couverture: r.dataUrl },
+                            }));
+                          } else window.alert(r.message);
                         }}
                       />
                     </label>
                   </div>
-                  <p className={styles.hint}>Photos du site « {projet.sites.find((s) => s.id === draft.siteActifId)?.nom} »</p>
+                  <p className={styles.hint}>
+                    Photos du site « {projet.sites.find((s) => s.id === draft.siteActifId)?.nom} »
+                    (jusqu’à {MAX_PHOTOS_VISUELS_PAR_SITE} images)
+                  </p>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
                     multiple
                     className={styles.input}
                     onChange={async (e) => {
@@ -482,9 +560,10 @@ export function RapportActiviteRedaction() {
                       const sid = draft.siteActifId;
                       const cur = [...(draft.visuels.photosParSite[sid] ?? [])];
                       for (const f of files) {
-                        if (cur.length >= 6) break;
-                        const u = await fichierVersDataUrl(f);
-                        if (u) cur.push(u);
+                        if (cur.length >= MAX_PHOTOS_VISUELS_PAR_SITE) break;
+                        const r = await importerImageEnDataUrl(f);
+                        if (r.ok) cur.push(r.dataUrl);
+                        else window.alert(r.message);
                       }
                       majDraft((d) => ({
                         ...d,
@@ -532,7 +611,7 @@ export function RapportActiviteRedaction() {
                         <div className={styles.btnRow}>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
                             multiple
                             className={styles.input}
                             onChange={async (e) => {
@@ -545,8 +624,9 @@ export function RapportActiviteRedaction() {
                               ];
                               for (const f of files) {
                                 if (photos.length >= MAX_PHOTOS) break;
-                                const u = await fichierVersDataUrl(f);
-                                if (u) photos.push(u);
+                                const r = await importerImageEnDataUrl(f);
+                                if (r.ok) photos.push(r.dataUrl);
+                                else window.alert(r.message);
                               }
                               photos = photos.slice(0, MAX_PHOTOS);
                               majDraft((d) => {
@@ -1017,5 +1097,33 @@ export function RapportActiviteRedaction() {
         ) : null}
       </div>
     </PageFrame>
+    {pdfPreviewUrl ? (
+      <div
+        className={styles.pdfPreviewOverlay}
+        onClick={() => fermerApercuPdf()}
+        role="presentation"
+      >
+        <div
+          className={styles.pdfPreviewBox}
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Aperçu du PDF"
+        >
+          <div className={styles.pdfPreviewBar}>
+            <span className={styles.pdfPreviewTitle}>Aperçu PDF (brouillon)</span>
+            <button type="button" className={styles.btn} onClick={() => fermerApercuPdf()}>
+              Fermer
+            </button>
+          </div>
+          <iframe
+            title="Aperçu PDF"
+            src={`${pdfPreviewUrl}#toolbar=1`}
+            className={styles.pdfPreviewFrame}
+          />
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }
