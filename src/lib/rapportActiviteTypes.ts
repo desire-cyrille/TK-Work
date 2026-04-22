@@ -206,6 +206,36 @@ export function synchroniserTableauAvecTousLesDomaines(
   return { ...sc, tableauLignes: lines };
 }
 
+/** Domaine avec au moins un texte non vide ou une photo (même critère que l’export PDF). */
+export function domaineSiteNonVide(
+  sc: SiteContenuRapport | undefined,
+  domaineId: string,
+): boolean {
+  if (!sc) return false;
+  const b = sc.domainesTexte[domaineId];
+  return Boolean((b?.texte ?? "").trim() || (b?.photos?.length ?? 0) > 0);
+}
+
+/**
+ * Ligne du tableau à afficher (PDF / écran) : domaine non vide, ou saisie utile dans le suivi
+ * (état, sujet, etc.) pour ne pas masquer une ligne entièrement remplie à la main.
+ */
+export function ligneTableauSuiviVisible(
+  sc: SiteContenuRapport,
+  ligne: TableauLigneRapport,
+): boolean {
+  if (domaineSiteNonVide(sc, ligne.domaineId)) return true;
+  if (ligne.etat) return true;
+  if (ligne.sujet.trim()) return true;
+  if (ligne.responsable.trim()) return true;
+  if (ligne.observation.trim()) return true;
+  if (ligne.relances.trim()) return true;
+  for (const v of Object.values(ligne.extra)) {
+    if (String(v ?? "").trim()) return true;
+  }
+  return false;
+}
+
 export function contenuSiteVide(
   domaines: RapportDomaineDef[],
 ): SiteContenuRapport {

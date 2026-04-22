@@ -1,6 +1,10 @@
 import { jsPDF } from "jspdf";
-import type { RapportActiviteProjet } from "./rapportActiviteTypes";
-import type { RapportBrouillonState } from "./rapportActiviteTypes";
+import {
+  domaineSiteNonVide,
+  ligneTableauSuiviVisible,
+  type RapportActiviteProjet,
+  type RapportBrouillonState,
+} from "./rapportActiviteTypes";
 
 const W = 210;
 const M = 14;
@@ -126,9 +130,9 @@ export function genererRapportActivitePdfBlob(
     }
     if (photosSite.length) y += 40;
     for (const d of projet.domaines) {
+      if (!domaineSiteNonVide(contenu, d.id)) continue;
       const bloc = contenu?.domainesTexte[d.id];
       const txt = (bloc?.texte ?? "").trim();
-      if (!txt && !(bloc?.photos?.length)) continue;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(50, 50, 60);
@@ -136,9 +140,13 @@ export function genererRapportActivitePdfBlob(
       y += 6;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9.5);
-      const lines = doc.splitTextToSize(txt || " ", W - 2 * M) as string[];
-      doc.text(lines, M, y);
-      y += lines.length * 4.2 + 2;
+      if (txt) {
+        const lines = doc.splitTextToSize(txt, W - 2 * M) as string[];
+        doc.text(lines, M, y);
+        y += lines.length * 4.2 + 2;
+      } else {
+        y += 1;
+      }
       for (const ph of bloc?.photos ?? []) {
         if (y > pageH - 40) {
           doc.addPage();
@@ -152,50 +160,55 @@ export function genererRapportActivitePdfBlob(
         y = M + 6;
       }
     }
-    /* Tableau */
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("Tableau de suivi", M, y);
-    y += 8;
-    doc.setFontSize(8);
-    const cols = projet.colonnesTableau;
-    const colW = (W - 2 * M) / Math.max(cols.length, 1);
-    let x0 = M;
-    for (const c of cols) {
+    /* Tableau (lignes sans domaine ni suivi utile : masquées) */
+    const lignesTab = (contenu?.tableauLignes ?? []).filter((ligne) =>
+      contenu ? ligneTableauSuiviVisible(contenu, ligne) : false,
+    );
+    if (lignesTab.length > 0) {
       doc.setFont("helvetica", "bold");
-      doc.text(c.label.slice(0, 18), x0 + 1, y);
-      x0 += colW;
-    }
-    y += 5;
-    for (const ligne of contenu?.tableauLignes ?? []) {
-      if (y > pageH - 20) {
-        doc.addPage();
-        y = M + 6;
-      }
-      x0 = M;
+      doc.setFontSize(11);
+      doc.text("Tableau de suivi", M, y);
+      y += 8;
+      doc.setFontSize(8);
+      const cols = projet.colonnesTableau;
+      const colW = (W - 2 * M) / Math.max(cols.length, 1);
+      let x0 = M;
       for (const c of cols) {
-        doc.setFont("helvetica", "normal");
-        let cell = "";
-        if (c.id === "domaine") {
-          cell =
-            projet.domaines.find((d) => d.id === ligne.domaineId)?.label ?? "";
-        } else if (c.id === "sujet") cell = ligne.sujet;
-        else if (c.id === "responsable") cell = ligne.responsable;
-        else if (c.id === "etat") {
-          drawEtatCarre(doc, x0 + 1, y - 2.5, ligne.etat);
-          x0 += colW;
-          continue;
-        } else if (c.id === "observation") cell = ligne.observation;
-        else if (c.id === "relances") cell = ligne.relances;
-        else cell = ligne.extra[c.id] ?? "";
-        const lines = doc.splitTextToSize(
-          String(cell).slice(0, 400),
-          colW - 2,
-        ) as string[];
-        doc.text(lines, x0 + 1, y);
+        doc.setFont("helvetica", "bold");
+        doc.text(c.label.slice(0, 18), x0 + 1, y);
         x0 += colW;
       }
-      y += 12;
+      y += 5;
+      for (const ligne of lignesTab) {
+        if (y > pageH - 20) {
+          doc.addPage();
+          y = M + 6;
+        }
+        x0 = M;
+        for (const c of cols) {
+          doc.setFont("helvetica", "normal");
+          let cell = "";
+          if (c.id === "domaine") {
+            cell =
+              projet.domaines.find((d) => d.id === ligne.domaineId)?.label ?? "";
+          } else if (c.id === "sujet") cell = ligne.sujet;
+          else if (c.id === "responsable") cell = ligne.responsable;
+          else if (c.id === "etat") {
+            drawEtatCarre(doc, x0 + 1, y - 2.5, ligne.etat);
+            x0 += colW;
+            continue;
+          } else if (c.id === "observation") cell = ligne.observation;
+          else if (c.id === "relances") cell = ligne.relances;
+          else cell = ligne.extra[c.id] ?? "";
+          const lines = doc.splitTextToSize(
+            String(cell).slice(0, 400),
+            colW - 2,
+          ) as string[];
+          doc.text(lines, x0 + 1, y);
+          x0 += colW;
+        }
+        y += 12;
+      }
     }
     drawFooter(doc, projet.piedPagePdf, pageH);
   }

@@ -17,6 +17,7 @@ import {
   COL_ETAT_ID,
   contenuSiteVide,
   enrichirBrouillonDomaines,
+  ligneTableauSuiviVisible,
   type RapportActiviteProjet,
   type RapportActiviteSite,
   type RapportBrouillonState,
@@ -160,6 +161,16 @@ export function RapportActiviteRedaction() {
   const siteBloc =
     draft.parSite[draft.siteActifId] ??
     contenuSiteVide(projetCourant.domaines);
+  const allLignesTab = siteBloc.tableauLignes;
+  const lignesVisiblesTab = allLignesTab.filter((l) =>
+    ligneTableauSuiviVisible(siteBloc, l),
+  );
+  const lignesTableauAffichees =
+    lignesVisiblesTab.length > 0
+      ? lignesVisiblesTab
+      : allLignesTab[0]
+        ? [allLignesTab[0]]
+        : allLignesTab;
   const rapportsListe = listerRapportsPourProjet(projetCourant.id);
 
   function majDraft(fn: (d: RapportBrouillonState) => RapportBrouillonState) {
@@ -565,7 +576,8 @@ export function RapportActiviteRedaction() {
                   <p className={styles.hint}>
                     Les textes saisis dans l’onglet Domaines alimentent la colonne « Observation »
                     (1re ligne par domaine pour le site actif). Vous pouvez aussi forcer une mise à jour
-                    complète ci-dessous.
+                    complète ci-dessous. Les lignes sans domaine renseigné ni autre saisie utile sont
+                    masquées ici et dans le PDF (comme les domaines vides sur le PDF).
                   </p>
                   <div className={styles.btnRow}>
                     <button
@@ -621,7 +633,9 @@ export function RapportActiviteRedaction() {
                         </tr>
                       </thead>
                       <tbody>
-                        {siteBloc.tableauLignes.map((ligne, idx) => (
+                        {lignesTableauAffichees.map((ligne) => {
+                          const idx = siteBloc.tableauLignes.indexOf(ligne);
+                          return (
                           <tr key={ligne.id}>
                             {projet.colonnesTableau.map((c) => (
                               <td key={c.id}>
@@ -636,6 +650,7 @@ export function RapportActiviteRedaction() {
                                         const ps = { ...d.parSite };
                                         const sc = { ...ps[d.siteActifId]! };
                                         const lines = [...sc.tableauLignes];
+                                        if (idx < 0) return d;
                                         lines[idx] = { ...lines[idx]!, domaineId: v };
                                         sc.tableauLignes = lines;
                                         ps[d.siteActifId] = sc;
@@ -674,6 +689,7 @@ export function RapportActiviteRedaction() {
                                           }}
                                           onClick={() =>
                                             majDraft((d) => {
+                                              if (idx < 0) return d;
                                               const ps = { ...d.parSite };
                                               const sc = { ...ps[d.siteActifId]! };
                                               const lines = [...sc.tableauLignes];
@@ -711,6 +727,7 @@ export function RapportActiviteRedaction() {
                                         const ps = { ...d.parSite };
                                         const sc = { ...ps[d.siteActifId]! };
                                         const lines = [...sc.tableauLignes];
+                                        if (idx < 0) return d;
                                         const L = { ...lines[idx]! };
                                         if (c.id === "sujet") L.sujet = v;
                                         else if (c.id === "responsable") L.responsable = v;
@@ -731,10 +748,12 @@ export function RapportActiviteRedaction() {
                               <button
                                 type="button"
                                 className={styles.btnDanger}
+                                disabled={idx < 0}
                                 onClick={() =>
                                   majDraft((d) => {
                                     const ps = { ...d.parSite };
                                     const sc = { ...ps[d.siteActifId]! };
+                                    if (idx < 0) return d;
                                     sc.tableauLignes = sc.tableauLignes.filter(
                                       (_, i) => i !== idx,
                                     );
@@ -752,7 +771,8 @@ export function RapportActiviteRedaction() {
                               </button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
