@@ -46,6 +46,10 @@ async function fichierVersDataUrl(f: File): Promise<string | null> {
   });
 }
 
+function brouillonDepuisProjet(p: RapportActiviteProjet): RapportBrouillonState {
+  return alignerParSite(clone(p.brouillon), p);
+}
+
 function alignerParSite(
   draft: RapportBrouillonState,
   projet: RapportActiviteProjet,
@@ -74,17 +78,22 @@ function alignerParSite(
 
 export function RapportActiviteRedaction() {
   const { id } = useParams<{ id: string }>();
+  const projetId = (id ?? "").trim();
   const [tick, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
 
   const projet = useMemo(
-    () => (id?.trim() ? getProjetRapportActivite(id) : undefined),
-    [id, tick],
+    () => (projetId ? getProjetRapportActivite(projetId) : undefined),
+    [projetId, tick],
   );
 
   const [tabMain, setTabMain] = useState<TabMain>("redaction");
   const [subRedac, setSubRedac] = useState<SubRedac>("meta");
-  const [draft, setDraft] = useState<RapportBrouillonState | null>(null);
+  const [draft, setDraft] = useState<RapportBrouillonState | null>(() => {
+    if (!projetId) return null;
+    const p = getProjetRapportActivite(projetId);
+    return p ? brouillonDepuisProjet(p) : null;
+  });
   const [clientNom, setClientNom] = useState("");
   const [piedPage, setPiedPage] = useState("");
   const [msgFin, setMsgFin] = useState("");
@@ -94,14 +103,22 @@ export function RapportActiviteRedaction() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!projet) return;
-    setDraft(alignerParSite(clone(projet.brouillon), projet));
-    setClientNom(projet.clientNom);
-    setPiedPage(projet.piedPagePdf);
-    setMsgFin(projet.dernierePageMessage);
-    setDomEd(projet.domaines.map((d) => ({ ...d })));
-    setColEd(projet.colonnesTableau.map((c) => ({ ...c })));
-  }, [projet?.id, projet?.updatedAt]);
+    if (!projetId) {
+      setDraft(null);
+      return;
+    }
+    const p = getProjetRapportActivite(projetId);
+    if (!p) {
+      setDraft(null);
+      return;
+    }
+    setDraft(brouillonDepuisProjet(p));
+    setClientNom(p.clientNom);
+    setPiedPage(p.piedPagePdf);
+    setMsgFin(p.dernierePageMessage);
+    setDomEd(p.domaines.map((d) => ({ ...d })));
+    setColEd(p.colonnesTableau.map((c) => ({ ...c })));
+  }, [projetId, projet?.updatedAt]);
 
   const debouncedSaveBrouillon = useCallback(
     (projetId: string, b: RapportBrouillonState) => {
@@ -121,9 +138,16 @@ export function RapportActiviteRedaction() {
     };
   }, [projet, draft, debouncedSaveBrouillon]);
 
-  if (!id?.trim()) return <Navigate to="/rapport-activite/accueil" replace />;
-  if (!projet || !draft) {
+  if (!projetId) return <Navigate to="/rapport-activite/accueil" replace />;
+  if (!projet) {
     return <Navigate to="/rapport-activite/accueil" replace />;
+  }
+  if (!draft) {
+    return (
+      <PageFrame title="Chargement…">
+        <p className={styles.hint}>Préparation de l’éditeur…</p>
+      </PageFrame>
+    );
   }
 
   const projetCourant = projet;

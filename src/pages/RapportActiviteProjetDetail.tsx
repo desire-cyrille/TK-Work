@@ -6,7 +6,5 @@ export function RapportActiviteProjetDetail() {
   if (!id?.trim()) {
     return <Navigate to="/rapport-activite/accueil" replace />;
   }
-  return (
-    <Navigate to={`/rapport-activite/projet/${encodeURIComponent(id)}/redaction`} replace />
-  );
+  return <Navigate to={`/rapport-activite/projet/${id}/redaction`} replace />;
 }
