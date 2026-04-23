@@ -208,8 +208,8 @@
   font: inherit;
   font-size: 0.82rem;
   width: 100%;
-  min-height: 2.4rem;
-  resize: vertical;
+  min-height: 2.6rem;
+  resize: both;
   box-sizing: border-box;
 }
 

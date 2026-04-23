@@ -970,37 +970,21 @@ export function RapportActiviteRedaction() {
                                     )}
                                   </div>
                                 ) : (
-                                  c.id === "observation" || c.id === "relances" ? (
+                                  // Toutes les cellules éditables (sauf select domaine + état) sont redimensionnables.
+                                  c.id === "observation" ||
+                                  c.id === "relances" ||
+                                  c.id === "sujet" ||
+                                  c.id === "responsable" ? (
                                     <textarea
                                       className={styles.tableTextarea}
-                                      value={c.id === "observation" ? ligne.observation : ligne.relances}
-                                      onChange={(e) => {
-                                        const v = e.target.value;
-                                        majDraft((d) => {
-                                          const ps = { ...d.parSite };
-                                          const sc = { ...ps[d.siteActifId]! };
-                                          const lines = [...sc.tableauLignes];
-                                          if (idx < 0) return d;
-                                          const L = { ...lines[idx]! };
-                                          if (c.id === "observation") L.observation = v;
-                                          else L.relances = v;
-                                          lines[idx] = L;
-                                          sc.tableauLignes = lines;
-                                          ps[d.siteActifId] = sc;
-                                          return { ...d, parSite: ps };
-                                        });
-                                      }}
-                                    />
-                                  ) : (
-                                    <input
-                                      className={styles.input}
-                                      style={{ width: "100%" }}
                                       value={
-                                        c.id === "sujet"
-                                          ? ligne.sujet
-                                          : c.id === "responsable"
-                                            ? ligne.responsable
-                                            : ligne.extra[c.id] ?? ""
+                                        c.id === "observation"
+                                          ? ligne.observation
+                                          : c.id === "relances"
+                                            ? ligne.relances
+                                            : c.id === "sujet"
+                                              ? ligne.sujet
+                                              : ligne.responsable
                                       }
                                       onChange={(e) => {
                                         const v = e.target.value;
@@ -1010,9 +994,30 @@ export function RapportActiviteRedaction() {
                                           const lines = [...sc.tableauLignes];
                                           if (idx < 0) return d;
                                           const L = { ...lines[idx]! };
-                                          if (c.id === "sujet") L.sujet = v;
-                                          else if (c.id === "responsable") L.responsable = v;
-                                          else L.extra = { ...L.extra, [c.id]: v };
+                                          if (c.id === "observation") L.observation = v;
+                                          else if (c.id === "relances") L.relances = v;
+                                          else if (c.id === "sujet") L.sujet = v;
+                                          else L.responsable = v;
+                                          lines[idx] = L;
+                                          sc.tableauLignes = lines;
+                                          ps[d.siteActifId] = sc;
+                                          return { ...d, parSite: ps };
+                                        });
+                                      }}
+                                    />
+                                  ) : (
+                                    <textarea
+                                      className={styles.tableTextarea}
+                                      value={ligne.extra[c.id] ?? ""}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        majDraft((d) => {
+                                          const ps = { ...d.parSite };
+                                          const sc = { ...ps[d.siteActifId]! };
+                                          const lines = [...sc.tableauLignes];
+                                          if (idx < 0) return d;
+                                          const L = { ...lines[idx]! };
+                                          L.extra = { ...L.extra, [c.id]: v };
                                           lines[idx] = L;
                                           sc.tableauLignes = lines;
                                           ps[d.siteActifId] = sc;
