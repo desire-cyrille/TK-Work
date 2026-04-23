@@ -147,6 +147,61 @@
   outline-offset: 1px;
 }
 
+.dropZone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.55);
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.dropZoneActive {
+  border-color: rgba(255, 65, 108, 0.65);
+  background: rgba(255, 65, 108, 0.08);
+}
+
+.dropZoneRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+}
+
+.dropHint {
+  font-size: 0.82rem;
+  color: var(--workspace-muted);
+  margin: 0;
+}
+
+.thumb {
+  width: 140px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border-on-light);
+  background: var(--surface-elevated);
+}
+
+.btnSmall {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-on-light);
+  background: var(--surface-elevated);
+  color: var(--workspace-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.btnSmall:hover {
+  filter: brightness(1.03);
+}
+
 select option {
   background: var(--surface);
   color: var(--workspace-text);

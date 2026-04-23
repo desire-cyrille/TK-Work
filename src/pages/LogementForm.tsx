@@ -1,7 +1,8 @@
-import { FormEvent, type ReactNode, useState } from "react";
+import { DragEvent, FormEvent, type ReactNode, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import frameStyles from "../components/PageFrame.module.css";
 import { useBiens } from "../context/BiensContext";
+import { importerImageEnDataUrl } from "../lib/rapportImageImport";
 import {
   TYPES_BIEN,
   type Logement,
@@ -49,9 +50,28 @@ export function LogementForm({
   const { bailleurs, addLogement, updateLogement } = useBiens();
   const [bailleurId, setBailleurId] = useState(initialBailleurId);
   const [fields, setFields] = useState(initialFields);
+  const [dropActive, setDropActive] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   function set<K extends keyof typeof fields>(key: K, value: (typeof fields)[K]) {
     setFields((f) => ({ ...f, [key]: value }));
+  }
+
+  async function handleImageFile(file: File) {
+    const r = await importerImageEnDataUrl(file, { maxEdge: 1600, jpegQuality: 0.82 });
+    if (!r.ok) {
+      window.alert(r.message);
+      return;
+    }
+    set("imageUrl", r.dataUrl);
+  }
+
+  function onDropImage(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropActive(false);
+    const f = e.dataTransfer?.files?.[0];
+    if (f) void handleImageFile(f);
   }
 
   function onSubmit(e: FormEvent) {
@@ -160,14 +180,70 @@ export function LogementForm({
             />
           </label>
           <label className={styles.field}>
-            <span className={styles.label}>Photo du bien (URL)</span>
-            <input
-              className={styles.input}
-              type="url"
-              value={fields.imageUrl}
-              onChange={(e) => set("imageUrl", e.target.value)}
-              placeholder="https://… (optionnel, affichée sur la grille)"
-            />
+            <span className={styles.label}>Photo du bien</span>
+            <div
+              className={`${styles.dropZone} ${dropActive ? styles.dropZoneActive : ""}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDropActive(true);
+              }}
+              onDragLeave={() => setDropActive(false)}
+              onDrop={onDropImage}
+              role="group"
+              aria-label="Zone de dépôt d'image du logement"
+            >
+              <div className={styles.dropZoneRow}>
+                {fields.imageUrl?.startsWith("data:image/") ? (
+                  <img src={fields.imageUrl} alt="Aperçu photo du bien" className={styles.thumb} />
+                ) : null}
+                <div style={{ flex: "1 1 16rem", minWidth: 0 }}>
+                  <p className={styles.dropHint}>
+                    Glissez-déposez une image ici, ou cliquez sur « Choisir une image ».
+                  </p>
+                  <div className={styles.dropZoneRow}>
+                    <button
+                      type="button"
+                      className={styles.btnSmall}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      Choisir une image
+                    </button>
+                    {fields.imageUrl ? (
+                      <button
+                        type="button"
+                        className={styles.btnSmall}
+                        onClick={() => set("imageUrl", "")}
+                      >
+                        Retirer
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void handleImageFile(f);
+                }}
+              />
+              <div className={styles.dropZoneRow} style={{ gap: "0.4rem 0.75rem" }}>
+                <span className={styles.dropHint} style={{ margin: 0 }}>
+                  Ou collez une URL (optionnel) :
+                </span>
+                <input
+                  className={styles.input}
+                  type="url"
+                  value={fields.imageUrl?.startsWith("data:image/") ? "" : fields.imageUrl}
+                  onChange={(e) => set("imageUrl", e.target.value)}
+                  placeholder="https://…"
+                />
+              </div>
+            </div>
           </label>
           <label className={styles.field}>
             <span className={styles.label}>Statut</span>
