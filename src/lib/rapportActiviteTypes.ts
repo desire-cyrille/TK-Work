@@ -206,7 +206,6 @@ export function appliquerTexteDomaineVersTableau(
     ...sc.domainesTexte,
     [domId]: { ...prevBloc, texte },
   };
-  const labelDom = domaines.find((d) => d.id === domId)?.label ?? "";
   const infos = normalizeInfosFromBloc(domainesTexte[domId]);
 
   const all = [...sc.tableauLignes];
@@ -223,11 +222,9 @@ export function appliquerTexteDomaineVersTableau(
       ? { ...autos[i]! }
       : { ...nouvelleLigneTableau(domaines), domaineId: domId };
     base.observation = info;
-    if (i === 0) {
-      if (!base.sujet.trim() && labelDom) base.sujet = labelDom;
-    } else {
-      if (base.sujet.trim() === labelDom) base.sujet = "";
-    }
+    // Un bloc = une ligne : le sujet reprend le texte du bloc.
+    // (Le domaine est déjà visible dans la colonne Domaine.)
+    base.sujet = info;
     base.extra = {
       ...base.extra,
       [AUTO_FROM_DOMAINE_KEY]: domId,
