@@ -185,7 +185,12 @@ export function genererRapportActivitePdfBlob(
     for (const d of projet.domaines) {
       if (!domaineSiteNonVide(contenu, d.id)) continue;
       const bloc = contenu?.domainesTexte[d.id];
-      const txt = (bloc?.texte ?? "").trim();
+      const infos =
+        bloc?.infos && Array.isArray(bloc.infos) && bloc.infos.length
+          ? bloc.infos.map((x) => String(x ?? "")).filter((x) => x.trim().length > 0)
+          : (bloc?.texte ?? "").trim()
+            ? String(bloc?.texte ?? "").trim().split(/\n\s*\n+/g)
+            : [];
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(50, 50, 60);
@@ -193,13 +198,19 @@ export function genererRapportActivitePdfBlob(
       y += 6;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9.5);
-      if (txt) {
-        const lines = doc.splitTextToSize(txt, W - 2 * M) as string[];
-        doc.text(lines, M, y);
-        y += lines.length * 4.2 + 2;
-      } else {
-        y += 1;
-      }
+      if (infos.length) {
+        for (const info of infos) {
+          const txt = String(info ?? "").trim();
+          if (!txt) continue;
+          const lines = doc.splitTextToSize(`• ${txt}`, W - 2 * M) as string[];
+          doc.text(lines, M, y);
+          y += lines.length * 4.2 + 1.5;
+          if (y > pageH - 30) {
+            doc.addPage();
+            y = M + 6;
+          }
+        }
+      } else y += 1;
       for (const ph of bloc?.photos ?? []) {
         if (y > pageH - 40) {
           doc.addPage();

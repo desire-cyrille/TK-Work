@@ -45,7 +45,10 @@ export const DEFAULT_COLONNES: RapportColonneTableau[] = [
 ];
 
 export type DomaineContenuRapport = {
-  texte: string;
+  /** Nouvelle structure (préférée): un bloc = une information distincte. */
+  infos?: string[];
+  /** Compat ancienne structure (textarea unique). */
+  texte?: string;
   photos: string[];
 };
 
@@ -127,7 +130,7 @@ export function domainesVidesContenu(
   domaines: RapportDomaineDef[],
 ): Record<string, DomaineContenuRapport> {
   return Object.fromEntries(
-    domaines.map((d) => [d.id, { texte: "", photos: [] }]),
+    domaines.map((d) => [d.id, { infos: [], texte: "", photos: [] }]),
   ) as Record<string, DomaineContenuRapport>;
 }
 
@@ -172,6 +175,16 @@ function splitInfosDomaine(texte: string): string[] {
   return [raw];
 }
 
+function normalizeInfosFromBloc(bloc: DomaineContenuRapport | undefined): string[] {
+  const infos =
+    bloc?.infos && Array.isArray(bloc.infos)
+      ? bloc.infos.map((x) => String(x ?? "")).filter((x) => x.trim().length > 0)
+      : [];
+  if (infos.length) return infos.slice(0, 80);
+  const legacy = String(bloc?.texte ?? "").trim();
+  return legacy ? splitInfosDomaine(legacy).slice(0, 80) : [];
+}
+
 function isAutoLineFromDomaine(l: TableauLigneRapport, domId: string): boolean {
   return String(l.extra?.[AUTO_FROM_DOMAINE_KEY] ?? "") === domId;
 }
@@ -188,13 +201,13 @@ export function appliquerTexteDomaineVersTableau(
   domId: string,
   texte: string,
 ): SiteContenuRapport {
-  const prevBloc = sc.domainesTexte[domId] ?? { texte: "", photos: [] };
+  const prevBloc = sc.domainesTexte[domId] ?? { infos: [], texte: "", photos: [] };
   const domainesTexte = {
     ...sc.domainesTexte,
     [domId]: { ...prevBloc, texte },
   };
   const labelDom = domaines.find((d) => d.id === domId)?.label ?? "";
-  const infos = splitInfosDomaine(texte);
+  const infos = normalizeInfosFromBloc(domainesTexte[domId]);
 
   const all = [...sc.tableauLignes];
   const manual = all.filter((l) => !(l.domaineId === domId && isAutoLineFromDomaine(l, domId)));
@@ -233,8 +246,9 @@ export function synchroniserTableauAvecTousLesDomaines(
 ): SiteContenuRapport {
   let out = { ...sc };
   for (const dom of domaines) {
-    const texte = out.domainesTexte[dom.id]?.texte ?? "";
-    out = appliquerTexteDomaineVersTableau(out, domaines, dom.id, texte);
+    const bloc = out.domainesTexte[dom.id];
+    const legacy = String(bloc?.texte ?? "");
+    out = appliquerTexteDomaineVersTableau(out, domaines, dom.id, legacy);
   }
   return out;
 }
@@ -246,7 +260,8 @@ export function domaineSiteNonVide(
 ): boolean {
   if (!sc) return false;
   const b = sc.domainesTexte[domaineId];
-  return Boolean((b?.texte ?? "").trim() || (b?.photos?.length ?? 0) > 0);
+  const infos = normalizeInfosFromBloc(b);
+  return Boolean(infos.some((x) => x.trim()) || (b?.photos?.length ?? 0) > 0);
 }
 
 /**

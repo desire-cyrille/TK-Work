@@ -21,17 +21,23 @@ function fichesValidesTriees(
 }
 
 function fusionnerTexteDomaines(
-  a: Record<string, { texte: string; photos: string[] }>,
-  b: Record<string, { texte: string; photos: string[] }>,
-): Record<string, { texte: string; photos: string[] }> {
+  a: Record<string, { texte?: string; infos?: string[]; photos: string[] }>,
+  b: Record<string, { texte?: string; infos?: string[]; photos: string[] }>,
+): Record<string, { texte?: string; infos?: string[]; photos: string[] }> {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  const out: Record<string, { texte: string; photos: string[] }> = {};
+  const out: Record<string, { texte?: string; infos?: string[]; photos: string[] }> = {};
   for (const k of keys) {
     const ta = (a[k]?.texte ?? "").trim();
     const tb = (b[k]?.texte ?? "").trim();
     const texte = [ta, tb].filter(Boolean).join("\n\n—\n\n");
+    const infos = [
+      ...((Array.isArray(a[k]?.infos) ? a[k]!.infos! : []) as string[]),
+      ...((Array.isArray(b[k]?.infos) ? b[k]!.infos! : []) as string[]),
+    ]
+      .map((x) => String(x ?? "").trim())
+      .filter(Boolean);
     const photos = [...(a[k]?.photos ?? []), ...(b[k]?.photos ?? [])];
-    out[k] = { texte, photos };
+    out[k] = { texte, infos: infos.length ? infos : undefined, photos };
   }
   return out;
 }

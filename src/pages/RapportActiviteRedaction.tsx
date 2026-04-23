@@ -680,33 +680,105 @@ export function RapportActiviteRedaction() {
                   </p>
                   {projet.domaines.map((dom) => {
                     const bloc = siteBloc.domainesTexte[dom.id] ?? {
+                      infos: [],
                       texte: "",
                       photos: [],
                     };
+                    const infos =
+                      Array.isArray(bloc.infos) && bloc.infos.length
+                        ? bloc.infos
+                        : bloc.texte?.trim()
+                          ? [bloc.texte]
+                          : [""];
                     return (
                       <div key={dom.id} style={{ marginBottom: "1.25rem" }}>
                         <strong>{dom.label}</strong>
-                        <textarea
-                          className={styles.textarea}
-                          style={{ width: "100%", marginTop: "0.35rem" }}
-                          value={bloc.texte}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            majDraft((d) => {
-                              const ps = { ...d.parSite };
-                              const sid = d.siteActifId;
-                              const sc = ps[sid];
-                              if (!sc) return d;
-                              ps[sid] = appliquerTexteDomaineVersTableau(
-                                sc,
-                                projetCourant.domaines,
-                                dom.id,
-                                v,
-                              );
-                              return { ...d, parSite: ps };
-                            });
-                          }}
-                        />
+                        {infos.map((val, infoIdx) => (
+                          <textarea
+                            key={`${dom.id}_${infoIdx}`}
+                            className={styles.textarea}
+                            style={{ width: "100%", marginTop: infoIdx === 0 ? "0.35rem" : "0.55rem" }}
+                            value={val}
+                            placeholder={
+                              infoIdx === 0
+                                ? "Information…"
+                                : `Information ${infoIdx + 1}…`
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              majDraft((d) => {
+                                const ps = { ...d.parSite };
+                                const sid = d.siteActifId;
+                                const sc = ps[sid];
+                                if (!sc) return d;
+                                const sc2 = { ...sc };
+                                const prev = sc2.domainesTexte[dom.id] ?? {
+                                  infos: [],
+                                  texte: "",
+                                  photos: [],
+                                };
+                                const nextInfos = Array.isArray(prev.infos)
+                                  ? [...prev.infos]
+                                  : infos.slice();
+                                nextInfos[infoIdx] = v;
+                                sc2.domainesTexte = {
+                                  ...sc2.domainesTexte,
+                                  [dom.id]: {
+                                    ...prev,
+                                    infos: nextInfos,
+                                    texte: nextInfos.filter((x) => String(x ?? "").trim()).join("\n\n"),
+                                  },
+                                };
+                                ps[sid] = appliquerTexteDomaineVersTableau(
+                                  sc2,
+                                  projetCourant.domaines,
+                                  dom.id,
+                                  sc2.domainesTexte[dom.id]?.texte ?? "",
+                                );
+                                return { ...d, parSite: ps };
+                              });
+                            }}
+                          />
+                        ))}
+                        <div className={styles.btnRow} style={{ marginTop: "0.5rem" }}>
+                          <button
+                            type="button"
+                            className={styles.btn}
+                            onClick={() =>
+                              majDraft((d) => {
+                                const ps = { ...d.parSite };
+                                const sid = d.siteActifId;
+                                const sc = ps[sid];
+                                if (!sc) return d;
+                                const sc2 = { ...sc };
+                                const prev = sc2.domainesTexte[dom.id] ?? {
+                                  infos: [],
+                                  texte: "",
+                                  photos: [],
+                                };
+                                const nextInfos = Array.isArray(prev.infos) ? [...prev.infos] : infos.slice();
+                                nextInfos.push("");
+                                sc2.domainesTexte = {
+                                  ...sc2.domainesTexte,
+                                  [dom.id]: {
+                                    ...prev,
+                                    infos: nextInfos,
+                                    texte: nextInfos.filter((x) => String(x ?? "").trim()).join("\n\n"),
+                                  },
+                                };
+                                ps[sid] = appliquerTexteDomaineVersTableau(
+                                  sc2,
+                                  projetCourant.domaines,
+                                  dom.id,
+                                  sc2.domainesTexte[dom.id]?.texte ?? "",
+                                );
+                                return { ...d, parSite: ps };
+                              })
+                            }
+                          >
+                            Nouvelle information
+                          </button>
+                        </div>
                         <div className={styles.btnRow}>
                           <input
                             type="file"
@@ -734,6 +806,7 @@ export function RapportActiviteRedaction() {
                                 sc.domainesTexte = {
                                   ...sc.domainesTexte,
                                   [domId]: {
+                                    infos: sc.domainesTexte[domId]?.infos ?? [],
                                     texte: sc.domainesTexte[domId]?.texte ?? "",
                                     photos,
                                   },
