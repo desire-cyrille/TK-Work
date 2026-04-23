@@ -191,6 +191,25 @@
   padding: 0;
 }
 
+.etatSqActive {
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+}
+
+.tableTextarea {
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #3d3d48);
+  background: var(--surface-elevated, #2e2e2e);
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  width: 100%;
+  min-height: 2.4rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
 .listRapports {
   list-style: none;
   margin: 0;

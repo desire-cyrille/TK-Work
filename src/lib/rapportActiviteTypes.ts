@@ -147,6 +147,40 @@ export function nouvelleLigneTableau(
   };
 }
 
+const AUTO_FROM_DOMAINE_KEY = "__auto_from_domaine";
+const AUTO_FROM_DOMAINE_INDEX_KEY = "__auto_from_domaine_idx";
+
+function splitInfosDomaine(texte: string): string[] {
+  const raw = String(texte ?? "").replace(/\r\n/g, "\n").trim();
+  if (!raw) return [];
+
+  // Si l’utilisateur sépare ses infos par lignes vides, on découpe en blocs.
+  const blocks = raw
+    .split(/\n\s*\n+/g)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (blocks.length >= 2) return blocks.slice(0, 60);
+
+  // Sinon, si ça ressemble à une liste (ex: "- ..."), on découpe par ligne non vide.
+  const nonEmptyLines = raw
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const bulletLike = nonEmptyLines.filter((l) => /^[-•*]\s+/.test(l)).length;
+  if (bulletLike >= 2) return nonEmptyLines.slice(0, 60);
+
+  return [raw];
+}
+
+function isAutoLineFromDomaine(l: TableauLigneRapport, domId: string): boolean {
+  return String(l.extra?.[AUTO_FROM_DOMAINE_KEY] ?? "") === domId;
+}
+
+function autoIdx(l: TableauLigneRapport): number {
+  const n = Number(l.extra?.[AUTO_FROM_DOMAINE_INDEX_KEY] ?? "0");
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** Après saisie dans un domaine : recopie le texte vers la 1re ligne du tableau ayant ce domaine (sinon nouvelle ligne). */
 export function appliquerTexteDomaineVersTableau(
   sc: SiteContenuRapport,
@@ -159,24 +193,37 @@ export function appliquerTexteDomaineVersTableau(
     ...sc.domainesTexte,
     [domId]: { ...prevBloc, texte },
   };
-  const lines = [...sc.tableauLignes];
-  const idx = lines.findIndex((l) => l.domaineId === domId);
   const labelDom = domaines.find((d) => d.id === domId)?.label ?? "";
-  if (idx >= 0) {
-    const L = { ...lines[idx]! };
-    L.observation = texte;
-    if (!L.sujet.trim() && labelDom) L.sujet = labelDom;
-    lines[idx] = L;
-  } else {
-    const nl = nouvelleLigneTableau(domaines);
-    lines.push({
-      ...nl,
-      domaineId: domId,
-      sujet: labelDom,
-      observation: texte,
-    });
+  const infos = splitInfosDomaine(texte);
+
+  const all = [...sc.tableauLignes];
+  const manual = all.filter((l) => !(l.domaineId === domId && isAutoLineFromDomaine(l, domId)));
+  const autos = all
+    .filter((l) => l.domaineId === domId && isAutoLineFromDomaine(l, domId))
+    .slice()
+    .sort((a, b) => autoIdx(a) - autoIdx(b));
+
+  const nextAutos: TableauLigneRapport[] = [];
+  for (let i = 0; i < infos.length; i += 1) {
+    const info = infos[i]!;
+    const base = autos[i]
+      ? { ...autos[i]! }
+      : { ...nouvelleLigneTableau(domaines), domaineId: domId };
+    base.observation = info;
+    if (i === 0) {
+      if (!base.sujet.trim() && labelDom) base.sujet = labelDom;
+    } else {
+      if (base.sujet.trim() === labelDom) base.sujet = "";
+    }
+    base.extra = {
+      ...base.extra,
+      [AUTO_FROM_DOMAINE_KEY]: domId,
+      [AUTO_FROM_DOMAINE_INDEX_KEY]: String(i),
+    };
+    nextAutos.push(base);
   }
-  return { ...sc, domainesTexte, tableauLignes: lines };
+
+  return { ...sc, domainesTexte, tableauLignes: [...manual, ...nextAutos] };
 }
 
 /** Pour chaque domaine : met à jour la 1re ligne associée (observation = texte domaine) ou ajoute une ligne. */
@@ -184,26 +231,12 @@ export function synchroniserTableauAvecTousLesDomaines(
   sc: SiteContenuRapport,
   domaines: RapportDomaineDef[],
 ): SiteContenuRapport {
-  const lines = [...sc.tableauLignes];
+  let out = { ...sc };
   for (const dom of domaines) {
-    const texte = sc.domainesTexte[dom.id]?.texte ?? "";
-    const idx = lines.findIndex((l) => l.domaineId === dom.id);
-    if (idx >= 0) {
-      const L = { ...lines[idx]! };
-      L.observation = texte;
-      if (!L.sujet.trim()) L.sujet = dom.label;
-      lines[idx] = L;
-    } else {
-      const nl = nouvelleLigneTableau(domaines);
-      lines.push({
-        ...nl,
-        domaineId: dom.id,
-        sujet: dom.label,
-        observation: texte,
-      });
-    }
+    const texte = out.domainesTexte[dom.id]?.texte ?? "";
+    out = appliquerTexteDomaineVersTableau(out, domaines, dom.id, texte);
   }
-  return { ...sc, tableauLignes: lines };
+  return out;
 }
 
 /** Domaine avec au moins un texte non vide ou une photo (même critère que l’export PDF). */

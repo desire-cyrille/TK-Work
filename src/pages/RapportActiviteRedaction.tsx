@@ -24,6 +24,7 @@ import {
   sauvegarderProjetRapportActivite,
   supprimerRapportFiche,
 } from "../lib/rapportActiviteStorage";
+const FLUSH_BEFORE_CLOUD_PUSH_EVENT = "tk-gestion-flush-before-cloud-push";
 import {
   appliquerTexteDomaineVersTableau,
   COL_ETAT_ID,
@@ -180,6 +181,21 @@ export function RapportActiviteRedaction() {
     };
     window.addEventListener("beforeunload", flush);
     return () => window.removeEventListener("beforeunload", flush);
+  }, [projetId]);
+
+  useEffect(() => {
+    const flush = () => {
+      const b = draftRef.current;
+      const pid = projetId.trim();
+      if (!b || !pid) return;
+      try {
+        sauvegarderBrouillonProjet(pid, clone(b));
+      } catch {
+        /* quota ou navigateur */
+      }
+    };
+    window.addEventListener(FLUSH_BEFORE_CLOUD_PUSH_EVENT, flush);
+    return () => window.removeEventListener(FLUSH_BEFORE_CLOUD_PUSH_EVENT, flush);
   }, [projetId]);
 
   const fermerApercuPdf = useCallback(() => {
@@ -847,8 +863,13 @@ export function RapportActiviteRedaction() {
                                         <button
                                           key={ev}
                                           type="button"
-                                          className={styles.etatSq}
+                                          className={
+                                            ligne.etat === ev
+                                              ? `${styles.etatSq} ${styles.etatSqActive}`
+                                              : styles.etatSq
+                                          }
                                           title={ev}
+                                          aria-pressed={ligne.etat === ev}
                                           style={{
                                             background:
                                               ev === "vert"
@@ -883,40 +904,57 @@ export function RapportActiviteRedaction() {
                                     )}
                                   </div>
                                 ) : (
-                                  <input
-                                    className={styles.input}
-                                    style={{ width: "100%" }}
-                                    value={
-                                      c.id === "sujet"
-                                        ? ligne.sujet
-                                        : c.id === "responsable"
-                                          ? ligne.responsable
-                                          : c.id === "observation"
-                                            ? ligne.observation
-                                            : c.id === "relances"
-                                              ? ligne.relances
-                                              : ligne.extra[c.id] ?? ""
-                                    }
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      majDraft((d) => {
-                                        const ps = { ...d.parSite };
-                                        const sc = { ...ps[d.siteActifId]! };
-                                        const lines = [...sc.tableauLignes];
-                                        if (idx < 0) return d;
-                                        const L = { ...lines[idx]! };
-                                        if (c.id === "sujet") L.sujet = v;
-                                        else if (c.id === "responsable") L.responsable = v;
-                                        else if (c.id === "observation") L.observation = v;
-                                        else if (c.id === "relances") L.relances = v;
-                                        else L.extra = { ...L.extra, [c.id]: v };
-                                        lines[idx] = L;
-                                        sc.tableauLignes = lines;
-                                        ps[d.siteActifId] = sc;
-                                        return { ...d, parSite: ps };
-                                      });
-                                    }}
-                                  />
+                                  c.id === "observation" || c.id === "relances" ? (
+                                    <textarea
+                                      className={styles.tableTextarea}
+                                      value={c.id === "observation" ? ligne.observation : ligne.relances}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        majDraft((d) => {
+                                          const ps = { ...d.parSite };
+                                          const sc = { ...ps[d.siteActifId]! };
+                                          const lines = [...sc.tableauLignes];
+                                          if (idx < 0) return d;
+                                          const L = { ...lines[idx]! };
+                                          if (c.id === "observation") L.observation = v;
+                                          else L.relances = v;
+                                          lines[idx] = L;
+                                          sc.tableauLignes = lines;
+                                          ps[d.siteActifId] = sc;
+                                          return { ...d, parSite: ps };
+                                        });
+                                      }}
+                                    />
+                                  ) : (
+                                    <input
+                                      className={styles.input}
+                                      style={{ width: "100%" }}
+                                      value={
+                                        c.id === "sujet"
+                                          ? ligne.sujet
+                                          : c.id === "responsable"
+                                            ? ligne.responsable
+                                            : ligne.extra[c.id] ?? ""
+                                      }
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        majDraft((d) => {
+                                          const ps = { ...d.parSite };
+                                          const sc = { ...ps[d.siteActifId]! };
+                                          const lines = [...sc.tableauLignes];
+                                          if (idx < 0) return d;
+                                          const L = { ...lines[idx]! };
+                                          if (c.id === "sujet") L.sujet = v;
+                                          else if (c.id === "responsable") L.responsable = v;
+                                          else L.extra = { ...L.extra, [c.id]: v };
+                                          lines[idx] = L;
+                                          sc.tableauLignes = lines;
+                                          ps[d.siteActifId] = sc;
+                                          return { ...d, parSite: ps };
+                                        });
+                                      }}
+                                    />
+                                  )
                                 )}
                               </td>
                             ))}

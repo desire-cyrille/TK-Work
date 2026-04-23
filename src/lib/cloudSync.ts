@@ -13,6 +13,7 @@ import {
 const LEGACY_CLOUD_TOKEN = "tk_gestion_cloud_token";
 const LEGACY_CLOUD_EMAIL = "tk_gestion_cloud_email";
 const AUTOBACKUP_BEFORE_PULL_KEY = "tk-gestion-autobackup-before-cloudpull-v1";
+const FLUSH_BEFORE_CLOUD_PUSH_EVENT = "tk-gestion-flush-before-cloud-push";
 
 function isAuthOrSessionKey(key: string): boolean {
   return (
@@ -214,6 +215,13 @@ export async function cloudPush(): Promise<
   { ok: true } | { ok: false; error: string }
 > {
   const token = getAuthToken();
+  // Avant de lire localStorage, laisser les écrans en cours (rapport, devis, etc.)
+  // forcer l’écriture immédiate de leurs brouillons (anti perte sur clic rapide).
+  try {
+    window.dispatchEvent(new Event(FLUSH_BEFORE_CLOUD_PUSH_EVENT));
+  } catch {
+    /* ignore */
+  }
   const entries = collectEntriesForCloudPush();
   const headers: HeadersInit = token
     ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }

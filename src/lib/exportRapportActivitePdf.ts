@@ -87,6 +87,10 @@ function drawEtatCarre(doc: jsPDF, x: number, y: number, etat: string) {
   }
 }
 
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
 export function genererRapportActivitePdfBlob(
   projet: RapportActiviteProjet,
   b: RapportBrouillonState,
@@ -214,6 +218,15 @@ export function genererRapportActivitePdfBlob(
       contenu ? ligneTableauSuiviVisible(contenu, ligne) : false,
     );
     if (lignesTab.length > 0) {
+      // Si l’espace restant est trop faible, mettre le tableau sur une page dédiée.
+      if (y > pageH - 90) {
+        doc.addPage();
+        y = M + 6;
+      } else if (y > pageH * 0.6 && lignesTab.length >= 6) {
+        doc.addPage();
+        y = M + 6;
+      }
+
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.text("Tableau de suivi", M, y);
@@ -221,42 +234,87 @@ export function genererRapportActivitePdfBlob(
       doc.setFontSize(8);
       const cols = projet.colonnesTableau;
       const colW = (W - 2 * M) / Math.max(cols.length, 1);
-      let x0 = M;
-      for (const c of cols) {
-        doc.setFont("helvetica", "bold");
-        doc.text(c.label.slice(0, 18), x0 + 1, y);
-        x0 += colW;
-      }
-      y += 5;
-      for (const ligne of lignesTab) {
-        if (y > pageH - 20) {
-          doc.addPage();
-          y = M + 6;
-        }
-        x0 = M;
+      const padX = 1.2;
+      const padY = 1.2;
+      const lineH = 3.6;
+      const headerH = 7.5;
+
+      function drawHeader() {
+        doc.setDrawColor(180);
+        doc.setLineWidth(0.2);
+        doc.setFillColor(245, 245, 248);
+        doc.rect(M, y, W - 2 * M, headerH, "F");
+        let x0 = M;
         for (const c of cols) {
-          doc.setFont("helvetica", "normal");
-          let cell = "";
-          if (c.id === "domaine") {
-            cell =
-              projet.domaines.find((d) => d.id === ligne.domaineId)?.label ?? "";
-          } else if (c.id === "sujet") cell = ligne.sujet;
-          else if (c.id === "responsable") cell = ligne.responsable;
-          else if (c.id === "etat") {
-            drawEtatCarre(doc, x0 + 1, y - 2.5, ligne.etat);
-            x0 += colW;
-            continue;
-          } else if (c.id === "observation") cell = ligne.observation;
-          else if (c.id === "relances") cell = ligne.relances;
-          else cell = ligne.extra[c.id] ?? "";
-          const lines = doc.splitTextToSize(
-            String(cell).slice(0, 400),
-            colW - 2,
-          ) as string[];
-          doc.text(lines, x0 + 1, y);
+          doc.rect(x0, y, colW, headerH, "S");
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 30, 40);
+          const lab = doc.splitTextToSize(String(c.label).slice(0, 60), colW - 2 * padX) as string[];
+          doc.text(lab.slice(0, 2), x0 + padX, y + padY + 2.6);
           x0 += colW;
         }
-        y += 12;
+        y += headerH;
+      }
+
+      function pageBreakIfNeeded(nextH: number) {
+        if (y + nextH <= pageH - 16) return;
+        doc.addPage();
+        y = M + 6;
+        drawHeader();
+      }
+
+      drawHeader();
+
+      for (const ligne of lignesTab) {
+        // Préparer le contenu de chaque cellule pour calculer la hauteur.
+        const cellLinesByCol: (string[] | null)[] = [];
+        for (const c of cols) {
+          if (c.id === "etat") {
+            cellLinesByCol.push(null);
+            continue;
+          }
+          let cell = "";
+          if (c.id === "domaine") {
+            cell = projet.domaines.find((d) => d.id === ligne.domaineId)?.label ?? "";
+          } else if (c.id === "sujet") cell = ligne.sujet;
+          else if (c.id === "responsable") cell = ligne.responsable;
+          else if (c.id === "observation") cell = ligne.observation;
+          else if (c.id === "relances") cell = ligne.relances;
+          else cell = ligne.extra[c.id] ?? "";
+          const lines = doc.splitTextToSize(String(cell).slice(0, 2000), colW - 2 * padX) as string[];
+          cellLinesByCol.push(lines.length ? lines : [" "]);
+        }
+
+        const maxLines = clamp(
+          Math.max(
+            1,
+            ...cellLinesByCol.map((x) => (x ? x.length : 1)),
+          ),
+          1,
+          12,
+        );
+        const rowH = Math.max(8, padY * 2 + maxLines * lineH);
+        pageBreakIfNeeded(rowH);
+
+        let x0 = M;
+        doc.setDrawColor(200);
+        doc.setLineWidth(0.2);
+        doc.setTextColor(20, 20, 25);
+        doc.setFont("helvetica", "normal");
+
+        for (let ci = 0; ci < cols.length; ci += 1) {
+          const c = cols[ci]!;
+          doc.rect(x0, y, colW, rowH, "S");
+          if (c.id === "etat") {
+            drawEtatCarre(doc, x0 + padX, y + 2.2, ligne.etat);
+          } else {
+            const lines = cellLinesByCol[ci] ?? [" "];
+            const shown = (lines ?? []).slice(0, 12);
+            doc.text(shown, x0 + padX, y + padY + 2.6);
+          }
+          x0 += colW;
+        }
+        y += rowH;
       }
     }
     drawFooter(doc, projet.piedPagePdf, pageH);
