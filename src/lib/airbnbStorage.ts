@@ -287,17 +287,20 @@ export function lineTotalFacture(l: AirbnbVentilationLine): number {
 export function computeVentilationMonthTotals(v: AirbnbMonthVentilation): {
   benefices: number;
   revenus: number;
+  deductions: number;
 } {
   let benefices = 0;
   let revenus = 0;
+  let deductions = 0;
   for (const { id } of AIRBNB_LISTINGS) {
     if (!airbnbListingIsActiveInMonth(id, v.month)) continue;
     for (const row of v.listings[id]) {
       benefices += lineBenefice(row);
       revenus += lineTotalFacture(row);
+      deductions += parseRaw(row.deduction);
     }
   }
-  return { benefices, revenus };
+  return { benefices, revenus, deductions };
 }
 
 /** Une saisie est « réelle » si au moins un montant ou libellé est renseigné */

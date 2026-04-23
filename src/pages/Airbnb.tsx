@@ -429,6 +429,23 @@ export function Airbnb() {
     );
   }, [selectedMonth]);
 
+  // Sauvegarde automatique (brouillon) de la ventilation pendant la saisie,
+  // pour permettre de reprendre plus tard sans cliquer « Enregistrer ».
+  useEffect(() => {
+    if (tab !== "ventilation") return;
+    const t = setTimeout(() => {
+      const toSave = cloneMonthVentilation(draft);
+      setStore((s) => {
+        const i = s.ventilations.findIndex((v) => v.month === toSave.month);
+        const vent = [...s.ventilations];
+        if (i === -1) vent.push(toSave);
+        else vent[i] = toSave;
+        return { ...s, ventilations: vent };
+      });
+    }, 650);
+    return () => clearTimeout(t);
+  }, [tab, draft]);
+
   const merged = useMemo(() => buildMergedSynthese(store), [store]);
 
   /** Plus récent en premier (synthèse : tableau + graphique). */
@@ -844,6 +861,14 @@ export function Airbnb() {
                   </strong>
                   <strong className={styles.monthTotalFigure}>
                     {eur(monthVentilationTotals.revenus)}
+                  </strong>
+                </div>
+                <div className={styles.monthTotalCell}>
+                  <strong className={styles.monthTotalEmphasis}>
+                    Total déductions
+                  </strong>
+                  <strong className={styles.monthTotalFigure}>
+                    {eur(monthVentilationTotals.deductions)}
                   </strong>
                 </div>
                 <div className={styles.monthTotalCell}>
