@@ -936,13 +936,10 @@ export function RapportActiviteRedaction() {
                                         <button
                                           key={ev}
                                           type="button"
-                                          className={
-                                            ligne.etat === ev
-                                              ? `${styles.etatSq} ${styles.etatSqActive}`
-                                              : styles.etatSq
-                                          }
+                                          className={styles.etatSq}
                                           title={ev}
                                           aria-pressed={ligne.etat === ev}
+                                          data-selected={ligne.etat === ev}
                                           style={{
                                             background:
                                               ev === "vert"
@@ -952,10 +949,6 @@ export function RapportActiviteRedaction() {
                                                   : ev === "orange"
                                                     ? "#ef6c00"
                                                     : "#212121",
-                                            outline:
-                                              ligne.etat === ev
-                                                ? "2px solid #fff"
-                                                : undefined,
                                           }}
                                           onClick={() =>
                                             majDraft((d) => {

@@ -191,9 +191,12 @@
   padding: 0;
 }
 
-.etatSqActive {
-  border-color: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+.etatSq[data-selected="true"] {
+  border-color: rgba(255, 255, 255, 0.98);
+  border-width: 2px;
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.55),
+    0 0 0 4px rgba(255, 255, 255, 0.22);
 }
 
 .tableTextarea {
