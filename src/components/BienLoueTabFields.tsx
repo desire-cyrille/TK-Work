@@ -21,7 +21,7 @@ import {
   formatValeurIrlFr,
 } from "../lib/irlInsee";
 import { nomCompletLocataire } from "../lib/locataireUi";
-import { parseEuro } from "../lib/money";
+import { formatEuro, montantTvaEuro, parseEuro } from "../lib/money";
 import { ratioProrataTemporisMoisCivils } from "../lib/prorataLoyer";
 import formStyles from "../pages/NouveauLogement.module.css";
 import styles from "./CreerLocationDialog.module.css";
@@ -133,6 +133,15 @@ export function BienLoueTabFields({
     if (b.getDate() < a.getDate()) months -= 1;
     return months >= 0 ? String(months) : "";
   }, [draft.dateDebut, draft.dateFin]);
+
+  const montantTvaLoyerHcAffiche = useMemo(
+    () => montantTvaEuro(parseEuro(draft.loyerHc), draft.loyerHcTva),
+    [draft.loyerHc, draft.loyerHcTva]
+  );
+  const montantTvaChargesAffiche = useMemo(
+    () => montantTvaEuro(parseEuro(draft.charges), draft.chargesTva),
+    [draft.charges, draft.chargesTva]
+  );
 
   function addAutrePaiement() {
     setDraft((d) => ({
@@ -563,13 +572,20 @@ export function BienLoueTabFields({
         </label>
         <label className={fs.field}>
           <span className={fs.label}>% TVA (loyer HC)</span>
-          <input
-            className={fs.input}
-            inputMode="decimal"
-            value={draft.loyerHcTva}
-            onChange={(e) => set("loyerHcTva", e.target.value)}
-            placeholder="ex. 0"
-          />
+          <div className={styles.tvaFieldRow}>
+            <input
+              className={fs.input}
+              inputMode="decimal"
+              value={draft.loyerHcTva}
+              onChange={(e) => set("loyerHcTva", e.target.value)}
+              placeholder="ex. 0"
+            />
+            {parseEuro(draft.loyerHcTva) > 0.005 ? (
+              <span className={styles.tvaMontantHint}>
+                = {formatEuro(montantTvaLoyerHcAffiche)}
+              </span>
+            ) : null}
+          </div>
         </label>
       </div>
       <div className={fs.grid2}>
@@ -584,13 +600,20 @@ export function BienLoueTabFields({
         </label>
         <label className={fs.field}>
           <span className={fs.label}>% TVA (charges)</span>
-          <input
-            className={fs.input}
-            inputMode="decimal"
-            value={draft.chargesTva}
-            onChange={(e) => set("chargesTva", e.target.value)}
-            placeholder="ex. 0"
-          />
+          <div className={styles.tvaFieldRow}>
+            <input
+              className={fs.input}
+              inputMode="decimal"
+              value={draft.chargesTva}
+              onChange={(e) => set("chargesTva", e.target.value)}
+              placeholder="ex. 0"
+            />
+            {parseEuro(draft.chargesTva) > 0.005 ? (
+              <span className={styles.tvaMontantHint}>
+                = {formatEuro(montantTvaChargesAffiche)}
+              </span>
+            ) : null}
+          </div>
         </label>
       </div>
       <div className={fs.field}>

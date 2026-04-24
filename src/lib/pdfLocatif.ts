@@ -10,6 +10,10 @@ import {
   type Logement,
 } from "../types/domain";
 import { nomCompletLocataire, ligneRepresentantLocataire } from "./locataireUi";
+import {
+  contratUtiliseSaisieTva,
+  tvaTotaleEuroSurLoyerEtCharges,
+} from "./loyerTvaContrat";
 import { formatEuro, parseEuro } from "./money";
 
 const BAIL_LIB: Record<string, string> = {
@@ -1307,10 +1311,14 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
 
   const hc = parseEuro(contrat.loyerHc);
   const charges = parseEuro(contrat.charges);
-  const ccRef = parseEuro(contrat.loyerChargesComprises);
-  const tvaHc = parseEuro(contrat.loyerHcTva);
-  const tvaCharges = parseEuro(contrat.chargesTva);
-  const tvaTot = tvaHc + tvaCharges;
+  const tvaSaisie = contratUtiliseSaisieTva(contrat);
+  const tvaTot = tvaTotaleEuroSurLoyerEtCharges(contrat);
+  const loyerTotalDetail = tvaSaisie
+    ? hc + charges + tvaTot
+    : parseEuro(contrat.loyerChargesComprises);
+  const libelleLoyerTotalDetail = tvaSaisie
+    ? "Loyer TTC (HC + charges + TVA)"
+    : "Loyer charges comprises (référence bail)";
   const rep = reportEntrant ?? 0;
   const frais = totalFraisMois ?? 0;
 
@@ -1336,16 +1344,16 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
   }
   if (tvaTot > 0.005) {
     detailContH +=
-      hauteurLigneLibelleMontant(doc, wLbl, "TVA (loyer / charges)", tvaTot) +
+      hauteurLigneLibelleMontant(doc, wLbl, "TVA (loyer + charges)", tvaTot) +
       traitExtra;
   }
-  if (ccRef > 0.005) {
+  if (loyerTotalDetail > 0.005) {
     detailContH +=
       hauteurLigneLibelleMontant(
         doc,
         wLbl,
-        "Loyer charges comprises (référence bail)",
-        ccRef
+        libelleLoyerTotalDetail,
+        loyerTotalDetail
       ) + traitExtra;
   }
   if (rep > 0.005) {
@@ -1435,19 +1443,19 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
       xLbl,
       yd,
       wLbl,
-      "TVA (loyer / charges)",
+      "TVA (loyer + charges)",
       tvaTot
     );
     traitLigneFin(yd);
   }
-  if (ccRef > 0.005) {
+  if (loyerTotalDetail > 0.005) {
     yd = ligneLibelleMontant(
       doc,
       xLbl,
       yd,
       wLbl,
-      "Loyer charges comprises (référence bail)",
-      ccRef
+      libelleLoyerTotalDetail,
+      loyerTotalDetail
     );
     traitLigneFin(yd);
   }

@@ -1,6 +1,10 @@
 import type { ContratLocation } from "../types/domain";
 import type { MoisFinanceContrat } from "../context/financeStorage";
-import { parseEuro } from "./money";
+import {
+  contratUtiliseSaisieTva,
+  loyerTtcDepuisHcChargesTva,
+} from "./loyerTvaContrat";
+import { montantTvaEuro, parseEuro } from "./money";
 
 export function moisCleDepuisDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -37,6 +41,9 @@ export function listeMoisPourContrat(c: ContratLocation): string[] {
 }
 
 export function baseLoyerMensuelContrat(c: ContratLocation): number {
+  if (contratUtiliseSaisieTva(c)) {
+    return loyerTtcDepuisHcChargesTva(c);
+  }
   return parseEuro(c.loyerChargesComprises);
 }
 
@@ -63,15 +70,15 @@ export function baseLoyerPourMoisContrat(
     const hc = parseEuro(c.premierLoyerHcCalcule);
     const ch = parseEuro(c.premierLoyerChargesCalcule);
     if (hc > 0.005 || ch > 0.005) {
-      const tvaHc = parseEuro(c.loyerHcTva);
-      const tvaCh = parseEuro(c.chargesTva);
       const loyerHcM = parseEuro(c.loyerHc);
       const chargesM = parseEuro(c.charges);
       const baseM = loyerHcM + chargesM;
       const prorat = hc + ch;
-      const tvaTot = tvaHc + tvaCh;
-      if (baseM > 0.005 && tvaTot > 0.005) {
-        return prorat + (tvaTot * prorat) / baseM;
+      const tvaTotEur =
+        montantTvaEuro(loyerHcM, c.loyerHcTva) +
+        montantTvaEuro(chargesM, c.chargesTva);
+      if (baseM > 0.005 && tvaTotEur > 0.005) {
+        return prorat + (tvaTotEur * prorat) / baseM;
       }
       return prorat;
     }

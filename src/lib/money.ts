@@ -3,6 +3,17 @@ export function parseEuro(raw: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Montant TVA (€) pour une base HT et un taux saisi en % (ex. « 20 » pour 20 %). */
+export function montantTvaEuro(
+  baseHt: number,
+  tauxPourcentBrut: string
+): number {
+  const base = Number.isFinite(baseHt) ? baseHt : 0;
+  const t = parseEuro(tauxPourcentBrut);
+  if (base <= 0 || t <= 0) return 0;
+  return base * (t / 100);
+}
+
 export function formatEuro(n: number): string {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
