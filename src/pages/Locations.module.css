@@ -17,6 +17,27 @@
   line-height: 1.6;
 }
 
+.groupes {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.groupeChaine {
+  margin: 0;
+}
+
+.groupeChaineTitle {
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--workspace-text);
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border-on-light);
+}
+
 .list {
   list-style: none;
   margin: 0;

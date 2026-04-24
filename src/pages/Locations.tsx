@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageFrame } from "../components/PageFrame";
 import { CreerLocationDialog } from "../components/CreerLocationDialog";
 import frameStyles from "../components/PageFrame.module.css";
@@ -32,6 +32,7 @@ function formatDate(iso: string) {
 export function Locations() {
   const {
     contratsLocation,
+    chainesLocation,
     getLogement,
     locataires,
     removeContratLocation,
@@ -70,6 +71,20 @@ export function Locations() {
     (a.dateDebut || "").localeCompare(b.dateDebut || "")
   );
 
+  const idsDansUneChaine = useMemo(() => {
+    const s = new Set<string>();
+    for (const ch of chainesLocation) {
+      if (ch.contratPrincipalId) s.add(ch.contratPrincipalId);
+      if (ch.contratSousLocataireId) s.add(ch.contratSousLocataireId);
+    }
+    return s;
+  }, [chainesLocation]);
+
+  const contratsHorsChaine = useMemo(
+    () => sorted.filter((c) => !idsDansUneChaine.has(c.id)),
+    [sorted, idsDansUneChaine]
+  );
+
   function handleDelete(c: ContratLocation) {
     const loc = locataires.find((l) => l.id === c.locataireId);
     const lib = loc ? nomCompletLocataire(loc) : "locataire inconnu";
@@ -81,6 +96,67 @@ export function Locations() {
     ) {
       removeContratLocation(c.id);
     }
+  }
+
+  function renderCarteContrat(c: ContratLocation) {
+    const logement = getLogement(c.logementId);
+    const loc = locataires.find((l) => l.id === c.locataireId);
+    const sousBailleur = c.locataireSousBailleurId.trim()
+      ? locataires.find((l) => l.id === c.locataireSousBailleurId)
+      : undefined;
+    const estSousLocation = Boolean(c.locataireSousBailleurId.trim());
+    return (
+      <li key={c.id} className={styles.card}>
+        <div className={styles.cardMain}>
+          <h2 className={styles.cardTitle}>
+            {logement?.titre ?? "Bien inconnu"}
+            {estSousLocation ? (
+              <span className={styles.badgeSousLoc}>Sous-location</span>
+            ) : null}
+          </h2>
+          {c.libelleExploitation.trim() ? (
+            <p className={styles.cardLibelle}>
+              Libellé d’exploitation :{" "}
+              <strong>{c.libelleExploitation.trim()}</strong>
+            </p>
+          ) : null}
+          {estSousLocation && sousBailleur ? (
+            <p className={styles.cardMeta}>
+              Sous-bailleur (locataire principal) :{" "}
+              <strong>{nomCompletLocataire(sousBailleur)}</strong>
+            </p>
+          ) : null}
+          <p className={styles.cardMeta}>
+            {estSousLocation ? "Sous-locataire" : "Locataire"} :{" "}
+            <strong>{loc ? nomCompletLocataire(loc) : "—"}</strong>
+          </p>
+          <p className={styles.cardMeta}>
+            Du {formatDate(c.dateDebut)}
+            {c.dateFin.trim() ? ` au ${formatDate(c.dateFin)}` : ""}
+            {c.loyerHc.trim() ? ` · Loyer HC ${eur(c.loyerHc)}` : null}
+          </p>
+          {c.numeroContratInterne.trim() ? (
+            <p className={styles.cardRef}>Réf. {c.numeroContratInterne}</p>
+          ) : null}
+        </div>
+        <div className={styles.cardActions}>
+          <button
+            type="button"
+            className={styles.btnEdit}
+            onClick={() => openModifierLocation(c.id)}
+          >
+            Modifier
+          </button>
+          <button
+            type="button"
+            className={styles.btnDelete}
+            onClick={() => handleDelete(c)}
+          >
+            Supprimer
+          </button>
+        </div>
+      </li>
+    );
   }
 
   return (
@@ -125,78 +201,41 @@ export function Locations() {
             intercalaires.
           </p>
         ) : (
-          <ul className={styles.list}>
-            {sorted.map((c) => {
-              const logement = getLogement(c.logementId);
-              const loc = locataires.find((l) => l.id === c.locataireId);
-              const sousBailleur = c.locataireSousBailleurId.trim()
-                ? locataires.find((l) => l.id === c.locataireSousBailleurId)
-                : undefined;
-              const estSousLocation = Boolean(c.locataireSousBailleurId.trim());
+          <div className={styles.groupes}>
+            {chainesLocation.map((ch) => {
+              const logement = getLogement(ch.logementId);
+              const cp = contratsLocation.find(
+                (c) => c.id === ch.contratPrincipalId
+              );
+              const cs = contratsLocation.find(
+                (c) => c.id === ch.contratSousLocataireId
+              );
+              if (!cp && !cs) return null;
               return (
-                <li key={c.id} className={styles.card}>
-                  <div className={styles.cardMain}>
-                    <h2 className={styles.cardTitle}>
-                      {logement?.titre ?? "Bien inconnu"}
-                      {estSousLocation ? (
-                        <span className={styles.badgeSousLoc}>
-                          Sous-location
-                        </span>
-                      ) : null}
-                    </h2>
-                    {c.libelleExploitation.trim() ? (
-                      <p className={styles.cardLibelle}>
-                        Libellé d’exploitation :{" "}
-                        <strong>{c.libelleExploitation.trim()}</strong>
-                      </p>
-                    ) : null}
-                    {estSousLocation && sousBailleur ? (
-                      <p className={styles.cardMeta}>
-                        Sous-bailleur (locataire principal) :{" "}
-                        <strong>{nomCompletLocataire(sousBailleur)}</strong>
-                      </p>
-                    ) : null}
-                    <p className={styles.cardMeta}>
-                      {estSousLocation ? "Sous-locataire" : "Locataire"} :{" "}
-                      <strong>
-                        {loc ? nomCompletLocataire(loc) : "—"}
-                      </strong>
-                    </p>
-                    <p className={styles.cardMeta}>
-                      Du {formatDate(c.dateDebut)}
-                      {c.dateFin.trim()
-                        ? ` au ${formatDate(c.dateFin)}`
-                        : ""}
-                      {c.loyerHc.trim()
-                        ? ` · Loyer HC ${eur(c.loyerHc)}`
-                        : null}
-                    </p>
-                    {c.numeroContratInterne.trim() ? (
-                      <p className={styles.cardRef}>
-                        Réf. {c.numeroContratInterne}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className={styles.cardActions}>
-                    <button
-                      type="button"
-                      className={styles.btnEdit}
-                      onClick={() => openModifierLocation(c.id)}
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.btnDelete}
-                      onClick={() => handleDelete(c)}
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                </li>
+                <section key={ch.id} className={styles.groupeChaine}>
+                  <h2 className={styles.groupeChaineTitle}>
+                    Chaîne de location — {logement?.titre ?? "Bien"}
+                  </h2>
+                  <ul className={styles.list}>
+                    {cp ? renderCarteContrat(cp) : null}
+                    {cs ? renderCarteContrat(cs) : null}
+                  </ul>
+                </section>
               );
             })}
-          </ul>
+            {contratsHorsChaine.length > 0 ? (
+              <section className={styles.groupeChaine}>
+                <h2 className={styles.groupeChaineTitle}>
+                  {chainesLocation.length > 0
+                    ? "Locations hors chaîne"
+                    : "Locations"}
+                </h2>
+                <ul className={styles.list}>
+                  {contratsHorsChaine.map((c) => renderCarteContrat(c))}
+                </ul>
+              </section>
+            ) : null}
+          </div>
         )}
       </div>
 

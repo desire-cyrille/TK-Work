@@ -18,6 +18,7 @@ import {
   type MoisFinanceContrat,
 } from "./financeStorage";
 import { fusionnerMoisFinanceAvecContrat } from "../lib/moisFinance";
+import { parseEuro } from "../lib/money";
 
 function newId() {
   return crypto.randomUUID();
@@ -55,6 +56,16 @@ type FinanceContextValue = FinanceAppState & {
   addTypeFrais: (libelle: string) => void;
   removeTypeFrais: (libelle: string) => void;
   setLocataireReferenceBeneficeId: (id: string) => void;
+  /** Enregistre le dépôt comme intégralement versé (montant du bail, date du jour). */
+  marquerDepotVerseComplet: (contratId: string) => void;
+  /** Ajoute un versement partiel (plafonné au reste dû). */
+  ajouterVersementDepot: (
+    contratId: string,
+    montant: number,
+    dateIso: string
+  ) => void;
+  /** Efface le suivi des versements dépôt pour ce bail. */
+  reinitialiserSuiviDepot: (contratId: string) => void;
 };
 
 const FinanceCtx = createContext<FinanceContextValue | null>(null);
@@ -71,6 +82,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const idsActifs = new Set(contratsLocation.map((c) => c.id));
     setState((s) => {
       const nextMpc = { ...s.moisParContrat };
+      const nextDepot = { ...s.depotParContrat };
       let changed = false;
       for (const k of Object.keys(nextMpc)) {
         if (!idsActifs.has(k)) {
@@ -78,7 +90,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           changed = true;
         }
       }
-      return changed ? { ...s, moisParContrat: nextMpc } : s;
+      for (const k of Object.keys(nextDepot)) {
+        if (!idsActifs.has(k)) {
+          delete nextDepot[k];
+          changed = true;
+        }
+      }
+      return changed
+        ? { ...s, moisParContrat: nextMpc, depotParContrat: nextDepot }
+        : s;
     });
   }, [contratsLocation]);
 
@@ -203,6 +223,56 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, locataireReferenceBeneficeId: id }));
   }, []);
 
+  const marquerDepotVerseComplet = useCallback(
+    (contratId: string) => {
+      const c = contratsLocation.find((x) => x.id === contratId);
+      if (!c) return;
+      const max = parseEuro(c.depotGarantie);
+      if (max <= 0.005) return;
+      const today = new Date().toISOString().slice(0, 10);
+      setState((s) => ({
+        ...s,
+        depotParContrat: {
+          ...s.depotParContrat,
+          [contratId]: { montantVerse: max.toFixed(2), dateDerniere: today },
+        },
+      }));
+    },
+    [contratsLocation]
+  );
+
+  const ajouterVersementDepot = useCallback(
+    (contratId: string, montant: number, dateIso: string) => {
+      const c = contratsLocation.find((x) => x.id === contratId);
+      if (!c || !Number.isFinite(montant) || montant <= 0) return;
+      const max = parseEuro(c.depotGarantie);
+      if (max <= 0.005) return;
+      setState((s) => {
+        const cur = parseEuro(s.depotParContrat[contratId]?.montantVerse ?? "0");
+        const next = Math.min(max, cur + montant);
+        return {
+          ...s,
+          depotParContrat: {
+            ...s.depotParContrat,
+            [contratId]: {
+              montantVerse: next.toFixed(2),
+              dateDerniere: dateIso.slice(0, 10),
+            },
+          },
+        };
+      });
+    },
+    [contratsLocation]
+  );
+
+  const reinitialiserSuiviDepot = useCallback((contratId: string) => {
+    setState((s) => {
+      const next = { ...s.depotParContrat };
+      delete next[contratId];
+      return { ...s, depotParContrat: next };
+    });
+  }, []);
+
   const value = useMemo(
     () => ({
       ...state,
@@ -217,6 +287,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addTypeFrais,
       removeTypeFrais,
       setLocataireReferenceBeneficeId,
+      marquerDepotVerseComplet,
+      ajouterVersementDepot,
+      reinitialiserSuiviDepot,
     }),
     [
       state,
@@ -231,6 +304,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       addTypeFrais,
       removeTypeFrais,
       setLocataireReferenceBeneficeId,
+      marquerDepotVerseComplet,
+      ajouterVersementDepot,
+      reinitialiserSuiviDepot,
     ]
   );
 

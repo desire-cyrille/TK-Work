@@ -170,6 +170,8 @@ export type MoisComputed = {
   brutRecuOuPaye: number;
   /** TVA € estimée sur les paiements (répartition au prorata du dû du mois). */
   tvaSurPaye: number;
+  /** Dépôt de garantie non soldé ajouté au dû de ce mois (1er mois listé uniquement). */
+  depotInclusDansDu: number;
 };
 
 function mapMoisData(
@@ -192,16 +194,24 @@ function mapMoisData(
 
 /**
  * Enchaîne les mois dans l’ordre : report, soldes, statuts.
+ * @param montantVerseDepot — cumul des versements enregistrés sur le dépôt (hors paiements loyer).
  */
 export function calculerSuiteMois(
   c: ContratLocation,
   moisCles: string[],
-  enregistres: MoisFinanceContrat[]
+  enregistres: MoisFinanceContrat[],
+  montantVerseDepot = 0
 ): MoisComputed[] {
   const contratId = c.id;
   const moisCourant = moisCleCourant();
   let reportEntrant = 0;
   const out: MoisComputed[] = [];
+  const depotAttendu = parseEuro(c.depotGarantie);
+  const depotRestantGlobal =
+    depotAttendu > 0.005
+      ? Math.max(0, depotAttendu - montantVerseDepot)
+      : 0;
+  const premierMoisCle = moisCles[0];
 
   for (const moisCle of moisCles) {
     const data = mapMoisData(moisCle, contratId, enregistres);
@@ -215,7 +225,13 @@ export function calculerSuiteMois(
       0
     );
 
-    const totalDu = base + totalFrais + reportEntrant;
+    const depotInclusCeMois =
+      premierMoisCle &&
+      moisCle === premierMoisCle &&
+      depotRestantGlobal > 0.005
+        ? depotRestantGlobal
+        : 0;
+    const totalDu = base + totalFrais + reportEntrant + depotInclusCeMois;
     const solde = totalDu - totalPaye;
     const reportSortant = solde > 0.005 ? solde : 0;
     const tvaDansLoyerMois = tvaEuroDansBaseLoyerDuMois(c, moisCle);
@@ -247,6 +263,7 @@ export function calculerSuiteMois(
       statut,
       brutRecuOuPaye: totalPaye,
       tvaSurPaye,
+      depotInclusDansDu: depotInclusCeMois,
     });
 
     reportEntrant = data.annulerReportVersSuivant ? 0 : reportSortant;

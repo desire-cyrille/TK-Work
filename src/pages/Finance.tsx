@@ -109,6 +109,7 @@ function signatureContratPourFinancePdf(c: ContratLocation): string {
     loyerHc: c.loyerHc,
     charges: c.charges,
     loyerChargesComprises: c.loyerChargesComprises,
+    depotGarantie: c.depotGarantie,
     loyerHcTva: c.loyerHcTva,
     chargesTva: c.chargesTva,
     premierLoyerProrata: c.premierLoyerProrata,
@@ -221,6 +222,9 @@ export function Finance() {
 
   const moisCourantCle = moisCleCourant();
   const moisRows = contratActif ? finance.listerMoisContrat(contratActif) : [];
+  const verseDepotCumul = contratActif
+    ? parseEuro(finance.depotParContrat[contratActif.id]?.montantVerse ?? "0")
+    : 0;
   const moisCles = useMemo(() => {
     if (!contratActif) return [];
     return listeMoisPourContrat(contratActif).filter(
@@ -229,8 +233,18 @@ export function Finance() {
   }, [contratActif, moisCourantCle]);
   const moisCalc: MoisComputed[] =
     contratActif && moisCles.length
-      ? calculerSuiteMois(contratActif, moisCles, moisRows)
+      ? calculerSuiteMois(contratActif, moisCles, moisRows, verseDepotCumul)
       : [];
+  const depotAttenduActif = contratActif
+    ? parseEuro(contratActif.depotGarantie)
+    : 0;
+  const afficherLigneDepot =
+    Boolean(contratActif) && depotAttenduActif > 0.005;
+  const depotRestantActif = Math.max(0, depotAttenduActif - verseDepotCumul);
+  const dateDernierVersementDepot =
+    contratActif && finance.depotParContrat[contratActif.id]?.dateDerniere
+      ? finance.depotParContrat[contratActif.id]!.dateDerniere
+      : "";
   /** Affichage : mois les plus récents en haut (le calcul des reports reste chronologique). */
   const moisCalcAffiche = useMemo(
     () => [...moisCalc].reverse(),
@@ -272,6 +286,19 @@ export function Finance() {
     const v = datePaiementRapide[k]?.trim();
     if (v && v.length >= 10) return v.slice(0, 10);
     return aujourdhuiIso;
+  }
+
+  function saisirVersementDepotPartiel() {
+    if (!contratActif) return;
+    const raw = window.prompt("Montant du versement sur le dépôt (€)", "");
+    if (raw === null) return;
+    const n = parseEuro(String(raw).trim());
+    if (!Number.isFinite(n) || n <= 0) return;
+    finance.ajouterVersementDepot(
+      contratActif.id,
+      n,
+      aujourdhuiIso
+    );
   }
 
   function annulerPaiementsMois(moisCle: string) {
@@ -559,6 +586,16 @@ export function Finance() {
                     {" · "}
                     Loyer CC de référence :{" "}
                     {formatEuro(parseEuro(contratActif.loyerChargesComprises))}
+                    {depotAttenduActif > 0.005 ? (
+                      <>
+                        {" · "}
+                        Dépôt de garantie (bail) :{" "}
+                        {formatEuro(depotAttenduActif)}
+                        {depotRestantActif > 0.005
+                          ? ` — reste ${formatEuro(depotRestantActif)}`
+                          : " — soldé"}
+                      </>
+                    ) : null}
                   </p>
                 </div>
 
@@ -579,6 +616,76 @@ export function Finance() {
                       </tr>
                     </thead>
                     <tbody>
+                      {afficherLigneDepot ? (
+                        <tr key="__depot_garantie__">
+                          <td>
+                            <strong>Dépôt de garantie</strong>
+                          </td>
+                          <td
+                            className={classStatut(
+                              depotRestantActif <= 0.005 ? "paye" : "a_payer"
+                            )}
+                          >
+                            {depotRestantActif <= 0.005 ? "Payé" : "En attente"}
+                          </td>
+                          <td>{formatEuro(depotAttenduActif)}</td>
+                          <td>{formatEuro(verseDepotCumul)}</td>
+                          <td className={styles.cellTvaPaye}>—</td>
+                          <td>{formatEuro(depotRestantActif)}</td>
+                          <td className={styles.datePaiementCell}>
+                            {dateDernierVersementDepot.length >= 10 ? (
+                              <span className={styles.datePaiementLu}>
+                                {`${dateDernierVersementDepot.slice(8, 10)}/${dateDernierVersementDepot.slice(5, 7)}/${dateDernierVersementDepot.slice(0, 4)}`}
+                              </span>
+                            ) : (
+                              <span className={styles.datePaiementDash}>—</span>
+                            )}
+                          </td>
+                          <td>
+                            <div className={styles.monthActions}>
+                              {depotRestantActif > 0.005 ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      finance.marquerDepotVerseComplet(
+                                        contratActif.id
+                                      )
+                                    }
+                                  >
+                                    Marquer payé (total)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={saisirVersementDepotPartiel}
+                                  >
+                                    + Versement
+                                  </button>
+                                </>
+                              ) : null}
+                              {verseDepotCumul > 0.005 ? (
+                                <button
+                                  type="button"
+                                  className={styles.btnAnnulerPaiement}
+                                  onClick={() => {
+                                    if (
+                                      window.confirm(
+                                        "Réinitialiser le suivi des versements sur le dépôt ?"
+                                      )
+                                    ) {
+                                      finance.reinitialiserSuiviDepot(
+                                        contratActif.id
+                                      );
+                                    }
+                                  }}
+                                >
+                                  Réinit. dépôt
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
                       {moisCalcAffiche.map((row) => {
                         const data = getMoisData(row.moisCle);
                         const ouvert = moisOuvertId === row.moisCle;
@@ -835,6 +942,13 @@ function MoisDetailPanel(props: {
         Report entrant : {formatEuro(computed.reportEntrant)} · Frais du mois :{" "}
         {formatEuro(computed.totalFrais)} · Reliquat reporté :{" "}
         {data.annulerReportVersSuivant ? "0 (bloqué)" : formatEuro(computed.reportSortant)}
+        {computed.depotInclusDansDu > 0.005 ? (
+          <>
+            {" · "}
+            <strong>Dépôt (non soldé) inclus dans le dû du mois :</strong>{" "}
+            {formatEuro(computed.depotInclusDansDu)}
+          </>
+        ) : null}
       </p>
 
       <label className={styles.check}>

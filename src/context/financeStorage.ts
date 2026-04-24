@@ -27,11 +27,19 @@ export type MoisFinanceContrat = {
   observationsDocuments: string;
 };
 
+/** Suivi du dépôt de garantie (hors grille mensuelle loyer). */
+export type SuiviDepotGarantieContrat = {
+  montantVerse: string;
+  dateDerniere: string;
+};
+
 export type FinanceAppState = {
   typesFrais: string[];
   /** Locataire (souvent sous-locataire) servant de référence pour le bloc « bénéfice ». */
   locataireReferenceBeneficeId: string;
   moisParContrat: Record<string, MoisFinanceContrat[]>;
+  /** Versements enregistrés sur le dépôt (montant cumulé saisi). */
+  depotParContrat: Record<string, SuiviDepotGarantieContrat>;
 };
 
 const DEFAULT_TYPES_FRAIS = [
@@ -63,6 +71,19 @@ function normalizeFrais(raw: unknown): LigneFraisMois {
     montant: typeof r.montant === "string" ? r.montant : "",
     date: typeof r.date === "string" ? r.date : "",
   };
+}
+
+function normalizeSuiviDepot(
+  raw: unknown
+): SuiviDepotGarantieContrat | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const montantVerse =
+    typeof r.montantVerse === "string" ? r.montantVerse : "";
+  const dateDerniere =
+    typeof r.dateDerniere === "string" ? r.dateDerniere : "";
+  if (!montantVerse.trim() && !dateDerniere.trim()) return undefined;
+  return { montantVerse, dateDerniere };
 }
 
 function normalizeMois(raw: unknown): MoisFinanceContrat | null {
@@ -113,10 +134,19 @@ export function loadFinanceState(): FinanceAppState {
           if (rows.length) moisParContrat[k] = rows;
         }
       }
+      const depotParContrat: Record<string, SuiviDepotGarantieContrat> = {};
+      const dpc = p.depotParContrat;
+      if (dpc && typeof dpc === "object" && !Array.isArray(dpc)) {
+        for (const [k, v] of Object.entries(dpc)) {
+          const su = normalizeSuiviDepot(v);
+          if (su) depotParContrat[k] = su;
+        }
+      }
       return {
         typesFrais: typesFrais.length ? typesFrais : [...DEFAULT_TYPES_FRAIS],
         locataireReferenceBeneficeId,
         moisParContrat,
+        depotParContrat,
       };
     }
   } catch {
@@ -126,6 +156,7 @@ export function loadFinanceState(): FinanceAppState {
     typesFrais: [...DEFAULT_TYPES_FRAIS],
     locataireReferenceBeneficeId: "",
     moisParContrat: {},
+    depotParContrat: {},
   };
 }
 
