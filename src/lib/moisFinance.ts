@@ -3,6 +3,7 @@ import type { MoisFinanceContrat } from "../context/financeStorage";
 import {
   contratUtiliseSaisieTva,
   loyerTtcDepuisHcChargesTva,
+  tvaTotaleEuroSurLoyerEtCharges,
 } from "./loyerTvaContrat";
 import { montantTvaEuro, parseEuro } from "./money";
 
@@ -86,6 +87,36 @@ export function baseLoyerPourMoisContrat(
   return baseLoyerMensuelContrat(c);
 }
 
+/**
+ * Part TVA (€) incluse dans le loyer de base du mois (hors frais et report entrant).
+ */
+export function tvaEuroDansBaseLoyerDuMois(
+  c: ContratLocation,
+  moisCle: string
+): number {
+  if (!contratUtiliseSaisieTva(c)) return 0;
+  const premier = premiereMoisCleContrat(c);
+  if (
+    premier &&
+    moisCle === premier &&
+    c.premierLoyerProrata === "oui"
+  ) {
+    const hc = parseEuro(c.premierLoyerHcCalcule);
+    const ch = parseEuro(c.premierLoyerChargesCalcule);
+    const prorat = hc + ch;
+    if (prorat <= 0.005) return 0;
+    const loyerHcM = parseEuro(c.loyerHc);
+    const chargesM = parseEuro(c.charges);
+    const baseM = loyerHcM + chargesM;
+    const tvaTotEur =
+      montantTvaEuro(loyerHcM, c.loyerHcTva) +
+      montantTvaEuro(chargesM, c.chargesTva);
+    if (baseM <= 0.005 || tvaTotEur <= 0.005) return 0;
+    return (tvaTotEur * prorat) / baseM;
+  }
+  return tvaTotaleEuroSurLoyerEtCharges(c);
+}
+
 function moisFinanceVide(moisCle: string, contratId: string): MoisFinanceContrat {
   return {
     moisCle,
@@ -137,6 +168,8 @@ export type MoisComputed = {
   annulerReportVersSuivant: boolean;
   statut: StatutMoisUi;
   brutRecuOuPaye: number;
+  /** TVA € estimée sur les paiements (répartition au prorata du dû du mois). */
+  tvaSurPaye: number;
 };
 
 function mapMoisData(
@@ -185,6 +218,11 @@ export function calculerSuiteMois(
     const totalDu = base + totalFrais + reportEntrant;
     const solde = totalDu - totalPaye;
     const reportSortant = solde > 0.005 ? solde : 0;
+    const tvaDansLoyerMois = tvaEuroDansBaseLoyerDuMois(c, moisCle);
+    const tvaSurPaye =
+      totalDu > 0.005 && totalPaye > 0.005 && tvaDansLoyerMois > 0.005
+        ? (totalPaye * tvaDansLoyerMois) / totalDu
+        : 0;
 
     let statut: StatutMoisUi = "a_payer";
     if (data.statutOverride === "annule") {
@@ -208,6 +246,7 @@ export function calculerSuiteMois(
       annulerReportVersSuivant: data.annulerReportVersSuivant,
       statut,
       brutRecuOuPaye: totalPaye,
+      tvaSurPaye,
     });
 
     reportEntrant = data.annulerReportVersSuivant ? 0 : reportSortant;

@@ -10,6 +10,7 @@ import { useThemeSettings } from "../context/ThemeSettingsContext";
 import type { ContratLocation } from "../types/domain";
 import { nomCompletLocataire } from "../lib/locataireUi";
 import { formatEuro, parseEuro } from "../lib/money";
+import { contratUtiliseSaisieTva } from "../lib/loyerTvaContrat";
 import {
   calculerSuiteMois,
   listeMoisPourContrat,
@@ -74,6 +75,16 @@ function libelleStatut(s: StatutMoisUi): string {
     default:
       return "En cours";
   }
+}
+
+function celluleTvaSurPaye(
+  contrat: ContratLocation,
+  row: MoisComputed
+): string {
+  if (!contratUtiliseSaisieTva(contrat)) return "—";
+  if (row.statut === "annule") return "—";
+  if (row.totalPaye <= 0.005) return "—";
+  return formatEuro(row.tvaSurPaye);
 }
 
 function classStatut(s: StatutMoisUi): string {
@@ -342,6 +353,7 @@ export function Finance() {
       dateVersement: derniereDatePaiementMois(data),
       reportEntrant: row.reportEntrant,
       totalFraisMois: row.totalFrais,
+      tvaSurMontantPaye: row.tvaSurPaye,
       emetteurDocuments: settings.emetteurDocumentsPdf,
       logoDocumentsPdf: settings.logoDocumentsPdf,
     };
@@ -558,6 +570,9 @@ export function Finance() {
                         <th>Stat</th>
                         <th>Dû</th>
                         <th>Payé</th>
+                        <th title="TVA loyer estimée sur le montant payé (taux du bail)">
+                          TVA payée
+                        </th>
                         <th>Solde</th>
                         <th>Date paiement</th>
                         <th />
@@ -578,6 +593,9 @@ export function Finance() {
                               </td>
                               <td>{formatEuro(row.totalDu)}</td>
                               <td>{formatEuro(row.totalPaye)}</td>
+                              <td className={styles.cellTvaPaye}>
+                                {celluleTvaSurPaye(contratActif, row)}
+                              </td>
                               <td>{formatEuro(row.solde)}</td>
                               <td className={styles.datePaiementCell}>
                                 {row.statut === "annule" ? (
@@ -694,7 +712,7 @@ export function Finance() {
                             </tr>
                             {ouvert ? (
                               <tr key={`${row.moisCle}-detail`}>
-                                <td colSpan={7}>
+                                <td colSpan={8}>
                                   <MoisDetailPanel
                                     key={row.moisCle}
                                     data={data}

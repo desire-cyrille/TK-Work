@@ -1087,6 +1087,8 @@ export type DocumentMoisPdfOptions = {
   dateVersement?: string;
   reportEntrant?: number;
   totalFraisMois?: number;
+  /** TVA € estimée sur le montant versé (bail avec taux TVA ; même logique que l’onglet Finance). */
+  tvaSurMontantPaye?: number;
   emetteurDocuments?: string;
   logoDocumentsPdf?: string;
 };
@@ -1110,6 +1112,7 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
     dateVersement,
     reportEntrant,
     totalFraisMois,
+    tvaSurMontantPaye,
     emetteurDocuments,
     logoDocumentsPdf,
   } = opts;
@@ -1508,7 +1511,15 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
     const dv = dateVersement
       ? formatDateFr(dateVersement)
       : formatDateFr(new Date().toISOString().slice(0, 10));
-    const payH = quittanceClassique ? 17 : 20;
+    const tvaPaye = tvaSurMontantPaye ?? 0;
+    const avecLigneTva = tvaPaye > 0.005;
+    const payH = quittanceClassique
+      ? avecLigneTva
+        ? 23
+        : 17
+      : avecLigneTva
+        ? 26
+        : 20;
     ensureSpace(payH + 12);
     encadreArrondi(
       doc,
@@ -1536,6 +1547,16 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
       m + padBox,
       quittanceClassique ? y + 13.8 : y + 16
     );
+    if (avecLigneTva) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(PDF_TYPO.small);
+      doc.setTextColor(0, 0, 0);
+      doc.text(
+        `TVA (loyer, estimée sur ce versement) : ${formatMontantPdf(tvaPaye)}`,
+        m + padBox,
+        quittanceClassique ? y + 19.5 : y + 22.5
+      );
+    }
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "normal");
     y += payH + gY.afterPaiement;

@@ -284,6 +284,12 @@
   background: rgba(248, 113, 113, 0.12);
 }
 
+.cellTvaPaye {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--workspace-muted);
+}
+
 .datePaiementCell {
   min-width: 8.25rem;
 }
