@@ -331,6 +331,11 @@
   white-space: nowrap;
 }
 
+.lccCalcule {
+  cursor: default;
+  background: var(--surface-elevated);
+}
+
 .radioCol {
   display: flex;
   flex-direction: column;

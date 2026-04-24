@@ -21,6 +21,7 @@ import {
   formatValeurIrlFr,
 } from "../lib/irlInsee";
 import { nomCompletLocataire } from "../lib/locataireUi";
+import { loyerTtcDepuisHcChargesTva } from "../lib/loyerTvaContrat";
 import { formatEuro, montantTvaEuro, parseEuro } from "../lib/money";
 import { ratioProrataTemporisMoisCivils } from "../lib/prorataLoyer";
 import formStyles from "../pages/NouveauLogement.module.css";
@@ -142,6 +143,25 @@ export function BienLoueTabFields({
     () => montantTvaEuro(parseEuro(draft.charges), draft.chargesTva),
     [draft.charges, draft.chargesTva]
   );
+
+  useEffect(() => {
+    const ttc = loyerTtcDepuisHcChargesTva({
+      loyerHc: draft.loyerHc,
+      loyerHcTva: draft.loyerHcTva,
+      charges: draft.charges,
+      chargesTva: draft.chargesTva,
+    });
+    const next = ttc.toFixed(2);
+    if (Math.abs(parseEuro(draft.loyerChargesComprises) - ttc) < 0.005) return;
+    set("loyerChargesComprises", next);
+  }, [
+    draft.loyerHc,
+    draft.loyerHcTva,
+    draft.charges,
+    draft.chargesTva,
+    draft.loyerChargesComprises,
+    set,
+  ]);
 
   function addAutrePaiement() {
     setDraft((d) => ({
@@ -653,11 +673,17 @@ export function BienLoueTabFields({
           Loyer charges comprises (€) <span className={fs.req}>*</span>
         </span>
         <input
-          className={fs.input}
+          className={`${fs.input} ${styles.lccCalcule}`}
           inputMode="decimal"
+          readOnly
+          aria-readonly="true"
+          title="Calculé automatiquement : loyer HC + TVA loyer + charges + TVA charges"
           value={draft.loyerChargesComprises}
-          onChange={(e) => set("loyerChargesComprises", e.target.value)}
         />
+        <span className={styles.hintTiny}>
+          Montant calculé automatiquement à partir du loyer HC, des charges et des
+          taux de TVA.
+        </span>
       </label>
 
       <SectionTitle>Autres paiements</SectionTitle>
