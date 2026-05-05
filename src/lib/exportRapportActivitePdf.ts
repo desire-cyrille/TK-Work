@@ -126,35 +126,60 @@ export function genererRapportActivitePdfBlob(
     logoClientBoxH,
   );
 
-  const nomClient = projet.clientNom?.trim() || projet.titre;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(30, 30, 40);
-  const clientTextMaxW = 78;
-  const clientLines = doc.splitTextToSize(nomClient, clientTextMaxW) as string[];
-  let yClientNom = M + logoClientBoxH + 2.5;
-  const maxClientLines = 5;
-  for (let i = 0; i < clientLines.length && i < maxClientLines; i += 1) {
-    doc.text(clientLines[i]!, W - M, yClientNom, { align: "right" });
-    yClientNom += 5;
+  // Bloc texte centré (au-dessus de la photo).
+  const headerTopY = M + Math.max(logoPrincipalBoxH, logoClientBoxH) + 6;
+  const centerX = W / 2;
+
+  const nomClient = projet.clientNom?.trim() || "";
+  let yMeta = headerTopY;
+
+  if (nomClient) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(30, 30, 40);
+    const clientLines = doc.splitTextToSize(nomClient, W - 2 * M) as string[];
+    for (const line of clientLines.slice(0, 2)) {
+      doc.text(line, centerX, yMeta, { align: "center" });
+      yMeta += 5.4;
+    }
+    yMeta += 1;
   }
 
-  const yLeftMeta = M + logoPrincipalBoxH + 5;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.setTextColor(50, 50, 55);
-  doc.text(fmtType(b.typeRapport), M, yLeftMeta);
-  doc.setFontSize(12.5);
+  doc.text(fmtType(b.typeRapport), centerX, yMeta, { align: "center" });
+  yMeta += 7;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
   doc.setTextColor(30, 30, 40);
-  doc.text(b.titreDocument || "Rapport d’activité", M, yLeftMeta + 9);
+  const titreLines = doc.splitTextToSize(
+    b.titreDocument || "Rapport d’activité",
+    W - 2 * M,
+  ) as string[];
+  for (const line of titreLines.slice(0, 2)) {
+    doc.text(line, centerX, yMeta, { align: "center" });
+    yMeta += 6;
+  }
+  yMeta += 1;
+
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(70, 70, 80);
-  doc.text(`Période / date du rapport : ${b.dateRapport}`, M, yLeftMeta + 18);
-  doc.text(`Document généré le ${genLe}`, M, yLeftMeta + 24);
+  doc.text(`Période / date du rapport : ${b.dateRapport}`, centerX, yMeta, {
+    align: "center",
+  });
+  yMeta += 4.8;
+  doc.text(`Document généré le ${genLe}`, centerX, yMeta, { align: "center" });
+  yMeta += 6;
 
-  const coverH = 95;
+  // Photo de couverture centrée sur la page (dans l'espace restant entre en-tête et pied de page).
   const coverW = W - 2 * M;
-  const coverY = Math.max(yLeftMeta + 32, yClientNom + 4, 72);
+  const coverTop = Math.max(yMeta + 4, 68);
+  const coverBottom = pageH - 24;
+  const coverH = clamp(coverBottom - coverTop, 70, 140);
+  const coverY = coverTop + (coverBottom - coverTop - coverH) / 2;
   if (!addImageContain(doc, b.visuels.couverture, M, coverY, coverW, coverH)) {
     doc.setDrawColor(200);
     doc.rect(M, coverY, coverW, coverH);
