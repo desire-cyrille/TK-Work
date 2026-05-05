@@ -308,15 +308,46 @@ export function RapportActiviteRedaction() {
         window.alert("Impossible de mettre à jour ce rapport enregistré.");
         return;
       }
-      telechargerRapportActivitePdf(p, draft, draft.titreDocument);
+      let pdfOk = true;
+      try {
+        telechargerRapportActivitePdf(p, draft, draft.titreDocument);
+      } catch (e) {
+        pdfOk = false;
+        console.error(e);
+      }
       setEditingFicheId(null);
       refresh();
       setTabMain("rapports");
-      window.alert("Rapport mis à jour et PDF régénéré.");
+      window.alert(
+        pdfOk
+          ? "Rapport mis à jour et PDF régénéré."
+          : "Rapport mis à jour. Le téléchargement du PDF a échoué : utilisez le bouton « PDF » dans l’onglet Rapports pour réessayer.",
+      );
       return;
     }
-    enregistrerRapportValide(projet.id, draft);
-    telechargerRapportActivitePdf(p, draft, draft.titreDocument);
+    try {
+      enregistrerRapportValide(projet.id, draft);
+    } catch (e) {
+      console.error(e);
+      const quota =
+        typeof DOMException !== "undefined" &&
+        e instanceof DOMException &&
+        e.name === "QuotaExceededError";
+      window.alert(
+        quota
+          ? "Espace de stockage du navigateur insuffisant (souvent à cause d’images trop lourdes). Réduisez ou supprimez des photos dans le rapport, puis réessayez."
+          : `Impossible d’enregistrer le rapport : ${e instanceof Error ? e.message : String(e)}`,
+      );
+      return;
+    }
+    try {
+      telechargerRapportActivitePdf(p, draft, draft.titreDocument);
+    } catch (e) {
+      console.error(e);
+      window.alert(
+        "Le rapport est enregistré dans l’onglet Rapports, mais le téléchargement du PDF a échoué. Ouvrez l’onglet Rapports et cliquez sur « PDF » pour le générer à nouveau.",
+      );
+    }
     refresh();
     setTabMain("rapports");
   }

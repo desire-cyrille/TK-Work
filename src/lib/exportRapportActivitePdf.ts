@@ -174,13 +174,17 @@ export function genererRapportActivitePdfBlob(
   doc.text(`Document généré le ${genLe}`, centerX, yMeta, { align: "center" });
   yMeta += 6;
 
-  // Photo de couverture centrée sur la page (dans l'espace restant entre en-tête et pied de page).
+  // Photo de couverture centrée sur la page (hauteur ≤ espace disponible, évite les box à hauteur fixe trop grandes).
   const coverW = W - 2 * M;
-  const coverTop = Math.max(yMeta + 4, 68);
   const coverBottom = pageH - 24;
-  const coverH = clamp(coverBottom - coverTop, 70, 140);
-  const coverY = coverTop + (coverBottom - coverTop - coverH) / 2;
-  if (!addImageContain(doc, b.visuels.couverture, M, coverY, coverW, coverH)) {
+  const coverTop = Math.min(Math.max(yMeta + 4, 68), Math.max(coverBottom - 40, 68));
+  const available = Math.max(0, coverBottom - coverTop);
+  const coverH = Math.min(140, available);
+  const coverY = coverTop + (available - coverH) / 2;
+  if (
+    coverH >= 12 &&
+    !addImageContain(doc, b.visuels.couverture, M, coverY, coverW, coverH)
+  ) {
     doc.setDrawColor(200);
     doc.rect(M, coverY, coverW, coverH);
     doc.text("Couverture (image)", M + 4, coverY + 8);

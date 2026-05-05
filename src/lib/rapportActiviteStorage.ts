@@ -474,15 +474,25 @@ export function enregistrerRapportValide(
   const now = new Date().toISOString();
   const liste = readRapportsBrut();
   const id = newId();
+  const dateRapportNorm =
+    typeof brouillon.dateRapport === "string" && brouillon.dateRapport.trim()
+      ? brouillon.dateRapport.trim().slice(0, 10)
+      : now.slice(0, 10);
+  const typeRapportValide: TypeRapportActivite =
+    brouillon.typeRapport === "quotidien" ||
+    brouillon.typeRapport === "mensuel" ||
+    brouillon.typeRapport === "fin_mission"
+      ? brouillon.typeRapport
+      : "simple";
+  const titreDocNorm = (brouillon.titreDocument ?? "").trim() || "Rapport";
   const titre =
-    titreListe?.trim() ||
-    `${brouillon.titreDocument} — ${brouillon.dateRapport}`;
+    titreListe?.trim() || `${titreDocNorm} — ${dateRapportNorm}`;
   const row: RapportActiviteFiche = {
     id,
     projetId: projetId.trim(),
-    typeRapport: brouillon.typeRapport,
-    titreDocument: brouillon.titreDocument.trim() || "Rapport",
-    dateRapport: brouillon.dateRapport.slice(0, 10),
+    typeRapport: typeRapportValide,
+    titreDocument: titreDocNorm,
+    dateRapport: dateRapportNorm,
     moisCle: brouillon.moisCle?.slice(0, 7),
     titre,
     statut: "valide",
