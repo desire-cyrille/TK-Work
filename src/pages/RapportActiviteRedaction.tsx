@@ -15,6 +15,11 @@ import {
 } from "../lib/exportRapportActivitePdf";
 import { importerImageEnDataUrl } from "../lib/rapportImageImport";
 import {
+  putImageDataUrl,
+  requestPersistentStorage,
+  isImageRef,
+} from "../lib/rapportActiviteImageDb";
+import {
   appliquerPrefillType,
   enregistrerRapportValide,
   getProjetRapportActivite,
@@ -81,6 +86,61 @@ function alignerParSite(
     parSite,
     visuels: { ...draft.visuels, photosParSite },
   };
+}
+
+function isInlineImageDataUrl(v: unknown): v is string {
+  return typeof v === "string" && v.startsWith("data:image/");
+}
+
+function hasInlineImages(b: RapportBrouillonState): boolean {
+  const v = b.visuels;
+  if (isInlineImageDataUrl(v.logoPrincipal)) return true;
+  if (isInlineImageDataUrl(v.logoClient)) return true;
+  if (isInlineImageDataUrl(v.couverture)) return true;
+  for (const arr of Object.values(v.photosParSite ?? {})) {
+    if (arr?.some(isInlineImageDataUrl)) return true;
+  }
+  for (const site of Object.values(b.parSite ?? {})) {
+    for (const bloc of Object.values(site.domainesTexte ?? {})) {
+      if ((bloc?.photos ?? []).some(isInlineImageDataUrl)) return true;
+    }
+  }
+  return false;
+}
+
+async function migrateBrouillonImagesToIdb(
+  b: RapportBrouillonState,
+): Promise<RapportBrouillonState> {
+  const next: RapportBrouillonState = JSON.parse(JSON.stringify(b)) as RapportBrouillonState;
+
+  async function migrateStr(s: string | undefined): Promise<string | undefined> {
+    if (!s) return s;
+    if (isImageRef(s)) return s;
+    if (!isInlineImageDataUrl(s)) return s;
+    // Les dataURLs trop petites ne posent pas problème, mais on homogénéise.
+    return await putImageDataUrl(s);
+  }
+
+  next.visuels.logoPrincipal = await migrateStr(next.visuels.logoPrincipal);
+  next.visuels.logoClient = await migrateStr(next.visuels.logoClient);
+  next.visuels.couverture = await migrateStr(next.visuels.couverture);
+
+  for (const [sid, arr] of Object.entries(next.visuels.photosParSite ?? {})) {
+    const out: string[] = [];
+    for (const s of arr ?? []) out.push((await migrateStr(s)) ?? "");
+    next.visuels.photosParSite[sid] = out.filter(Boolean);
+  }
+
+  for (const site of Object.values(next.parSite ?? {})) {
+    for (const domId of Object.keys(site.domainesTexte ?? {})) {
+      const bloc = site.domainesTexte[domId];
+      if (!bloc) continue;
+      const out: string[] = [];
+      for (const s of bloc.photos ?? []) out.push((await migrateStr(s)) ?? "");
+      bloc.photos = out.filter(Boolean);
+    }
+  }
+  return next;
 }
 
 export function RapportActiviteRedaction() {
@@ -198,6 +258,36 @@ export function RapportActiviteRedaction() {
     return () => window.removeEventListener(FLUSH_BEFORE_CLOUD_PUSH_EVENT, flush);
   }, [projetId]);
 
+  useEffect(() => {
+    // Demande au navigateur de ne pas évincer trop vite le stockage (si supporté).
+    void requestPersistentStorage();
+  }, []);
+
+  useEffect(() => {
+    // Migration “one-shot” des anciens brouillons stockant des dataURLs dans localStorage.
+    // On déporte les images dans IndexedDB et on ne garde que des références.
+    if (!projet || !draft) return;
+    if (!hasInlineImages(draft)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const migrated = await migrateBrouillonImagesToIdb(draft);
+        if (cancelled) return;
+        setDraft(migrated);
+        try {
+          sauvegarderBrouillonProjet(projet.id, migrated);
+        } catch {
+          /* ignore: si quota déjà saturé, le prochain flush sera léger */
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projet, draft]);
+
   const fermerApercuPdf = useCallback(() => {
     setPdfPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -299,7 +389,7 @@ export function RapportActiviteRedaction() {
     refresh();
   }
 
-  function onValiderPdf() {
+  async function onValiderPdf() {
     if (!projet || !draft) return;
     const p = getProjetRapportActivite(projet.id);
     if (!p) return;
@@ -310,7 +400,7 @@ export function RapportActiviteRedaction() {
       }
       let pdfOk = true;
       try {
-        telechargerRapportActivitePdf(p, draft, draft.titreDocument);
+        await telechargerRapportActivitePdf(p, draft, draft.titreDocument);
       } catch (e) {
         pdfOk = false;
         console.error(e);
@@ -341,7 +431,7 @@ export function RapportActiviteRedaction() {
       return;
     }
     try {
-      telechargerRapportActivitePdf(p, draft, draft.titreDocument);
+      await telechargerRapportActivitePdf(p, draft, draft.titreDocument);
     } catch (e) {
       console.error(e);
       window.alert(
@@ -352,12 +442,12 @@ export function RapportActiviteRedaction() {
     setTabMain("rapports");
   }
 
-  function ouvrirApercuPdfBrouillon() {
+  async function ouvrirApercuPdfBrouillon() {
     if (!projet || !draft) return;
     const p = getProjetRapportActivite(projet.id);
     if (!p) return;
     try {
-      const blob = genererRapportActivitePdfBlob(p, draft);
+      const blob = await genererRapportActivitePdfBlob(p, draft);
       const url = URL.createObjectURL(blob);
       setPdfPreviewUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
@@ -622,9 +712,10 @@ export function RapportActiviteRedaction() {
                           if (!f) return;
                           const r = await importerImageEnDataUrl(f);
                           if (r.ok) {
+                            const ref = await putImageDataUrl(r.dataUrl);
                             majDraft((d) => ({
                               ...d,
-                              visuels: { ...d.visuels, logoPrincipal: r.dataUrl },
+                              visuels: { ...d.visuels, logoPrincipal: ref },
                             }));
                           } else window.alert(r.message);
                         }}
@@ -642,9 +733,10 @@ export function RapportActiviteRedaction() {
                           if (!f) return;
                           const r = await importerImageEnDataUrl(f);
                           if (r.ok) {
+                            const ref = await putImageDataUrl(r.dataUrl);
                             majDraft((d) => ({
                               ...d,
-                              visuels: { ...d.visuels, logoClient: r.dataUrl },
+                              visuels: { ...d.visuels, logoClient: ref },
                             }));
                           } else window.alert(r.message);
                         }}
@@ -662,9 +754,10 @@ export function RapportActiviteRedaction() {
                           if (!f) return;
                           const r = await importerImageEnDataUrl(f);
                           if (r.ok) {
+                            const ref = await putImageDataUrl(r.dataUrl);
                             majDraft((d) => ({
                               ...d,
-                              visuels: { ...d.visuels, couverture: r.dataUrl },
+                              visuels: { ...d.visuels, couverture: ref },
                             }));
                           } else window.alert(r.message);
                         }}
@@ -688,7 +781,7 @@ export function RapportActiviteRedaction() {
                       for (const f of files) {
                         if (cur.length >= MAX_PHOTOS_VISUELS_PAR_SITE) break;
                         const r = await importerImageEnDataUrl(f);
-                        if (r.ok) cur.push(r.dataUrl);
+                        if (r.ok) cur.push(await putImageDataUrl(r.dataUrl));
                         else window.alert(r.message);
                       }
                       majDraft((d) => ({
@@ -827,7 +920,7 @@ export function RapportActiviteRedaction() {
                               for (const f of files) {
                                 if (photos.length >= MAX_PHOTOS) break;
                                 const r = await importerImageEnDataUrl(f);
-                                if (r.ok) photos.push(r.dataUrl);
+                                if (r.ok) photos.push(await putImageDataUrl(r.dataUrl));
                                 else window.alert(r.message);
                               }
                               photos = photos.slice(0, MAX_PHOTOS);
@@ -1146,7 +1239,7 @@ export function RapportActiviteRedaction() {
                       className={styles.btn}
                       onClick={() => {
                         const p = getProjetRapportActivite(projet.id);
-                        if (p) telechargerRapportActivitePdf(p, r.payload, r.titreDocument);
+                        if (p) void telechargerRapportActivitePdf(p, r.payload, r.titreDocument);
                       }}
                     >
                       PDF

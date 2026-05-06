@@ -5,6 +5,7 @@ import {
   type RapportActiviteProjet,
   type RapportBrouillonState,
 } from "./rapportActiviteTypes";
+import { getImageDataUrl, isImageRef } from "./rapportActiviteImageDb";
 
 const W = 210;
 const M = 14;
@@ -25,6 +26,17 @@ function fmtType(t: RapportBrouillonState["typeRapport"]): string {
 function imageFormat(dataUrl: string): "PNG" | "JPEG" {
   if (dataUrl.startsWith("data:image/jpeg")) return "JPEG";
   return "PNG";
+}
+
+async function resolveImageDataUrl(
+  refOrDataUrl: string | undefined,
+): Promise<string | undefined> {
+  if (!refOrDataUrl) return undefined;
+  if (isImageRef(refOrDataUrl)) {
+    const v = await getImageDataUrl(refOrDataUrl);
+    return v ?? undefined;
+  }
+  return refOrDataUrl;
 }
 
 /** Dessine l’image dans le rectangle en conservant le ratio (type « contain »). */
@@ -58,6 +70,18 @@ function addImageContain(
   } catch {
     return false;
   }
+}
+
+async function addImageContainResolved(
+  doc: jsPDF,
+  refOrDataUrl: string | undefined,
+  boxX: number,
+  boxY: number,
+  boxW: number,
+  boxH: number,
+): Promise<boolean> {
+  const dataUrl = await resolveImageDataUrl(refOrDataUrl);
+  return addImageContain(doc, dataUrl, boxX, boxY, boxW, boxH);
 }
 
 function drawFooter(doc: jsPDF, text: string, pageH: number) {
@@ -94,7 +118,14 @@ function clamp(n: number, min: number, max: number): number {
 export function genererRapportActivitePdfBlob(
   projet: RapportActiviteProjet,
   b: RapportBrouillonState,
-): Blob {
+): Promise<Blob> {
+  return genererRapportActivitePdfBlobAsync(projet, b);
+}
+
+export async function genererRapportActivitePdfBlobAsync(
+  projet: RapportActiviteProjet,
+  b: RapportBrouillonState,
+): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageH = doc.internal.pageSize.getHeight();
   const genLe = new Date().toLocaleString("fr-FR");
@@ -105,7 +136,7 @@ export function genererRapportActivitePdfBlob(
 
   const logoPrincipalBoxW = 44;
   const logoPrincipalBoxH = 18;
-  addImageContain(
+  await addImageContainResolved(
     doc,
     b.visuels.logoPrincipal,
     M,
@@ -117,7 +148,7 @@ export function genererRapportActivitePdfBlob(
   const logoClientBoxW = 28;
   const logoClientBoxH = 10;
   const logoClientX = W - M - logoClientBoxW;
-  addImageContain(
+  await addImageContainResolved(
     doc,
     b.visuels.logoClient,
     logoClientX,
@@ -183,7 +214,14 @@ export function genererRapportActivitePdfBlob(
   const coverY = coverTop + (available - coverH) / 2;
   if (
     coverH >= 12 &&
-    !addImageContain(doc, b.visuels.couverture, M, coverY, coverW, coverH)
+    !(await addImageContainResolved(
+      doc,
+      b.visuels.couverture,
+      M,
+      coverY,
+      coverW,
+      coverH,
+    ))
   ) {
     doc.setDrawColor(200);
     doc.rect(M, coverY, coverW, coverH);
@@ -206,7 +244,16 @@ export function genererRapportActivitePdfBlob(
     const contenu = b.parSite[site.id];
     const photosSite = b.visuels.photosParSite[site.id] ?? [];
     for (let i = 0; i < Math.min(photosSite.length, 3); i += 1) {
-      if (addImageContain(doc, photosSite[i], M + i * 58, y, 52, 34)) {
+      if (
+        await addImageContainResolved(
+          doc,
+          photosSite[i],
+          M + i * 58,
+          y,
+          52,
+          34,
+        )
+      ) {
         /* ok */
       }
     }
@@ -245,7 +292,7 @@ export function genererRapportActivitePdfBlob(
           doc.addPage();
           y = M + 6;
         }
-        if (addImageContain(doc, ph, M, y, 70, 45)) y += 48;
+        if (await addImageContainResolved(doc, ph, M, y, 70, 45)) y += 48;
       }
       y += 4;
       if (y > pageH - 30) {
@@ -378,7 +425,7 @@ export function genererRapportActivitePdfBlob(
   doc.addPage();
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, W, pageH, "F");
-  addImageContain(doc, b.visuels.couverture, M, M, W - 2 * M, 100);
+  await addImageContainResolved(doc, b.visuels.couverture, M, M, W - 2 * M, 100);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   const msgLines = doc.splitTextToSize(
@@ -396,8 +443,16 @@ export function telechargerRapportActivitePdf(
   projet: RapportActiviteProjet,
   b: RapportBrouillonState,
   nomFichier?: string,
-): void {
-  const blob = genererRapportActivitePdfBlob(projet, b);
+): Promise<void> {
+  return telechargerRapportActivitePdfAsync(projet, b, nomFichier);
+}
+
+export async function telechargerRapportActivitePdfAsync(
+  projet: RapportActiviteProjet,
+  b: RapportBrouillonState,
+  nomFichier?: string,
+): Promise<void> {
+  const blob = await genererRapportActivitePdfBlobAsync(projet, b);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

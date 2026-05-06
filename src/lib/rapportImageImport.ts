@@ -29,8 +29,9 @@ export async function importerImageEnDataUrl(
   file: File,
   opts?: { maxEdge?: number; jpegQuality?: number },
 ): Promise<ImportImageResult> {
-  const maxEdge = opts?.maxEdge ?? 2400;
-  const jpegQuality = opts?.jpegQuality ?? 0.85;
+  // Par défaut on vise une taille compatible localStorage / PDF (jsPDF).
+  const maxEdge = opts?.maxEdge ?? 1600;
+  const jpegQuality = opts?.jpegQuality ?? 0.78;
 
   if (!isLikelyImageFile(file)) {
     return {
@@ -66,10 +67,10 @@ export async function importerImageEnDataUrl(
       return { ok: false, message: "Impossible de traiter l’image dans ce navigateur." };
     }
 
-    const usePng =
-      file.type === "image/png" || /\.png$/i.test(file.name);
-
-    if (usePng) {
+    // PNG peut exploser en base64 (très lourd). On ne garde le PNG que s’il est déjà petit.
+    const isPng = file.type === "image/png" || /\.png$/i.test(file.name);
+    const keepPng = isPng && w * h <= 900 * 900;
+    if (keepPng) {
       ctx.drawImage(img, 0, 0, w, h);
       return { ok: true, dataUrl: canvas.toDataURL("image/png") };
     }
