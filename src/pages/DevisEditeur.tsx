@@ -1834,6 +1834,18 @@ export function DevisEditeur() {
             </div>
             <label className={styles.label}>
               Frais de gestion (% du sous-total HT domaines inclus)
+              <div className={styles.checkRow} style={{ marginTop: "0.35rem" }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(c.fraisGestionActif)}
+                    onChange={(e) =>
+                      patchContenu({ ...c, fraisGestionActif: e.target.checked })
+                    }
+                  />{" "}
+                  Afficher / appliquer la ligne « Frais de gestion »
+                </label>
+              </div>
               <input
                 type="number"
                 step="0.01"
@@ -1870,10 +1882,12 @@ export function DevisEditeur() {
                   <span>Sous-total HT</span>
                   <span>{formatEuro(totaux.sousTotalHt)}</span>
                 </div>
-                <div className={styles.budgetRow}>
-                  <span>Frais de gestion</span>
-                  <span>{formatEuro(totaux.fraisGestion)}</span>
-                </div>
+                {c.fraisGestionActif ? (
+                  <div className={styles.budgetRow}>
+                    <span>Frais de gestion</span>
+                    <span>{formatEuro(totaux.fraisGestion)}</span>
+                  </div>
+                ) : null}
                 <div className={styles.budgetTotal}>
                   <span>Total HT</span>
                   <span>{formatEuro(totaux.totalHt)}</span>

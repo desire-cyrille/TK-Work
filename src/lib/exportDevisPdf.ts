@@ -617,17 +617,21 @@ function pageTarificationDetaillee(
     align: "right",
   });
   y += rowH;
-  doc.setFont("helvetica", "normal");
-  doc.text(
-    `Frais de gestion (${d.contenu.fraisGestionPourcent} %)`,
-    colCat,
-    y,
-    { maxWidth: vBeforeTarif - colCat - 2 },
-  );
-  doc.text(formatEuroPdf(totaux.fraisGestion), tarRightX, y, {
-    align: "right",
-  });
-  y += rowH + 2;
+  if (d.contenu.fraisGestionActif) {
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      `Frais de gestion (${d.contenu.fraisGestionPourcent} %)`,
+      colCat,
+      y,
+      { maxWidth: vBeforeTarif - colCat - 2 },
+    );
+    doc.text(formatEuroPdf(totaux.fraisGestion), tarRightX, y, {
+      align: "right",
+    });
+    y += rowH + 2;
+  } else {
+    y += 2;
+  }
   const totalBarH = rowH + 2.5;
   doc.setFillColor(55, 55, 62);
   doc.rect(tableLeft, y - 0.5, tableW, totalBarH, "F");
@@ -712,7 +716,10 @@ function pageTarificationDetaillee(
       formatEuroPdf(totaux.fraisGestion),
     ],
   ];
-  const grilleBodyH = grille.length * gRowH;
+  const grilleFinal = d.contenu.fraisGestionActif
+    ? grille
+    : grille.filter(([cat]) => cat !== "Frais de gestion");
+  const grilleBodyH = grilleFinal.length * gRowH;
   const grilleBoxH = grilleHeadH + grilleBodyH;
 
   doc.setDrawColor(72, 72, 78);
@@ -730,7 +737,7 @@ function pageTarificationDetaillee(
   y += grilleHeadH;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.2);
-  for (const [cat, quot, tar] of grille) {
+  for (const [cat, quot, tar] of grilleFinal) {
     doc.setDrawColor(200, 200, 206);
     doc.line(grilleLeft, y, grilleLeft + grilleW, y);
     setText(doc, [40, 40, 45]);

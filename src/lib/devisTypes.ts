@@ -108,6 +108,8 @@ export type DevisContenu = {
   sousTitrePageGarde: string;
   descriptionPrestation: string;
   texteConclusion: string;
+  /** Affiche / applique la ligne “Frais de gestion” dans la synthèse détaillée et le PDF. */
+  fraisGestionActif: boolean;
   fraisGestionPourcent: number;
   domainesActifs: DevisDomainesActifs;
   deplacement: DomaineDeplacement;
@@ -257,6 +259,7 @@ export function contenuDevisVide(): DevisContenu {
     sousTitrePageGarde: "Prestations techniques",
     descriptionPrestation: "",
     texteConclusion: "Nous restons à votre disposition pour toute précision.",
+    fraisGestionActif: true,
     fraisGestionPourcent: 4,
     domainesActifs: domainesActifsDefaut(),
     deplacement: { lignes: [] },
@@ -453,6 +456,7 @@ export function normaliserContenuDevis(contenu: DevisContenu): DevisContenu {
   const da = contenu.domainesActifs;
   return {
     ...contenu,
+    fraisGestionActif: contenu.fraisGestionActif !== false,
     domainesActifs: {
       ...da,
       forfait: Boolean(da.forfait),

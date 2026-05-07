@@ -240,7 +240,7 @@ export function totauxBudget(
   const sousTotalHt = lignes
     .filter((l) => l.actif)
     .reduce((a, l) => a + l.montant, 0);
-  const pct = Math.max(0, contenu.fraisGestionPourcent);
+  const pct = contenu.fraisGestionActif ? Math.max(0, contenu.fraisGestionPourcent) : 0;
   const fraisGestion = sousTotalHt * (pct / 100);
   const totalHt = sousTotalHt + fraisGestion;
   return { lignes, sousTotalHt, fraisGestion, totalHt };
