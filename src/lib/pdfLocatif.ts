@@ -1085,6 +1085,11 @@ export type DocumentMoisPdfOptions = {
   observations: string;
   /** Dernière date de paiement enregistrée pour le mois (AAAA-MM-JJ). */
   dateVersement?: string;
+  /**
+   * Détail des versements du mois (date ISO AAAA-MM-JJ + montant), pour la quittance / avis.
+   * Si vide ou absent, une seule ligne « Montant déjà versé (saisi) » est affichée comme avant.
+   */
+  versements?: { date: string; montant: number }[];
   reportEntrant?: number;
   totalFraisMois?: number;
   /** TVA € estimée sur le montant versé (bail avec taux TVA ; même logique que l’onglet Finance). */
@@ -1110,12 +1115,28 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
     solde,
     observations,
     dateVersement,
+    versements,
     reportEntrant,
     totalFraisMois,
     tvaSurMontantPaye,
     emetteurDocuments,
     logoDocumentsPdf,
   } = opts;
+
+  const versementsDetail = (versements ?? [])
+    .filter((v) => v.montant > 0.005)
+    .slice()
+    .sort((a, b) => {
+      const da = a.date.trim();
+      const db = b.date.trim();
+      if (da.length >= 10 && db.length >= 10) return da.localeCompare(db);
+      if (da.length >= 10) return -1;
+      if (db.length >= 10) return 1;
+      return 0;
+    });
+  /** Au moins un versement saisi avec montant : afficher date + montant (un ou plusieurs). */
+  const afficherDetailVersements = versementsDetail.length > 0;
+  const afficherLigneTotalVersements = versementsDetail.length > 1;
 
   const emetteurLib = libelleEmetteurDocumentsPdf(emetteurDocuments);
   const obsTrim = observations.trim();
@@ -1382,13 +1403,33 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
         montantDu
       ) + traitExtra;
   }
-  detailContH +=
-    hauteurLigneLibelleMontant(
-      doc,
-      wLbl,
-      "Montant déjà versé (saisi)",
-      montantPaye
-    ) + traitExtra;
+  if (afficherDetailVersements) {
+    for (const v of versementsDetail) {
+      const lib =
+        v.date.trim().length >= 10
+          ? `Versement du ${formatDateFr(v.date)}`
+          : "Versement (date non renseignée)";
+      detailContH +=
+        hauteurLigneLibelleMontant(doc, wLbl, lib, v.montant) + traitExtra;
+    }
+    if (afficherLigneTotalVersements) {
+      detailContH +=
+        hauteurLigneLibelleMontant(
+          doc,
+          wLbl,
+          "Montant déjà versé (total)",
+          montantPaye
+        ) + traitExtra;
+    }
+  } else {
+    detailContH +=
+      hauteurLigneLibelleMontant(
+        doc,
+        wLbl,
+        "Montant déjà versé (saisi)",
+        montantPaye
+      ) + traitExtra;
+  }
   detailContH +=
     hauteurLigneLibelleMontant(
       doc,
@@ -1488,15 +1529,37 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
     );
     traitLigneFin(yd);
   }
-  yd = ligneLibelleMontant(
-    doc,
-    xLbl,
-    yd,
-    wLbl,
-    "Montant déjà versé (saisi)",
-    montantPaye
-  );
-  traitLigneFin(yd);
+  if (afficherDetailVersements) {
+    for (const v of versementsDetail) {
+      const lib =
+        v.date.trim().length >= 10
+          ? `Versement du ${formatDateFr(v.date)}`
+          : "Versement (date non renseignée)";
+      yd = ligneLibelleMontant(doc, xLbl, yd, wLbl, lib, v.montant);
+      traitLigneFin(yd);
+    }
+    if (afficherLigneTotalVersements) {
+      yd = ligneLibelleMontant(
+        doc,
+        xLbl,
+        yd,
+        wLbl,
+        "Montant déjà versé (total)",
+        montantPaye
+      );
+      traitLigneFin(yd);
+    }
+  } else {
+    yd = ligneLibelleMontant(
+      doc,
+      xLbl,
+      yd,
+      wLbl,
+      "Montant déjà versé (saisi)",
+      montantPaye
+    );
+    traitLigneFin(yd);
+  }
   yd = ligneLibelleMontant(
     doc,
     xLbl,

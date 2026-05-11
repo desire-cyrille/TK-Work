@@ -378,6 +378,19 @@ export function Finance() {
       solde: row.solde,
       observations: data.observationsDocuments,
       dateVersement: derniereDatePaiementMois(data),
+      versements: data.paiements
+        .map((p) => ({
+          date: p.date.trim(),
+          montant: parseEuro(p.montant),
+        }))
+        .filter((p) => p.montant > 0.005)
+        .sort((a, b) => {
+          if (a.date.length >= 10 && b.date.length >= 10)
+            return a.date.localeCompare(b.date);
+          if (a.date.length >= 10) return -1;
+          if (b.date.length >= 10) return 1;
+          return 0;
+        }),
       reportEntrant: row.reportEntrant,
       totalFraisMois: row.totalFrais,
       tvaSurMontantPaye: row.tvaSurPaye,
