@@ -1088,7 +1088,7 @@ export type DocumentMoisPdfOptions = {
   /**
    * Détail des versements du mois (date ISO AAAA-MM-JJ + montant), pour la quittance / avis.
    * Si vide ou absent, une seule ligne « Montant déjà versé (saisi) » est affichée comme avant.
-   * `tva` : part TVA € du loyer réputée contenue dans le versement (prorata au dû du mois).
+   * `tva` : part TVA € du loyer dans le versement (montant TTC × taux bail / (100 + taux)).
    */
   versements?: { date: string; montant: number; tva?: number }[];
   reportEntrant?: number;
@@ -1422,7 +1422,7 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
           hauteurLigneLibelleMontant(
             doc,
             wLbl,
-            "  dont TVA loyer (prorata dû du mois)",
+            "  dont TVA loyer (montant versé, TTC)",
             v.tva ?? 0
           ) + traitExtra * 0.85;
       }
@@ -1458,7 +1458,7 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
         hauteurLigneLibelleMontant(
           doc,
           wLbl,
-          "Dont TVA loyer (prorata sur versements)",
+          "Dont TVA loyer (versements, TTC)",
           tvaPayeSynth
         ) + traitExtra;
     }
@@ -1576,7 +1576,7 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
           xLbl,
           yd,
           wLbl,
-          "  dont TVA loyer (prorata dû du mois)",
+          "  dont TVA loyer (montant versé, TTC)",
           v.tva ?? 0
         );
         traitLigneFin(yd);
@@ -1620,7 +1620,7 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
         xLbl,
         yd,
         wLbl,
-        "Dont TVA loyer (prorata sur versements)",
+        "Dont TVA loyer (versements, TTC)",
         tvaPayeSynth
       );
       traitLigneFin(yd);

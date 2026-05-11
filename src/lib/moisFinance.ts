@@ -3,6 +3,7 @@ import type { MoisFinanceContrat } from "../context/financeStorage";
 import {
   contratUtiliseSaisieTva,
   loyerTtcDepuisHcChargesTva,
+  tvaDansMontantVerseTtc,
   tvaTotaleEuroSurLoyerEtCharges,
 } from "./loyerTvaContrat";
 import { montantTvaEuro, parseEuro } from "./money";
@@ -117,63 +118,6 @@ export function tvaEuroDansBaseLoyerDuMois(
   return tvaTotaleEuroSurLoyerEtCharges(c);
 }
 
-/**
- * TVA € du loyer réputée contenue dans un montant versé, au prorata du dû du mois
- * (même principe que {@link MoisComputed.tvaSurPaye} sur le cumul des versements).
- */
-export function tvaLoyerProrataSurVersement(
-  montantVerse: number,
-  totalDuMois: number,
-  tvaEuroDansLoyerDuMois: number
-): number {
-  if (
-    montantVerse <= 0.005 ||
-    totalDuMois <= 0.005 ||
-    tvaEuroDansLoyerDuMois <= 0.005
-  ) {
-    return 0;
-  }
-  return (montantVerse * tvaEuroDansLoyerDuMois) / totalDuMois;
-}
-
-/**
- * Répartit la TVA loyer sur chaque versement ; le dernier est ajusté pour coller
- * exactement à `tvaSurPayeSynthèse` (affichage PDF / détail).
- */
-export function repartitionTvaSurVersements(
-  montantsVerses: number[],
-  totalDuMois: number,
-  tvaEuroDansLoyerDuMois: number,
-  tvaSurPayeSynthèse: number
-): number[] {
-  const n = montantsVerses.length;
-  if (n === 0) return [];
-  const out = new Array<number>(n).fill(0);
-  if (
-    totalDuMois <= 0.005 ||
-    tvaEuroDansLoyerDuMois <= 0.005 ||
-    tvaSurPayeSynthèse <= 0.005
-  ) {
-    return out;
-  }
-  let cum = 0;
-  for (let i = 0; i < n - 1; i++) {
-    const v =
-      Math.round(
-        100 *
-          tvaLoyerProrataSurVersement(
-            montantsVerses[i]!,
-            totalDuMois,
-            tvaEuroDansLoyerDuMois
-          )
-      ) / 100;
-    out[i] = v;
-    cum += v;
-  }
-  out[n - 1] = Math.round(100 * (tvaSurPayeSynthèse - cum)) / 100;
-  return out;
-}
-
 function moisFinanceVide(moisCle: string, contratId: string): MoisFinanceContrat {
   return {
     moisCle,
@@ -225,7 +169,7 @@ export type MoisComputed = {
   annulerReportVersSuivant: boolean;
   statut: StatutMoisUi;
   brutRecuOuPaye: number;
-  /** TVA € estimée sur les paiements (répartition au prorata du dû du mois). */
+  /** TVA € sur les paiements (chaque versement TTC × taux du bail / (100 + taux)). */
   tvaSurPaye: number;
   /** Dépôt de garantie non soldé ajouté au dû de ce mois (1er mois listé uniquement). */
   depotInclusDansDu: number;
@@ -291,11 +235,12 @@ export function calculerSuiteMois(
     const totalDu = base + totalFrais + reportEntrant + depotInclusCeMois;
     const solde = totalDu - totalPaye;
     const reportSortant = solde > 0.005 ? solde : 0;
-    const tvaDansLoyerMois = tvaEuroDansBaseLoyerDuMois(c, moisCle);
-    const tvaSurPaye =
-      totalDu > 0.005 && totalPaye > 0.005 && tvaDansLoyerMois > 0.005
-        ? (totalPaye * tvaDansLoyerMois) / totalDu
-        : 0;
+    const tvaSurPaye = contratUtiliseSaisieTva(c)
+      ? data.paiements.reduce(
+          (s, p) => s + tvaDansMontantVerseTtc(parseEuro(p.montant), c),
+          0
+        )
+      : 0;
 
     let statut: StatutMoisUi = "a_payer";
     if (data.statutOverride === "annule") {
