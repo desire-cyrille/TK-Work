@@ -75,6 +75,14 @@
   color: var(--workspace-text);
 }
 
+.tableHint {
+  margin: -0.35rem 0 1rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--workspace-muted);
+  font-weight: 400;
+}
+
 .tableWrap {
   overflow-x: auto;
 }
@@ -106,9 +114,4 @@
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
-}
-
-.benefice {
-  font-weight: 600;
-  color: #5eead4;
 }

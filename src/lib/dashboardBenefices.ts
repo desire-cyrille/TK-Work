@@ -1,15 +1,19 @@
 import type { MoisFinanceContrat } from "../context/financeStorage";
-import type { ContratLocation } from "../types/domain";
+import type { AirbnbState } from "../types/airbnb";
+import type { ChaineLocation, ContratLocation } from "../types/domain";
+import { getAirbnbMonthDetail } from "./airbnbStorage";
 import { moisCleDepuisDate } from "./moisFinance";
 import { parseEuro } from "./money";
 
-export type LigneBenefice = {
-  /** Libellé affiché (ex. « mai 2026 ») */
+export type LigneRevenuMois = {
   mois: string;
   moisCle: string;
+  /** Paiements saisis sur les baux « Sous-location » des chaînes (équivalent encaissements sous-location). */
+  revenusSousLocationChaines: number;
+  /** Total facturé / revenu mois côté Airbnb (même logique que l’onglet Airbnb). */
+  revenusAirbnb: number;
   revenus: number;
   charges: number;
-  benefice: number;
 };
 
 /** Les `n` derniers mois civils, du plus récent au plus ancien (clés YYYY-MM). */
@@ -33,39 +37,75 @@ function libelleMoisFrancais(moisCle: string): string {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-/**
- * Agrège sur le patrimoine (tous les baux) les versements enregistrés (revenus)
- * et les frais saisis (charges) par mois civil — **6 derniers mois** par défaut.
- * Bénéfice = revenus − charges. Les mois de bail « annulés » sont ignorés.
- */
-export function computeBeneficesParMoisDashboard(
+function totalPaiementsMoisSurContrat(
+  contrat: ContratLocation | undefined,
+  moisCle: string,
+  rowsForContrat: (c: ContratLocation) => MoisFinanceContrat[]
+): number {
+  if (!contrat) return 0;
+  const rows = rowsForContrat(contrat);
+  const row = rows.find((r) => r.moisCle === moisCle);
+  if (!row || row.statutOverride === "annule") return 0;
+  let s = 0;
+  for (const p of row.paiements) {
+    s += parseEuro(p.montant);
+  }
+  return s;
+}
+
+function totalFraisMoisPatrimoine(
   contrats: ContratLocation[],
+  moisCle: string,
+  rowsForContrat: (c: ContratLocation) => MoisFinanceContrat[]
+): number {
+  let charges = 0;
+  for (const c of contrats) {
+    const rows = rowsForContrat(c);
+    const row = rows.find((r) => r.moisCle === moisCle);
+    if (!row || row.statutOverride === "annule") continue;
+    for (const f of row.frais) {
+      charges += parseEuro(f.montant);
+    }
+  }
+  return charges;
+}
+
+/**
+ * Revenu mensuel = somme des paiements sur les baux **sous-location** des **chaînes**
+ * enregistrées + revenu consolidé **Airbnb** du mois (`getAirbnbMonthDetail` → `totalFacture`).
+ * Charges = frais saisis sur l’ensemble des baux (inchangé).
+ */
+export function computeRevenusParMoisDashboard(
+  contrats: ContratLocation[],
+  chainesLocation: ChaineLocation[],
   rowsForContrat: (c: ContratLocation) => MoisFinanceContrat[],
+  airbnbState: AirbnbState,
   nombreMois = 6,
   dateRef: Date = new Date()
-): LigneBenefice[] {
+): LigneRevenuMois[] {
   const moisCles = moisClesDerniersMois(nombreMois, dateRef);
-  const result: LigneBenefice[] = [];
+  const byId = new Map(contrats.map((c) => [c.id, c]));
+  const result: LigneRevenuMois[] = [];
   for (const moisCle of moisCles) {
-    let revenus = 0;
-    let charges = 0;
-    for (const c of contrats) {
-      const rows = rowsForContrat(c);
-      const row = rows.find((r) => r.moisCle === moisCle);
-      if (!row || row.statutOverride === "annule") continue;
-      for (const p of row.paiements) {
-        revenus += parseEuro(p.montant);
-      }
-      for (const f of row.frais) {
-        charges += parseEuro(f.montant);
-      }
+    let revenusSousLocationChaines = 0;
+    for (const ch of chainesLocation) {
+      const sous = byId.get(ch.contratSousLocataireId);
+      revenusSousLocationChaines += totalPaiementsMoisSurContrat(
+        sous,
+        moisCle,
+        rowsForContrat
+      );
     }
+    const detailAirbnb = getAirbnbMonthDetail(airbnbState, moisCle);
+    const revenusAirbnb = detailAirbnb.totalFacture;
+    const charges = totalFraisMoisPatrimoine(contrats, moisCle, rowsForContrat);
     result.push({
       mois: libelleMoisFrancais(moisCle),
       moisCle,
-      revenus,
+      revenusSousLocationChaines,
+      revenusAirbnb,
+      revenus: revenusSousLocationChaines + revenusAirbnb,
       charges,
-      benefice: revenus - charges,
     });
   }
   return result;

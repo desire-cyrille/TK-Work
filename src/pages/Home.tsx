@@ -1,8 +1,10 @@
 import { useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
 import { useBiens } from "../context/BiensContext";
 import { useFinance } from "../context/FinanceContext";
-import { computeBeneficesParMoisDashboard } from "../lib/dashboardBenefices";
+import { loadAirbnbState } from "../lib/airbnbStorage";
+import { computeRevenusParMoisDashboard } from "../lib/dashboardBenefices";
 import { computeDashboardPatrimoineStats } from "../lib/dashboardBiens";
 import { fusionnerMoisFinanceAvecContrat } from "../lib/moisFinance";
 import styles from "./Home.module.css";
@@ -15,7 +17,8 @@ const eur = (n: number) =>
   }).format(n);
 
 export function Home() {
-  const { logements, contratsLocation, bailleurs } = useBiens();
+  const { pathname } = useLocation();
+  const { logements, contratsLocation, bailleurs, chainesLocation } = useBiens();
   const { moisParContrat } = useFinance();
   const dashboardStats = useMemo(
     () =>
@@ -27,13 +30,15 @@ export function Home() {
     [logements, contratsLocation, bailleurs]
   );
 
-  const beneficesParMois = useMemo(
-    () =>
-      computeBeneficesParMoisDashboard(contratsLocation, (c) =>
-        fusionnerMoisFinanceAvecContrat(c, moisParContrat[c.id] ?? [])
-      ),
-    [contratsLocation, moisParContrat]
-  );
+  const revenusParMois = useMemo(() => {
+    const airbnb = loadAirbnbState();
+    return computeRevenusParMoisDashboard(
+      contratsLocation,
+      chainesLocation,
+      (c) => fusionnerMoisFinanceAvecContrat(c, moisParContrat[c.id] ?? []),
+      airbnb
+    );
+  }, [pathname, contratsLocation, chainesLocation, moisParContrat]);
 
   return (
     <PageFrame title="Tableau de bord">
@@ -64,9 +69,13 @@ export function Home() {
         </section>
 
         <section className={styles.tableSection}>
-          <h2 className={styles.sectionTitle}>
-            Bénéfices par mois (6 derniers mois)
-          </h2>
+          <h2 className={styles.sectionTitle}>Revenu par mois</h2>
+          <p className={styles.tableHint}>
+            Six derniers mois : sommes encaissées sur les baux sous-location des
+            chaînes (versements enregistrés côté « toi → sous-loc », équivalent
+            TK Pro Synergie) + total revenu Airbnb du mois (comme l’onglet
+            Airbnb). Charges = frais saisis sur tous les baux.
+          </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
@@ -74,18 +83,14 @@ export function Home() {
                   <th>Mois</th>
                   <th className={styles.num}>Revenus</th>
                   <th className={styles.num}>Charges</th>
-                  <th className={styles.num}>Bénéfice</th>
                 </tr>
               </thead>
               <tbody>
-                {beneficesParMois.map((row) => (
+                {revenusParMois.map((row) => (
                   <tr key={row.moisCle}>
                     <td>{row.mois}</td>
                     <td className={styles.num}>{eur(row.revenus)}</td>
                     <td className={styles.num}>{eur(row.charges)}</td>
-                    <td className={`${styles.num} ${styles.benefice}`}>
-                      {eur(row.benefice)}
-                    </td>
                   </tr>
                 ))}
               </tbody>
