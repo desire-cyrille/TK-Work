@@ -1088,8 +1088,9 @@ export type DocumentMoisPdfOptions = {
   /**
    * Détail des versements du mois (date ISO AAAA-MM-JJ + montant), pour la quittance / avis.
    * Si vide ou absent, une seule ligne « Montant déjà versé (saisi) » est affichée comme avant.
+   * `tva` : part TVA € du loyer réputée contenue dans le versement (prorata au dû du mois).
    */
-  versements?: { date: string; montant: number }[];
+  versements?: { date: string; montant: number; tva?: number }[];
   reportEntrant?: number;
   totalFraisMois?: number;
   /** TVA € estimée sur le montant versé (bail avec taux TVA ; même logique que l’onglet Finance). */
@@ -1336,6 +1337,11 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
   const hc = parseEuro(contrat.loyerHc);
   const charges = parseEuro(contrat.charges);
   const tvaSaisie = contratUtiliseSaisieTva(contrat);
+  const tvaPayeSynth = tvaSurMontantPaye ?? 0;
+  const avecTvaSurVersements =
+    tvaSaisie &&
+    tvaPayeSynth > 0.005 &&
+    versementsDetail.some((v) => (v.tva ?? 0) > 0.005);
   const tvaTot = tvaTotaleEuroSurLoyerEtCharges(contrat);
   const loyerTotalDetail = tvaSaisie
     ? hc + charges + tvaTot
@@ -1411,6 +1417,15 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
           : "Versement (date non renseignée)";
       detailContH +=
         hauteurLigneLibelleMontant(doc, wLbl, lib, v.montant) + traitExtra;
+      if (avecTvaSurVersements && (v.tva ?? 0) > 0.005) {
+        detailContH +=
+          hauteurLigneLibelleMontant(
+            doc,
+            wLbl,
+            "  dont TVA loyer (prorata dû du mois)",
+            v.tva ?? 0
+          ) + traitExtra * 0.85;
+      }
     }
     if (afficherLigneTotalVersements) {
       detailContH +=
@@ -1421,6 +1436,15 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
           montantPaye
         ) + traitExtra;
     }
+    if (avecTvaSurVersements && afficherLigneTotalVersements) {
+      detailContH +=
+        hauteurLigneLibelleMontant(
+          doc,
+          wLbl,
+          "TVA loyer totale (sur l’ensemble des versements)",
+          tvaPayeSynth
+        ) + traitExtra;
+    }
   } else {
     detailContH +=
       hauteurLigneLibelleMontant(
@@ -1429,6 +1453,15 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
         "Montant déjà versé (saisi)",
         montantPaye
       ) + traitExtra;
+    if (tvaSaisie && tvaPayeSynth > 0.005 && montantPaye > 0.005) {
+      detailContH +=
+        hauteurLigneLibelleMontant(
+          doc,
+          wLbl,
+          "Dont TVA loyer (prorata sur versements)",
+          tvaPayeSynth
+        ) + traitExtra;
+    }
   }
   detailContH +=
     hauteurLigneLibelleMontant(
@@ -1537,6 +1570,17 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
           : "Versement (date non renseignée)";
       yd = ligneLibelleMontant(doc, xLbl, yd, wLbl, lib, v.montant);
       traitLigneFin(yd);
+      if (avecTvaSurVersements && (v.tva ?? 0) > 0.005) {
+        yd = ligneLibelleMontant(
+          doc,
+          xLbl,
+          yd,
+          wLbl,
+          "  dont TVA loyer (prorata dû du mois)",
+          v.tva ?? 0
+        );
+        traitLigneFin(yd);
+      }
     }
     if (afficherLigneTotalVersements) {
       yd = ligneLibelleMontant(
@@ -1546,6 +1590,17 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
         wLbl,
         "Montant déjà versé (total)",
         montantPaye
+      );
+      traitLigneFin(yd);
+    }
+    if (avecTvaSurVersements && afficherLigneTotalVersements) {
+      yd = ligneLibelleMontant(
+        doc,
+        xLbl,
+        yd,
+        wLbl,
+        "TVA loyer totale (sur l’ensemble des versements)",
+        tvaPayeSynth
       );
       traitLigneFin(yd);
     }
@@ -1559,6 +1614,17 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
       montantPaye
     );
     traitLigneFin(yd);
+    if (tvaSaisie && tvaPayeSynth > 0.005 && montantPaye > 0.005) {
+      yd = ligneLibelleMontant(
+        doc,
+        xLbl,
+        yd,
+        wLbl,
+        "Dont TVA loyer (prorata sur versements)",
+        tvaPayeSynth
+      );
+      traitLigneFin(yd);
+    }
   }
   yd = ligneLibelleMontant(
     doc,
@@ -1576,13 +1642,22 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
       : formatDateFr(new Date().toISOString().slice(0, 10));
     const tvaPaye = tvaSurMontantPaye ?? 0;
     const avecLigneTva = tvaPaye > 0.005;
-    const payH = quittanceClassique
-      ? avecLigneTva
-        ? 23
-        : 17
-      : avecLigneTva
-        ? 26
-        : 20;
+    const nbLignesDetailTva =
+      avecLigneTva && versementsDetail.length > 1
+        ? versementsDetail.filter((v) => (v.tva ?? 0) > 0.005).length
+        : 0;
+    const padTop = quittanceClassique ? 7.5 : 9;
+    const hLigne1 = quittanceClassique ? 5.8 : 6.2;
+    const hLigne2 = quittanceClassique ? 6.2 : 6.8;
+    const hTva = quittanceClassique ? 4.6 : 5;
+    const padBottom = 5.5;
+    const payH =
+      padTop +
+      hLigne1 +
+      hLigne2 +
+      (avecLigneTva ? hTva * (1 + nbLignesDetailTva) : 0) +
+      padBottom;
+
     ensureSpace(payH + 12);
     encadreArrondi(
       doc,
@@ -1594,31 +1669,49 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
       PDF_THEME.borderStrong,
       0.65
     );
+    const xT = m + padBox;
+    let yy = y + padTop;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(PDF_TYPO.body);
     doc.setTextColor(0, 0, 0);
     doc.text(
       `${roleDroit} a versé ${formatMontantPdf(montantPaye)} le ${dv}.`,
-      m + padBox,
-      quittanceClassique ? y + 7.5 : y + 9
+      xT,
+      yy
     );
+    yy += hLigne1;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(PDF_TYPO.subtitle + 1);
     textRGB(doc, PDF_THEME.navy);
-    doc.text(
-      `TOTAL PAYE : ${formatMontantPdf(montantPaye)}`,
-      m + padBox,
-      quittanceClassique ? y + 13.8 : y + 16
-    );
+    doc.text(`TOTAL PAYE : ${formatMontantPdf(montantPaye)}`, xT, yy);
+    yy += hLigne2;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(PDF_TYPO.small);
+    doc.setTextColor(0, 0, 0);
     if (avecLigneTva) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(PDF_TYPO.small);
-      doc.setTextColor(0, 0, 0);
       doc.text(
-        `TVA (loyer, estimée sur ce versement) : ${formatMontantPdf(tvaPaye)}`,
-        m + padBox,
-        quittanceClassique ? y + 19.5 : y + 22.5
+        `TVA loyer (totale sur les versements) : ${formatMontantPdf(tvaPaye)}`,
+        xT,
+        yy
       );
+      yy += hTva;
+      if (nbLignesDetailTva > 0) {
+        for (const v of versementsDetail) {
+          const t = v.tva ?? 0;
+          if (t <= 0.005) continue;
+          const dlab =
+            v.date.trim().length >= 10
+              ? formatDateFr(v.date)
+              : "—";
+          doc.text(
+            `  · ${dlab} : ${formatMontantPdf(v.montant)} — TVA loyer ${formatMontantPdf(t)}`,
+            xT,
+            yy,
+            { maxWidth: wBox - 2 * padBox }
+          );
+          yy += hTva;
+        }
+      }
     }
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "normal");

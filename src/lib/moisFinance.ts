@@ -117,6 +117,63 @@ export function tvaEuroDansBaseLoyerDuMois(
   return tvaTotaleEuroSurLoyerEtCharges(c);
 }
 
+/**
+ * TVA € du loyer réputée contenue dans un montant versé, au prorata du dû du mois
+ * (même principe que {@link MoisComputed.tvaSurPaye} sur le cumul des versements).
+ */
+export function tvaLoyerProrataSurVersement(
+  montantVerse: number,
+  totalDuMois: number,
+  tvaEuroDansLoyerDuMois: number
+): number {
+  if (
+    montantVerse <= 0.005 ||
+    totalDuMois <= 0.005 ||
+    tvaEuroDansLoyerDuMois <= 0.005
+  ) {
+    return 0;
+  }
+  return (montantVerse * tvaEuroDansLoyerDuMois) / totalDuMois;
+}
+
+/**
+ * Répartit la TVA loyer sur chaque versement ; le dernier est ajusté pour coller
+ * exactement à `tvaSurPayeSynthèse` (affichage PDF / détail).
+ */
+export function repartitionTvaSurVersements(
+  montantsVerses: number[],
+  totalDuMois: number,
+  tvaEuroDansLoyerDuMois: number,
+  tvaSurPayeSynthèse: number
+): number[] {
+  const n = montantsVerses.length;
+  if (n === 0) return [];
+  const out = new Array<number>(n).fill(0);
+  if (
+    totalDuMois <= 0.005 ||
+    tvaEuroDansLoyerDuMois <= 0.005 ||
+    tvaSurPayeSynthèse <= 0.005
+  ) {
+    return out;
+  }
+  let cum = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const v =
+      Math.round(
+        100 *
+          tvaLoyerProrataSurVersement(
+            montantsVerses[i]!,
+            totalDuMois,
+            tvaEuroDansLoyerDuMois
+          )
+      ) / 100;
+    out[i] = v;
+    cum += v;
+  }
+  out[n - 1] = Math.round(100 * (tvaSurPayeSynthèse - cum)) / 100;
+  return out;
+}
+
 function moisFinanceVide(moisCle: string, contratId: string): MoisFinanceContrat {
   return {
     moisCle,

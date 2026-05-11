@@ -15,6 +15,9 @@ import {
   calculerSuiteMois,
   listeMoisPourContrat,
   moisCleCourant,
+  repartitionTvaSurVersements,
+  tvaEuroDansBaseLoyerDuMois,
+  tvaLoyerProrataSurVersement,
   type MoisComputed,
   type StatutMoisUi,
 } from "../lib/moisFinance";
@@ -40,6 +43,19 @@ function totalPaiementsContrat(
 function montantPourSaisiePaiement(n: number): string {
   const rounded = Math.round(n * 100) / 100;
   return rounded.toFixed(2).replace(".", ",");
+}
+
+function triPaiementsParDate(
+  paiements: import("../context/financeStorage").LignePaiementMois[]
+): import("../context/financeStorage").LignePaiementMois[] {
+  return [...paiements].sort((a, b) => {
+    const da = a.date.trim();
+    const db = b.date.trim();
+    if (da.length >= 10 && db.length >= 10) return da.localeCompare(db);
+    if (da.length >= 10) return -1;
+    if (db.length >= 10) return 1;
+    return 0;
+  });
 }
 
 function derniereDatePaiementMois(
@@ -378,19 +394,27 @@ export function Finance() {
       solde: row.solde,
       observations: data.observationsDocuments,
       dateVersement: derniereDatePaiementMois(data),
-      versements: data.paiements
-        .map((p) => ({
+      versements: (() => {
+        const tvaLoyerMois = tvaEuroDansBaseLoyerDuMois(
+          contratActif,
+          row.moisCle
+        );
+        const pos = triPaiementsParDate(data.paiements).filter(
+          (p) => parseEuro(p.montant) > 0.005
+        );
+        const montants = pos.map((p) => parseEuro(p.montant));
+        const tvas = repartitionTvaSurVersements(
+          montants,
+          row.totalDu,
+          tvaLoyerMois,
+          row.tvaSurPaye
+        );
+        return pos.map((p, i) => ({
           date: p.date.trim(),
-          montant: parseEuro(p.montant),
-        }))
-        .filter((p) => p.montant > 0.005)
-        .sort((a, b) => {
-          if (a.date.length >= 10 && b.date.length >= 10)
-            return a.date.localeCompare(b.date);
-          if (a.date.length >= 10) return -1;
-          if (b.date.length >= 10) return 1;
-          return 0;
-        }),
+          montant: montants[i]!,
+          tva: tvas[i] ?? 0,
+        }));
+      })(),
       reportEntrant: row.reportEntrant,
       totalFraisMois: row.totalFrais,
       tvaSurMontantPaye: row.tvaSurPaye,
@@ -835,6 +859,7 @@ export function Finance() {
                                 <td colSpan={8}>
                                   <MoisDetailPanel
                                     key={row.moisCle}
+                                    contrat={contratActif}
                                     data={data}
                                     computed={row}
                                     typesFrais={finance.typesFrais}
@@ -910,6 +935,7 @@ export function Finance() {
 }
 
 function MoisDetailPanel(props: {
+  contrat: ContratLocation;
   data: import("../context/financeStorage").MoisFinanceContrat;
   computed: MoisComputed;
   typesFrais: string[];
@@ -922,6 +948,7 @@ function MoisDetailPanel(props: {
   onRemoveFrais: (id: string) => void;
 }) {
   const {
+    contrat,
     data,
     computed,
     typesFrais,
@@ -948,6 +975,39 @@ function MoisDetailPanel(props: {
   useEffect(() => {
     setObsDraft(data.observationsDocuments);
   }, [data.moisCle, data.observationsDocuments]);
+
+  const tvaParPaiementId = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!contratUtiliseSaisieTva(contrat)) return map;
+    const pos = triPaiementsParDate(data.paiements).filter(
+      (p) => parseEuro(p.montant) > 0.005
+    );
+    if (!pos.length) return map;
+    const montants = pos.map((p) => parseEuro(p.montant));
+    const tvaL = tvaEuroDansBaseLoyerDuMois(contrat, data.moisCle);
+    const tvas = repartitionTvaSurVersements(
+      montants,
+      computed.totalDu,
+      tvaL,
+      computed.tvaSurPaye
+    );
+    pos.forEach((p, i) => map.set(p.id, tvas[i] ?? 0));
+    return map;
+  }, [
+    contrat,
+    data.moisCle,
+    data.paiements,
+    computed.totalDu,
+    computed.tvaSurPaye,
+  ]);
+
+  const tvaEstimeeSaisiePaiement = useMemo(() => {
+    if (!contratUtiliseSaisieTva(contrat)) return null;
+    const m = parseEuro(payMontant);
+    if (m <= 0.005) return null;
+    const tvaL = tvaEuroDansBaseLoyerDuMois(contrat, data.moisCle);
+    return tvaLoyerProrataSurVersement(m, computed.totalDu, tvaL);
+  }, [contrat, data.moisCle, computed.totalDu, payMontant]);
 
   return (
     <div className={styles.expand}>
@@ -1003,6 +1063,16 @@ function MoisDetailPanel(props: {
             <li key={p.id}>
               <span>
                 {p.date || "—"} — {formatEuro(parseEuro(p.montant))}{" "}
+                {(() => {
+                  const t = tvaParPaiementId.get(p.id) ?? 0;
+                  if (t <= 0.005) return null;
+                  return (
+                    <>
+                      — dont TVA loyer (prorata) :{" "}
+                      <strong>{formatEuro(t)}</strong>
+                    </>
+                  );
+                })()}{" "}
                 {p.note ? `(${p.note})` : ""}
               </span>
               <button
@@ -1041,6 +1111,15 @@ function MoisDetailPanel(props: {
               placeholder="virement, espèces…"
             />
           </label>
+          {tvaEstimeeSaisiePaiement != null && tvaEstimeeSaisiePaiement > 0.005 ? (
+            <p
+              className={styles.intro}
+              style={{ gridColumn: "1 / -1", margin: "0.15rem 0 0", fontSize: "0.8rem" }}
+            >
+              TVA loyer estimée sur ce montant (prorata au dû du mois) :{" "}
+              <strong>{formatEuro(tvaEstimeeSaisiePaiement)}</strong>
+            </p>
+          ) : null}
         </div>
         <button
           type="button"
