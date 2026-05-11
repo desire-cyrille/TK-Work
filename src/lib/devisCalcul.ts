@@ -85,23 +85,41 @@ export function montantLigneDeplacement(l: LigneDeplacement): number {
   return Math.max(0, l.tarifTrajetHt) * Math.max(0, l.nombre);
 }
 
+/** Ancien calcul « personnes × jours × repas ou pdj / jour » (devis déjà enregistrés). */
+export function restaurationLigneModeAncienne(l: LigneRestauration): boolean {
+  return (
+    (l.joursPresence ?? 0) > 0.005 ||
+    (l.repasParJour ?? 0) > 0.005 ||
+    (l.petitDejeunerParJour ?? 0) > 0.005
+  );
+}
+
 export function montantLigneRestauration(
   l: LigneRestauration,
   tarifs: TarifsZone,
 ): number {
   const puRepas = l.prixRepas > 0 ? l.prixRepas : tarifs.prixRepasDefaut;
-  const repas =
-    l.nbPersonnes * l.joursPresence * l.repasParJour * puRepas;
   const puPdj =
     l.prixPetitDejeuner > 0
       ? l.prixPetitDejeuner
       : tarifs.prixPetitDejeunerDefaut;
-  const pdj =
-    l.nbPersonnes *
-    l.joursPresence *
-    l.petitDejeunerParJour *
-    puPdj;
-  return repas + pdj;
+
+  if (restaurationLigneModeAncienne(l)) {
+    const repas =
+      l.nbPersonnes * l.joursPresence * l.repasParJour * puRepas;
+    const pdj =
+      l.nbPersonnes *
+      l.joursPresence *
+      l.petitDejeunerParJour *
+      puPdj;
+    return repas + pdj;
+  }
+
+  return (
+    Math.max(0, l.nbPetitDejeuner) * puPdj +
+    Math.max(0, l.nbDejeuner) * puRepas +
+    Math.max(0, l.nbDiner) * puRepas
+  );
 }
 
 export function montantLigneActionTemps(
@@ -323,20 +341,28 @@ export function quantiteLibelleDomaine(
         : "—";
     }
     case "restauration": {
-      const repas = contenu.restauration.lignes.reduce(
-        (a, l) =>
-          a + l.nbPersonnes * l.joursPresence * l.repasParJour,
-        0,
-      );
-      const pdj = contenu.restauration.lignes.reduce(
-        (a, l) =>
-          a +
-          l.nbPersonnes * l.joursPresence * l.petitDejeunerParJour,
-        0,
-      );
+      let repasV1 = 0;
+      let pdjV1 = 0;
+      let nPdj = 0;
+      let nDej = 0;
+      let nDin = 0;
+      for (const l of contenu.restauration.lignes) {
+        if (restaurationLigneModeAncienne(l)) {
+          repasV1 += l.nbPersonnes * l.joursPresence * l.repasParJour;
+          pdjV1 +=
+            l.nbPersonnes * l.joursPresence * l.petitDejeunerParJour;
+        } else {
+          nPdj += l.nbPetitDejeuner;
+          nDej += l.nbDejeuner;
+          nDin += l.nbDiner;
+        }
+      }
       const parts: string[] = [];
-      if (repas > 0) parts.push(`${Math.round(repas)} repas`);
-      if (pdj > 0) parts.push(`${Math.round(pdj)} petit-déj`);
+      if (repasV1 > 0) parts.push(`${Math.round(repasV1)} repas`);
+      if (pdjV1 > 0) parts.push(`${Math.round(pdjV1)} petit-déj`);
+      if (nPdj > 0) parts.push(`${Math.round(nPdj)} pdj`);
+      if (nDej > 0) parts.push(`${Math.round(nDej)} déj.`);
+      if (nDin > 0) parts.push(`${Math.round(nDin)} dîn.`);
       return parts.length ? parts.join(" · ") : "—";
     }
     case "preparationMiseEnPlace":
@@ -403,7 +429,7 @@ export function detailSousLignePdf(
     case "deplacement":
       return "Synthèse : somme des prix totaux (tarif trajet HT × nombre)";
     case "restauration":
-      return "Repas et petits-déjeuners (personnes × jours × repas ou pdj/j)";
+      return "Restauration : pdj / déj. / dîn. × prix (nouveau) ; anciennes lignes : personnes × jours × repas/j";
     case "forfait":
       return "Montant par ligne : quantité × tarif unitaire HT";
     default:

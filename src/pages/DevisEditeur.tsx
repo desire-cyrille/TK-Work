@@ -17,6 +17,7 @@ import {
   montantLigneDeplacement,
   montantLigneForfait,
   montantLigneRestauration,
+  restaurationLigneModeAncienne,
   tarifsPourZone,
   tarifUnitairePermanence,
   totalPermanence,
@@ -953,184 +954,378 @@ export function DevisEditeur() {
           <section className={styles.section}>
             <h2>Restauration</h2>
             <p className={styles.hint}>
-              Montant repas = personnes × jours × repas/j × prix repas (0 ={" "}
-              {tarifs.prixRepasDefaut.toFixed(2)} €). Petit-déjeuner = personnes ×
-              jours × petit-déj/j × prix (0 ={" "}
-              {tarifs.prixPetitDejeunerDefaut.toFixed(2)} €).
+              <strong>Nouvelles lignes</strong> : montant HT = (nombre de petits-déj.
+              × prix petit-déj.) + (nombre de déjeuners + nombre de dîners) × prix
+              repas. Prix à 0 = tarifs zone ({tarifs.prixPetitDejeunerDefaut.toFixed(2)}{" "}
+              € / {tarifs.prixRepasDefaut.toFixed(2)} €). Le champ « Personnes » est
+              informatif (non multiplié dans ce mode).
             </p>
+            {c.restauration.lignes.some((l) => restaurationLigneModeAncienne(l)) ? (
+              <>
+                <h3>Lignes enregistrées (ancien calcul)</h3>
+                <p className={styles.hint}>
+                  Montant = personnes × jours × repas/j × prix repas + personnes ×
+                  jours × petit-déj/j × prix pdj. Ces lignes ne changent pas tant que
+                  vous les conservez ; ajoutez des lignes ci-dessous pour le nouveau
+                  mode.
+                </p>
+                <div className={styles.tableWrap}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Libellé</th>
+                        <th>Personnes</th>
+                        <th>Jours présence</th>
+                        <th>Repas/j</th>
+                        <th>Prix repas</th>
+                        <th>Petit-déj/j</th>
+                        <th>Prix petit-déj</th>
+                        <th>Montant HT</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {c.restauration.lignes
+                        .filter((row) => restaurationLigneModeAncienne(row))
+                        .map((row) => (
+                          <tr key={row.id}>
+                            <td>
+                              <input
+                                value={row.libelle}
+                                onChange={(e) => {
+                                  const lignes = c.restauration.lignes.map((x) =>
+                                    x.id === row.id
+                                      ? { ...x, libelle: e.target.value }
+                                      : x,
+                                  );
+                                  patchContenu({
+                                    ...c,
+                                    restauration: { lignes },
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                className={styles.tableMini}
+                                value={row.nbPersonnes}
+                                onChange={(e) => {
+                                  const n = Number(e.target.value) || 0;
+                                  const lignes = c.restauration.lignes.map((x) =>
+                                    x.id === row.id ? { ...x, nbPersonnes: n } : x,
+                                  );
+                                  patchContenu({
+                                    ...c,
+                                    restauration: { lignes },
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                className={styles.tableMini}
+                                value={row.joursPresence}
+                                onChange={(e) => {
+                                  const n = Number(e.target.value) || 0;
+                                  const lignes = c.restauration.lignes.map((x) =>
+                                    x.id === row.id
+                                      ? { ...x, joursPresence: n }
+                                      : x,
+                                  );
+                                  patchContenu({
+                                    ...c,
+                                    restauration: { lignes },
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                className={styles.tableMini}
+                                value={row.repasParJour}
+                                onChange={(e) => {
+                                  const n = Number(e.target.value) || 0;
+                                  const lignes = c.restauration.lignes.map((x) =>
+                                    x.id === row.id
+                                      ? { ...x, repasParJour: n }
+                                      : x,
+                                  );
+                                  patchContenu({
+                                    ...c,
+                                    restauration: { lignes },
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                step="0.01"
+                                className={styles.tableMini}
+                                value={row.prixRepas}
+                                onChange={(e) => {
+                                  const n = Number(e.target.value) || 0;
+                                  const lignes = c.restauration.lignes.map((x) =>
+                                    x.id === row.id ? { ...x, prixRepas: n } : x,
+                                  );
+                                  patchContenu({
+                                    ...c,
+                                    restauration: { lignes },
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                className={styles.tableMini}
+                                value={row.petitDejeunerParJour}
+                                onChange={(e) => {
+                                  const n = Number(e.target.value) || 0;
+                                  const lignes = c.restauration.lignes.map((x) =>
+                                    x.id === row.id
+                                      ? { ...x, petitDejeunerParJour: n }
+                                      : x,
+                                  );
+                                  patchContenu({
+                                    ...c,
+                                    restauration: { lignes },
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                step="0.01"
+                                className={styles.tableMini}
+                                value={row.prixPetitDejeuner}
+                                onChange={(e) => {
+                                  const n = Number(e.target.value) || 0;
+                                  const lignes = c.restauration.lignes.map((x) =>
+                                    x.id === row.id
+                                      ? { ...x, prixPetitDejeuner: n }
+                                      : x,
+                                  );
+                                  patchContenu({
+                                    ...c,
+                                    restauration: { lignes },
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td
+                              style={{
+                                textAlign: "right",
+                                fontWeight: 600,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {formatEuro(montantLigneRestauration(row, tarifs))}
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className={styles.btnGhost}
+                                onClick={() =>
+                                  patchContenu({
+                                    ...c,
+                                    restauration: {
+                                      lignes: c.restauration.lignes.filter(
+                                        (x) => x.id !== row.id,
+                                      ),
+                                    },
+                                  })
+                                }
+                              >
+                                ×
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                <h3>Nouvelles lignes</h3>
+              </>
+            ) : null}
+
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
                     <th>Libellé</th>
                     <th>Personnes</th>
-                    <th>Jours présence</th>
-                    <th>Repas/j</th>
+                    <th>Nb petit-déj.</th>
+                    <th>Prix petit-déj.</th>
+                    <th>Nb déjeuner</th>
+                    <th>Nb dîner</th>
                     <th>Prix repas</th>
-                    <th>Petit-déj/j</th>
-                    <th>Prix petit-déj</th>
                     <th>Montant HT</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {c.restauration.lignes.map((row) => (
-                    <tr key={row.id}>
-                      <td>
-                        <input
-                          value={row.libelle}
-                          onChange={(e) => {
-                            const lignes = c.restauration.lignes.map((x) =>
-                              x.id === row.id
-                                ? { ...x, libelle: e.target.value }
-                                : x,
-                            );
-                            patchContenu({
-                              ...c,
-                              restauration: { lignes },
-                            });
+                  {c.restauration.lignes
+                    .filter((row) => !restaurationLigneModeAncienne(row))
+                    .map((row) => (
+                      <tr key={row.id}>
+                        <td>
+                          <input
+                            value={row.libelle}
+                            onChange={(e) => {
+                              const lignes = c.restauration.lignes.map((x) =>
+                                x.id === row.id
+                                  ? { ...x, libelle: e.target.value }
+                                  : x,
+                              );
+                              patchContenu({
+                                ...c,
+                                restauration: { lignes },
+                              });
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            className={styles.tableMini}
+                            value={row.nbPersonnes}
+                            onChange={(e) => {
+                              const n = Number(e.target.value) || 0;
+                              const lignes = c.restauration.lignes.map((x) =>
+                                x.id === row.id ? { ...x, nbPersonnes: n } : x,
+                              );
+                              patchContenu({
+                                ...c,
+                                restauration: { lignes },
+                              });
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            className={styles.tableMini}
+                            value={row.nbPetitDejeuner}
+                            onChange={(e) => {
+                              const n = Number(e.target.value) || 0;
+                              const lignes = c.restauration.lignes.map((x) =>
+                                x.id === row.id
+                                  ? { ...x, nbPetitDejeuner: n }
+                                  : x,
+                              );
+                              patchContenu({
+                                ...c,
+                                restauration: { lignes },
+                              });
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className={styles.tableMini}
+                            value={row.prixPetitDejeuner}
+                            onChange={(e) => {
+                              const n = Number(e.target.value) || 0;
+                              const lignes = c.restauration.lignes.map((x) =>
+                                x.id === row.id
+                                  ? { ...x, prixPetitDejeuner: n }
+                                  : x,
+                              );
+                              patchContenu({
+                                ...c,
+                                restauration: { lignes },
+                              });
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            className={styles.tableMini}
+                            value={row.nbDejeuner}
+                            onChange={(e) => {
+                              const n = Number(e.target.value) || 0;
+                              const lignes = c.restauration.lignes.map((x) =>
+                                x.id === row.id ? { ...x, nbDejeuner: n } : x,
+                              );
+                              patchContenu({
+                                ...c,
+                                restauration: { lignes },
+                              });
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            className={styles.tableMini}
+                            value={row.nbDiner}
+                            onChange={(e) => {
+                              const n = Number(e.target.value) || 0;
+                              const lignes = c.restauration.lignes.map((x) =>
+                                x.id === row.id ? { ...x, nbDiner: n } : x,
+                              );
+                              patchContenu({
+                                ...c,
+                                restauration: { lignes },
+                              });
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className={styles.tableMini}
+                            value={row.prixRepas}
+                            onChange={(e) => {
+                              const n = Number(e.target.value) || 0;
+                              const lignes = c.restauration.lignes.map((x) =>
+                                x.id === row.id ? { ...x, prixRepas: n } : x,
+                              );
+                              patchContenu({
+                                ...c,
+                                restauration: { lignes },
+                              });
+                            }}
+                          />
+                        </td>
+                        <td
+                          style={{
+                            textAlign: "right",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
                           }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          className={styles.tableMini}
-                          value={row.nbPersonnes}
-                          onChange={(e) => {
-                            const n = Number(e.target.value) || 0;
-                            const lignes = c.restauration.lignes.map((x) =>
-                              x.id === row.id ? { ...x, nbPersonnes: n } : x,
-                            );
-                            patchContenu({
-                              ...c,
-                              restauration: { lignes },
-                            });
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          className={styles.tableMini}
-                          value={row.joursPresence}
-                          onChange={(e) => {
-                            const n = Number(e.target.value) || 0;
-                            const lignes = c.restauration.lignes.map((x) =>
-                              x.id === row.id
-                                ? { ...x, joursPresence: n }
-                                : x,
-                            );
-                            patchContenu({
-                              ...c,
-                              restauration: { lignes },
-                            });
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          className={styles.tableMini}
-                          value={row.repasParJour}
-                          onChange={(e) => {
-                            const n = Number(e.target.value) || 0;
-                            const lignes = c.restauration.lignes.map((x) =>
-                              x.id === row.id ? { ...x, repasParJour: n } : x,
-                            );
-                            patchContenu({
-                              ...c,
-                              restauration: { lignes },
-                            });
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          step="0.01"
-                          className={styles.tableMini}
-                          value={row.prixRepas}
-                          onChange={(e) => {
-                            const n = Number(e.target.value) || 0;
-                            const lignes = c.restauration.lignes.map((x) =>
-                              x.id === row.id ? { ...x, prixRepas: n } : x,
-                            );
-                            patchContenu({
-                              ...c,
-                              restauration: { lignes },
-                            });
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          className={styles.tableMini}
-                          value={row.petitDejeunerParJour}
-                          onChange={(e) => {
-                            const n = Number(e.target.value) || 0;
-                            const lignes = c.restauration.lignes.map((x) =>
-                              x.id === row.id
-                                ? { ...x, petitDejeunerParJour: n }
-                                : x,
-                            );
-                            patchContenu({
-                              ...c,
-                              restauration: { lignes },
-                            });
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          step="0.01"
-                          className={styles.tableMini}
-                          value={row.prixPetitDejeuner}
-                          onChange={(e) => {
-                            const n = Number(e.target.value) || 0;
-                            const lignes = c.restauration.lignes.map((x) =>
-                              x.id === row.id
-                                ? { ...x, prixPetitDejeuner: n }
-                                : x,
-                            );
-                            patchContenu({
-                              ...c,
-                              restauration: { lignes },
-                            });
-                          }}
-                        />
-                      </td>
-                      <td
-                        style={{
-                          textAlign: "right",
-                          fontWeight: 600,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {formatEuro(montantLigneRestauration(row, tarifs))}
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className={styles.btnGhost}
-                          onClick={() =>
-                            patchContenu({
-                              ...c,
-                              restauration: {
-                                lignes: c.restauration.lignes.filter(
-                                  (x) => x.id !== row.id,
-                                ),
-                              },
-                            })
-                          }
                         >
-                          ×
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          {formatEuro(montantLigneRestauration(row, tarifs))}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className={styles.btnGhost}
+                            onClick={() =>
+                              patchContenu({
+                                ...c,
+                                restauration: {
+                                  lignes: c.restauration.lignes.filter(
+                                    (x) => x.id !== row.id,
+                                  ),
+                                },
+                              })
+                            }
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -1141,12 +1336,15 @@ export function DevisEditeur() {
                 const ligne: LigneRestauration = {
                   id: newId(),
                   libelle: "",
-                  nbPersonnes: 1,
-                  joursPresence: 1,
-                  repasParJour: 1,
+                  nbPersonnes: 0,
+                  nbPetitDejeuner: 0,
+                  nbDejeuner: 0,
+                  nbDiner: 0,
                   prixRepas: 0,
-                  petitDejeunerParJour: 0,
                   prixPetitDejeuner: 0,
+                  joursPresence: 0,
+                  repasParJour: 0,
+                  petitDejeunerParJour: 0,
                 };
                 patchContenu({
                   ...c,

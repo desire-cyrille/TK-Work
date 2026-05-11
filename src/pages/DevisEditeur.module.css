@@ -167,6 +167,13 @@
   color: var(--workspace-text, #fff);
 }
 
+.section h3 {
+  margin: 1.1rem 0 0.5rem;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--workspace-muted, #a8a8b8);
+}
+
 .fieldset {
   border: none;
   padding: 0;

@@ -28,15 +28,25 @@ export type DomaineDeplacement = {
 export type LigneRestauration = {
   id: string;
   libelle: string;
+  /** Informatif (nouveau mode) ; facteur de volume à l’ancien mode. */
   nbPersonnes: number;
-  joursPresence: number;
-  repasParJour: number;
-  /** 0 = utiliser le prix par défaut de la zone */
+  /** Nouveau mode : nombre total de petits-déjeuners sur la ligne. */
+  nbPetitDejeuner: number;
+  /** Nouveau mode : nombre de déjeuners. */
+  nbDejeuner: number;
+  /** Nouveau mode : nombre de dîners. */
+  nbDiner: number;
+  /** 0 = utiliser le prix par défaut de la zone (même unité pour déj. et dîner). */
   prixRepas: number;
-  /** Petits-déjeuners par jour (même logique que repas/j). */
-  petitDejeunerParJour: number;
   /** 0 = utiliser le prix petit-déjeuner par défaut de la zone */
   prixPetitDejeuner: number;
+  /**
+   * Ancien mode (devis déjà enregistrés) : montant = personnes × jours × repas/j × prix repas
+   * + personnes × jours × petit-déj/j × prix pdj. Laisser à 0 pour les nouvelles lignes.
+   */
+  joursPresence: number;
+  repasParJour: number;
+  petitDejeunerParJour: number;
 };
 
 export type DomaineRestauration = {
@@ -320,12 +330,45 @@ function normaliserLigneForfait(l: LigneForfait): LigneForfait {
   };
 }
 
-/** Rétrocompatibilité : devis enregistrés avant l’ajout du petit-déjeuner. */
+/** Rétrocompatibilité : anciennes lignes + champs du nouveau mode restauration. */
 export function normaliserLigneRestauration(l: LigneRestauration): LigneRestauration {
+  const id = typeof l.id === "string" && l.id ? l.id : newId();
+  const libelle = typeof l.libelle === "string" ? l.libelle : "";
+  const nb = Number.isFinite(Number(l.nbPersonnes)) ? Number(l.nbPersonnes) : 0;
+  const joursPresence = Number.isFinite(Number(l.joursPresence))
+    ? Number(l.joursPresence)
+    : 0;
+  const repasParJour = Number.isFinite(Number(l.repasParJour))
+    ? Number(l.repasParJour)
+    : 0;
+  const petitDejeunerParJour = Number.isFinite(Number(l.petitDejeunerParJour))
+    ? Number(l.petitDejeunerParJour)
+    : 0;
+  const prixRepas = Number.isFinite(Number(l.prixRepas)) ? Number(l.prixRepas) : 0;
+  const prixPetitDejeuner = Number.isFinite(Number(l.prixPetitDejeuner))
+    ? Number(l.prixPetitDejeuner)
+    : 0;
+  const nbPetitDejeuner = Number.isFinite(Number(l.nbPetitDejeuner))
+    ? Math.max(0, Number(l.nbPetitDejeuner))
+    : 0;
+  const nbDejeuner = Number.isFinite(Number(l.nbDejeuner))
+    ? Math.max(0, Number(l.nbDejeuner))
+    : 0;
+  const nbDiner = Number.isFinite(Number(l.nbDiner))
+    ? Math.max(0, Number(l.nbDiner))
+    : 0;
   return {
-    ...l,
-    petitDejeunerParJour: l.petitDejeunerParJour ?? 0,
-    prixPetitDejeuner: l.prixPetitDejeuner ?? 0,
+    id,
+    libelle,
+    nbPersonnes: nb,
+    nbPetitDejeuner,
+    nbDejeuner,
+    nbDiner,
+    prixRepas,
+    prixPetitDejeuner,
+    joursPresence,
+    repasParJour,
+    petitDejeunerParJour,
   };
 }
 
