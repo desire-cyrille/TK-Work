@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import { PageFrame } from "../components/PageFrame";
 import { useBiens } from "../context/BiensContext";
-import { beneficesParMois } from "../data/dashboard";
+import { useFinance } from "../context/FinanceContext";
+import { computeBeneficesParMoisDashboard } from "../lib/dashboardBenefices";
 import { computeDashboardPatrimoineStats } from "../lib/dashboardBiens";
+import { fusionnerMoisFinanceAvecContrat } from "../lib/moisFinance";
 import styles from "./Home.module.css";
 
 const eur = (n: number) =>
@@ -14,6 +16,7 @@ const eur = (n: number) =>
 
 export function Home() {
   const { logements, contratsLocation, bailleurs } = useBiens();
+  const { moisParContrat } = useFinance();
   const dashboardStats = useMemo(
     () =>
       computeDashboardPatrimoineStats({
@@ -22,6 +25,14 @@ export function Home() {
         bailleurs,
       }),
     [logements, contratsLocation, bailleurs]
+  );
+
+  const beneficesParMois = useMemo(
+    () =>
+      computeBeneficesParMoisDashboard(contratsLocation, (c) =>
+        fusionnerMoisFinanceAvecContrat(c, moisParContrat[c.id] ?? [])
+      ),
+    [contratsLocation, moisParContrat]
   );
 
   return (
@@ -53,7 +64,9 @@ export function Home() {
         </section>
 
         <section className={styles.tableSection}>
-          <h2 className={styles.sectionTitle}>Bénéfices par mois</h2>
+          <h2 className={styles.sectionTitle}>
+            Bénéfices par mois (6 derniers mois)
+          </h2>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
@@ -66,7 +79,7 @@ export function Home() {
               </thead>
               <tbody>
                 {beneficesParMois.map((row) => (
-                  <tr key={row.mois}>
+                  <tr key={row.moisCle}>
                     <td>{row.mois}</td>
                     <td className={styles.num}>{eur(row.revenus)}</td>
                     <td className={styles.num}>{eur(row.charges)}</td>
