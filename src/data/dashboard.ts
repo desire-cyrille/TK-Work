@@ -1,10 +1,3 @@
-/** Données d'exemple — à remplacer par API ou base locale plus tard */
-export const dashboardStats = {
-  biensSousLocation: 8,
-  biensPropres: 4,
-  nombreBailleurs: 12,
-};
-
 export type LigneBenefice = {
   mois: string;
   revenus: number;

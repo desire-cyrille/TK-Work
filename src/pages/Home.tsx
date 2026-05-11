@@ -1,5 +1,8 @@
+import { useMemo } from "react";
 import { PageFrame } from "../components/PageFrame";
-import { beneficesParMois, dashboardStats } from "../data/dashboard";
+import { useBiens } from "../context/BiensContext";
+import { beneficesParMois } from "../data/dashboard";
+import { computeDashboardPatrimoineStats } from "../lib/dashboardBiens";
 import styles from "./Home.module.css";
 
 const eur = (n: number) =>
@@ -10,6 +13,17 @@ const eur = (n: number) =>
   }).format(n);
 
 export function Home() {
+  const { logements, contratsLocation, bailleurs } = useBiens();
+  const dashboardStats = useMemo(
+    () =>
+      computeDashboardPatrimoineStats({
+        logements,
+        contratsLocation,
+        bailleurs,
+      }),
+    [logements, contratsLocation, bailleurs]
+  );
+
   return (
     <PageFrame title="Tableau de bord">
       <div className={styles.page}>
