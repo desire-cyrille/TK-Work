@@ -1180,8 +1180,12 @@ export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
   const roleDroit =
     catOccupant === "sous-locataire" ? "Sous-locataire" : "Locataire";
 
+  const titreLogement = logement?.titre?.trim() ?? "";
   const titresType: Record<TypeDocumentMois, string> = {
-    quittance: `QUITTANCE ${titreMoisAnneeQuittance(moisCle)}`,
+    quittance:
+      titreLogement.length > 0
+        ? `QUITTANCE ${titreMoisAnneeQuittance(moisCle)} — ${titreLogement}`
+        : `QUITTANCE ${titreMoisAnneeQuittance(moisCle)}`,
     avis_echeance: `AVIS D'ECHEANCE ${titreMoisAnneeAffiche(moisCle)}`,
     avis_paiement: `AVIS DE SOLDE ${titreMoisAnneeAffiche(moisCle)}`,
   };
