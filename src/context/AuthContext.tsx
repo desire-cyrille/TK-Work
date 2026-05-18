@@ -14,6 +14,7 @@ import {
   getAuthToken,
   setAuthSession,
 } from "../lib/authToken";
+import { cloudPush } from "../lib/cloudSync";
 
 export type AuthActionResult =
   | { ok: true }
@@ -121,6 +122,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applySessionToken]);
 
   const logout = useCallback(async () => {
+    if (getAuthToken()) {
+      try {
+        await cloudPush();
+      } catch {
+        /* ignore — déconnexion locale quand même */
+      }
+    }
     clearAuthSession();
     setProfileEmail("admin@local");
     setRole("USER");

@@ -75,20 +75,19 @@ export function CloudSyncPanel() {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Synchronisation entre appareils</h2>
         <p className={styles.hint}>
-          <strong>Nuage unique pour l’organisation.</strong> Tous les utilisateurs
-          partagent la même copie des données sur le serveur : biens, finances,
-          Airbnb, thème, <strong>devis</strong>,{" "}
-          <strong>rapports d’activité</strong> (projets et fiches). La synchronisation s’authentifie avec{" "}
-          <strong>votre compte personnel</strong>, mais envoie et récupère le
-          même contenu pour tous. Dernière copie envoyée gagne (pas de fusion
-          détaillée). En cas d’erreur de taille, réduisez la quantité de données
-          ou utilisez une sauvegarde fichier.
+          <strong>Le serveur est la référence.</strong> Biens, finances, Airbnb,
+          thème, devis et rapports sont stockés sur le nuage partagé de
+          l’organisation. À la <strong>connexion</strong> et à chaque ouverture
+          de l’application (connecté), vos données sont <strong>téléchargées
+          automatiquement</strong> si le serveur est plus récent. Chaque
+          modification est <strong>envoyée automatiquement</strong> (quelques
+          secondes après la saisie) ; à la <strong>déconnexion</strong>, un envoi
+          final est aussi tenté.
         </p>
         <p className={styles.hint}>
-          À la <strong>connexion</strong>, une récupération automatique est faite
-          si le serveur contient des données. À la <strong>déconnexion</strong>,
-          vos données locales sont envoyées vers le nuage (si la connexion
-          réseau le permet).
+          Le navigateur garde une copie locale pour travailler hors ligne, mais
+          vous n’avez plus besoin d’exporter ou de « Récupérer » au quotidien.
+          Les boutons ci-dessous servent en secours (autre appareil, dépannage).
         </p>
         {!isAuthenticated ? (
           <p className={styles.backupBannerErr} role="status">

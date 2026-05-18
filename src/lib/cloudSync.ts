@@ -14,6 +14,89 @@ const LEGACY_CLOUD_TOKEN = "tk_gestion_cloud_token";
 const LEGACY_CLOUD_EMAIL = "tk_gestion_cloud_email";
 const AUTOBACKUP_BEFORE_PULL_KEY = "tk-gestion-autobackup-before-cloudpull-v1";
 const FLUSH_BEFORE_CLOUD_PUSH_EVENT = "tk-gestion-flush-before-cloud-push";
+/** Dernière version serveur appliquée ou envoyée avec succès (référence unique = nuage). */
+export const CLOUD_SERVER_VERSION_KEY = "tk-gestion-cloud-server-version-v1";
+
+export type CloudSessionBootstrapResult = {
+  shouldHardNavigate: boolean;
+  pulled?: boolean;
+  pushed?: boolean;
+  pullError?: string;
+  applyError?: string;
+  pushError?: string;
+};
+
+let bootstrapInFlight: Promise<CloudSessionBootstrapResult> | null = null;
+
+export function getRememberedCloudServerVersion(): number {
+  try {
+    const n = Number(localStorage.getItem(CLOUD_SERVER_VERSION_KEY) ?? "0");
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function rememberCloudServerVersion(version: number): void {
+  if (!Number.isFinite(version) || version < 0) return;
+  try {
+    localStorage.setItem(CLOUD_SERVER_VERSION_KEY, String(Math.floor(version)));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Données métier présentes (évite d’envoyer / considérer comme « vide » un état thème seul). */
+export function hasSubstantiveLocalData(
+  entries: Record<string, string>,
+): boolean {
+  const keys = Object.keys(entries);
+  if (keys.length === 0) return false;
+
+  const biensRaw = entries["tk-gestion-biens-v1"];
+  if (biensRaw) {
+    try {
+      const b = JSON.parse(biensRaw) as {
+        bailleurs?: unknown[];
+        logements?: unknown[];
+        locataires?: unknown[];
+        contratsLocation?: unknown[];
+      };
+      if ((b.bailleurs?.length ?? 0) > 0) return true;
+      if ((b.logements?.length ?? 0) > 0) return true;
+      if ((b.locataires?.length ?? 0) > 0) return true;
+      if ((b.contratsLocation?.length ?? 0) > 0) return true;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  for (const k of keys) {
+    if (k.includes("devis") && (entries[k]?.length ?? 0) > 80) return true;
+    if (k.includes("rapport-activite") && (entries[k]?.length ?? 0) > 120) {
+      return true;
+    }
+  }
+
+  const finRaw = entries["tk-gestion-finance-v1"];
+  if (finRaw) {
+    try {
+      const f = JSON.parse(finRaw) as { moisParContrat?: Record<string, unknown> };
+      if (Object.keys(f.moisParContrat ?? {}).length > 0) return true;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const total = Object.values(entries).reduce((s, v) => s + v.length, 0);
+  return total > 800;
+}
+
+function serverHasSubstantiveData(
+  pull: { version: number; entries: Record<string, string> },
+): boolean {
+  return pull.version > 0 && Object.keys(pull.entries).length > 0;
+}
 
 function isAuthOrSessionKey(key: string): boolean {
   return (
@@ -212,7 +295,7 @@ function chunkEntriesByJsonSize(
 }
 
 export async function cloudPush(): Promise<
-  { ok: true } | { ok: false; error: string }
+  { ok: true; version: number } | { ok: false; error: string }
 > {
   const token = getAuthToken();
   // Avant de lire localStorage, laisser les écrans en cours (rapport, devis, etc.)
@@ -229,71 +312,135 @@ export async function cloudPush(): Promise<
 
   async function pushBody(
     body: unknown,
-  ): Promise<{ ok: true } | { ok: false; error: string }> {
+  ): Promise<{ ok: true; version: number } | { ok: false; error: string }> {
     const r = await fetch("/api/sync/push", {
       method: "POST",
       headers,
       body: JSON.stringify(body),
       cache: "no-store",
     });
-    const data = (await readJson(r)) as ApiErr;
+    const data = (await readJson(r)) as ApiErr & { version?: number };
     if (!r.ok) {
       return {
         ok: false,
         error: data?.error ?? `Erreur ${r.status}`,
       };
     }
-    return { ok: true };
+    const version = typeof data.version === "number" ? data.version : 0;
+    return { ok: true, version };
   }
 
+  if (Object.keys(entries).length === 0) {
+    return { ok: false, error: "Aucune donnée locale à envoyer." };
+  }
+
+  let lastVersion = 0;
   const innerLen = JSON.stringify(entries).length;
   if (innerLen <= CLOUD_ENTRIES_MAX_JSON_BYTES) {
     const r = await pushBody({ entries });
     if (!r.ok) return { ok: false, error: r.error };
-    return { ok: true };
-  }
+    lastVersion = r.version;
+  } else {
+    const chunks = chunkEntriesByJsonSize(entries, CLOUD_ENTRIES_MAX_JSON_BYTES);
+    const reset = await pushBody({ reset: true });
+    if (!reset.ok) {
+      return { ok: false, error: reset.error };
+    }
+    lastVersion = reset.version;
 
-  const chunks = chunkEntriesByJsonSize(entries, CLOUD_ENTRIES_MAX_JSON_BYTES);
-  const reset = await pushBody({ reset: true });
-  if (!reset.ok) {
-    return { ok: false, error: reset.error };
-  }
-
-  for (const chunk of chunks) {
-    if (Object.keys(chunk).length === 0) continue;
-    const part = await pushBody({ entries: chunk, merge: true });
-    if (!part.ok) {
-      return {
-        ok: false,
-        error: `${part.error} Envoi partiel sur le serveur — refaites « Envoyer vers le serveur » depuis cet appareil.`,
-      };
+    for (const chunk of chunks) {
+      if (Object.keys(chunk).length === 0) continue;
+      const part = await pushBody({ entries: chunk, merge: true });
+      if (!part.ok) {
+        return {
+          ok: false,
+          error: `${part.error} Envoi partiel sur le serveur — refaites « Envoyer vers le serveur » depuis cet appareil.`,
+        };
+      }
+      lastVersion = part.version;
     }
   }
 
-  return { ok: true };
+  if (lastVersion > 0) rememberCloudServerVersion(lastVersion);
+  return { ok: true, version: lastVersion };
 }
 
 /**
- * Après connexion ou inscription : remplace les données locales par la copie serveur si elle existe.
- * Indique si un rechargement complet est nécessaire pour rafraîchir l’application.
+ * Aligne cet appareil sur le nuage (source de vérité) :
+ * - serveur avec données → télécharge si plus récent ou si le local est vide ;
+ * - serveur vide + local rempli → envoi automatique vers le serveur.
+ */
+async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> {
+  const pull = await cloudPull();
+  if (!pull.ok) {
+    return { shouldHardNavigate: false, pullError: pull.error };
+  }
+
+  const localEntries = collectEntriesForCloudPush();
+  const localSubstantive = hasSubstantiveLocalData(localEntries);
+  const remoteSubstantive = serverHasSubstantiveData(pull);
+  const remembered = getRememberedCloudServerVersion();
+
+  if (remoteSubstantive) {
+    const serverNewer = pull.version > remembered;
+    const shouldApply = serverNewer || !localSubstantive;
+    if (!shouldApply) {
+      if (remembered === 0) rememberCloudServerVersion(pull.version);
+      return { shouldHardNavigate: false };
+    }
+    const applied = applyCloudPullEntries(pull.entries);
+    if (!applied.ok) {
+      return { shouldHardNavigate: false, applyError: applied.error };
+    }
+    rememberCloudServerVersion(pull.version);
+    return { shouldHardNavigate: true, pulled: true };
+  }
+
+  if (localSubstantive) {
+    const pushed = await cloudPush();
+    if (!pushed.ok) {
+      return { shouldHardNavigate: false, pushError: pushed.error };
+    }
+    if (pushed.version > 0) {
+      rememberCloudServerVersion(pushed.version);
+    } else {
+      const after = await cloudPull();
+      if (after.ok && after.version > 0) {
+        rememberCloudServerVersion(after.version);
+      }
+    }
+    return { shouldHardNavigate: false, pushed: true };
+  }
+
+  return { shouldHardNavigate: false };
+}
+
+/** Aligne l’appareil sur le nuage (idempotent ; un seul appel simultané). */
+export function syncCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> {
+  if (!getAuthToken()) {
+    return Promise.resolve({ shouldHardNavigate: false });
+  }
+  if (bootstrapInFlight) return bootstrapInFlight;
+  bootstrapInFlight = runCloudSessionBootstrap().finally(() => {
+    bootstrapInFlight = null;
+  });
+  return bootstrapInFlight;
+}
+
+/**
+ * Après connexion ou inscription : alignement automatique sur le nuage.
  */
 export async function syncCloudPullAfterLogin(): Promise<{
   shouldHardNavigate: boolean;
   pullError?: string;
   applyError?: string;
 }> {
-  const r = await cloudPull();
-  if (!r.ok) {
-    return { shouldHardNavigate: false, pullError: r.error };
-  }
-  if (r.version === 0 || Object.keys(r.entries).length === 0) {
-    return { shouldHardNavigate: false };
-  }
-  const applied = applyCloudPullEntries(r.entries);
-  if (!applied.ok) {
-    return { shouldHardNavigate: false, applyError: applied.error };
-  }
-  return { shouldHardNavigate: true };
+  const r = await syncCloudSessionBootstrap();
+  return {
+    shouldHardNavigate: r.shouldHardNavigate,
+    pullError: r.pullError,
+    applyError: r.applyError,
+  };
 }
 
 /** Rechargement vers la page Fonctions après application d’une copie nuage (état React obsolète). */

@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import {
   cloudPush,
   collectEntriesForCloudPush,
+  hardNavigateToFonctionsAfterCloudPull,
+  syncCloudSessionBootstrap,
 } from "../lib/cloudSync";
 import { getAuthToken } from "../lib/authToken";
 
@@ -14,8 +16,7 @@ const LAST_PUSHED_HASH_KEY = "tk-gestion-cloud-autosync-last-pushed-hash-v1";
  *
  * Objectif: éviter toute perte en navigation / appareil, sans provoquer de reload.
  *
- * Important: aucun "pull/apply" automatique ici, car appliquer une copie serveur
- * implique souvent un rechargement et peut écraser des saisies en cours.
+ * Au démarrage (session connectée), alignement sur le nuage si une version plus récente existe.
  */
 export function CloudAutoSync() {
   const inFlightPush = useRef(false);
@@ -108,8 +109,23 @@ export function CloudAutoSync() {
     // Push initial (si des données existent déjà).
     schedulePush();
 
+    if (getAuthToken()) {
+      void syncCloudSessionBootstrap().then((r) => {
+        if (r.shouldHardNavigate) {
+          hardNavigateToFonctionsAfterCloudPull();
+        }
+      });
+    }
+
     const onOnline = () => {
       schedulePush();
+      if (getAuthToken()) {
+        void syncCloudSessionBootstrap().then((boot) => {
+          if (boot.shouldHardNavigate) {
+            hardNavigateToFonctionsAfterCloudPull();
+          }
+        });
+      }
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") {

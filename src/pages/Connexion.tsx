@@ -91,10 +91,9 @@ export function Connexion() {
         </h1>
         <p className={styles.hint}>
           Chaque personne a <strong>ses identifiants</strong> ; les données
-          métier (biens, devis, rapports d’activité) sont <strong>communes</strong> sur le
-          serveur : une récupération depuis le nuage est tentée à chaque connexion ;
-          les réglages manuels sont sur la page <strong>Fonctions</strong> (section
-          Nuage).
+          métier (biens, devis, rapports) sont <strong>sur le serveur</strong> et
+          se chargent <strong>automatiquement</strong> à la connexion. Inutile
+          d’exporter un fichier JSON au quotidien si vous restez connecté.
         </p>
         <div className={styles.modeRow}>
           <button
