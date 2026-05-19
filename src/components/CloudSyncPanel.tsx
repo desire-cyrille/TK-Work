@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { applyCloudPullEntries, cloudPull, cloudPush } from "../lib/cloudSync";
+import {
+  applyCloudPullEntries,
+  cloudPull,
+  cloudPush,
+  finalizeCloudPullOnDevice,
+} from "../lib/cloudSync";
 import styles from "./CloudSyncPanel.module.css";
 
 export function CloudSyncPanel() {
@@ -39,6 +44,7 @@ export function CloudSyncPanel() {
       setCloudMsg({ type: "err", text: applied.error });
       return;
     }
+    await finalizeCloudPullOnDevice();
     window.location.reload();
   }
 
@@ -75,9 +81,9 @@ export function CloudSyncPanel() {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Synchronisation entre appareils</h2>
         <p className={styles.hint}>
-          <strong>Le serveur est la référence.</strong> Biens, finances, Airbnb,
-          thème, devis et rapports sont stockés sur le nuage partagé de
-          l’organisation. À la <strong>connexion</strong> et à chaque ouverture
+          <strong>Le serveur (Neon) est la référence.</strong> Biens, finances,
+          Airbnb, thème, devis et rapports d’activité (textes + photos) sont
+          stockés sur le nuage partagé de l’organisation. À la <strong>connexion</strong> et à chaque ouverture
           de l’application (connecté), vos données sont <strong>téléchargées
           automatiquement</strong> si le serveur est plus récent. Chaque
           modification est <strong>envoyée automatiquement</strong> (quelques

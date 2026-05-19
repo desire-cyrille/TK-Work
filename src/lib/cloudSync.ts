@@ -13,7 +13,13 @@ import {
 const LEGACY_CLOUD_TOKEN = "tk_gestion_cloud_token";
 const LEGACY_CLOUD_EMAIL = "tk_gestion_cloud_email";
 const AUTOBACKUP_BEFORE_PULL_KEY = "tk-gestion-autobackup-before-cloudpull-v1";
-const FLUSH_BEFORE_CLOUD_PUSH_EVENT = "tk-gestion-flush-before-cloud-push";
+export const FLUSH_BEFORE_CLOUD_PUSH_EVENT = "tk-gestion-flush-before-cloud-push";
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 /** Dernière version serveur appliquée ou envoyée avec succès (référence unique = nuage). */
 export const CLOUD_SERVER_VERSION_KEY = "tk-gestion-cloud-server-version-v1";
 
@@ -210,6 +216,34 @@ export function applyCloudPullEntries(entries: Record<string, string>) {
   return r;
 }
 
+/** Après un pull : réinjecte les photos rapport (IndexedDB) depuis la copie nuage. */
+export async function finalizeCloudPullOnDevice(): Promise<void> {
+  const { importRapportImagesFromCloudStorageKey } = await import(
+    "./rapportActiviteImageDbCloud"
+  );
+  await importRapportImagesFromCloudStorageKey();
+}
+
+/**
+ * Flush des brouillons ouverts, export des images rapport, puis collecte localStorage
+ * pour envoi vers Neon (workspace_snapshots).
+ */
+export async function prepareEntriesForCloudPush(): Promise<
+  Record<string, string>
+> {
+  try {
+    window.dispatchEvent(new Event(FLUSH_BEFORE_CLOUD_PUSH_EVENT));
+  } catch {
+    /* ignore */
+  }
+  await delay(100);
+  const { exportRapportImagesToCloudStorageKey } = await import(
+    "./rapportActiviteImageDbCloud"
+  );
+  await exportRapportImagesToCloudStorageKey();
+  return collectEntriesForCloudPush();
+}
+
 type ApiErr = { error?: string };
 
 async function readJson(res: Response): Promise<unknown> {
@@ -298,14 +332,7 @@ export async function cloudPush(): Promise<
   { ok: true; version: number } | { ok: false; error: string }
 > {
   const token = getAuthToken();
-  // Avant de lire localStorage, laisser les écrans en cours (rapport, devis, etc.)
-  // forcer l’écriture immédiate de leurs brouillons (anti perte sur clic rapide).
-  try {
-    window.dispatchEvent(new Event(FLUSH_BEFORE_CLOUD_PUSH_EVENT));
-  } catch {
-    /* ignore */
-  }
-  const entries = collectEntriesForCloudPush();
+  const entries = await prepareEntriesForCloudPush();
   const headers: HeadersInit = token
     ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
     : { "Content-Type": "application/json" };
@@ -392,6 +419,7 @@ async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> 
     if (!applied.ok) {
       return { shouldHardNavigate: false, applyError: applied.error };
     }
+    await finalizeCloudPullOnDevice();
     rememberCloudServerVersion(pull.version);
     return { shouldHardNavigate: true, pulled: true };
   }

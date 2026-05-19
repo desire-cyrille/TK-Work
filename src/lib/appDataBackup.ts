@@ -25,6 +25,7 @@ export const TK_GESTION_MANAGED_STORAGE_KEYS = [
   "tk-gestion-rapport-activite-rapports-v2",
   "tk-gestion-rapport-activite-projets-v3",
   "tk-gestion-rapport-activite-rapports-v3",
+  "tk-gestion-rapport-activite-idb-export-v1",
   "tk-gestion-theme-v1",
   "tk-gestion-theme-v2",
   "tk_gestion_session",
@@ -170,6 +171,7 @@ const RESTORE_KEY_PRIORITY: readonly string[] = [
   "tk-gestion-rapport-activite-rapports-v2",
   "tk-gestion-rapport-activite-projets-v3",
   "tk-gestion-rapport-activite-rapports-v3",
+  "tk-gestion-rapport-activite-idb-export-v1",
 ];
 
 export function sortRestoreKeys(keys: string[]): string[] {

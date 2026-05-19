@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import {
   cloudPush,
-  collectEntriesForCloudPush,
   hardNavigateToFonctionsAfterCloudPull,
+  prepareEntriesForCloudPush,
   syncCloudSessionBootstrap,
 } from "../lib/cloudSync";
 import { getAuthToken } from "../lib/authToken";
@@ -76,7 +76,7 @@ export function CloudAutoSync() {
     if (!getAuthToken()) return;
     inFlightPush.current = true;
     try {
-      const entries = collectEntriesForCloudPush();
+      const entries = await prepareEntriesForCloudPush();
       // Protection: ne jamais écraser le serveur avec un état "vide" depuis un appareil vidé.
       if (Object.keys(entries).length === 0) return;
       const curHash = hashEntries(entries);
@@ -130,17 +130,24 @@ export function CloudAutoSync() {
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         schedulePush();
+      } else {
+        void doPush();
       }
+    };
+    const onPageHide = () => {
+      void doPush();
     };
     const onUserActivity = () => schedulePush();
 
     window.addEventListener("online", onOnline);
+    window.addEventListener("pagehide", onPageHide);
     document.addEventListener("visibilitychange", onVisibility);
     const events = ["click", "keydown", "touchstart", "paste"] as const;
     for (const ev of events) document.addEventListener(ev, onUserActivity, true);
 
     return () => {
       window.removeEventListener("online", onOnline);
+      window.removeEventListener("pagehide", onPageHide);
       document.removeEventListener("visibilitychange", onVisibility);
       for (const ev of events) document.removeEventListener(ev, onUserActivity, true);
       if (pushTimer.current !== null) window.clearTimeout(pushTimer.current);

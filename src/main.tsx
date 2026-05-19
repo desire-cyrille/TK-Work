@@ -4,11 +4,14 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { SentenceCapitalizeDom } from "./components/SentenceCapitalizeDom";
 import { CloudAutoSync } from "./components/CloudAutoSync";
+import { registerRapportImageCloudFlushListener } from "./lib/rapportActiviteImageDbCloud";
 import { AuthProvider } from "./context/AuthContext";
 import { BiensProvider } from "./context/BiensContext";
 import { FinanceProvider } from "./context/FinanceContext";
 import { ThemeSettingsProvider } from "./context/ThemeSettingsContext";
 import "./index.css";
+
+registerRapportImageCloudFlushListener();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
