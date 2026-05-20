@@ -9,6 +9,7 @@ import { getAuthToken } from "../lib/authToken";
 
 const PUSH_DEBOUNCE_MS = 1_500;
 const LAST_PUSHED_HASH_KEY = "tk-gestion-cloud-autosync-last-pushed-hash-v1";
+const LAST_CLOUD_SYNC_ERROR_KEY = "tk-gestion-cloud-last-sync-error-v1";
 
 /**
  * Synchronisation automatique multi-appareil.
@@ -22,6 +23,7 @@ export function CloudAutoSync() {
   const inFlightPush = useRef(false);
   const lastPushedHash = useRef<string>("");
   const pushTimer = useRef<number | null>(null);
+  const lastBootError = useRef<string>("");
 
   function readStringSession(key: string): string {
     try {
@@ -38,6 +40,15 @@ export function CloudAutoSync() {
     } catch {
       /* ignore */
     }
+  }
+
+  function writeLastSyncError(message: string) {
+    const msg = message.trim();
+    if (!msg) return;
+    if (msg === lastBootError.current) return;
+    lastBootError.current = msg;
+    writeStringSession(LAST_CLOUD_SYNC_ERROR_KEY, msg);
+    console.warn("Synchronisation nuage :", msg);
   }
 
   function readBoolSession(key: string): boolean {
@@ -101,6 +112,7 @@ export function CloudAutoSync() {
 
   useEffect(() => {
     lastPushedHash.current = readStringSession(LAST_PUSHED_HASH_KEY);
+    lastBootError.current = readStringSession(LAST_CLOUD_SYNC_ERROR_KEY);
     // Gardé pour compat : certaines anciennes sessions ont pu écrire ces clés.
     // (Ne sert plus tant qu'on ne fait pas de pull automatique.)
     void readBoolSession;
@@ -111,6 +123,9 @@ export function CloudAutoSync() {
 
     if (getAuthToken()) {
       void syncCloudSessionBootstrap().then((r) => {
+        if (r.pullError || r.applyError || r.pushError) {
+          writeLastSyncError(r.pullError ?? r.applyError ?? r.pushError ?? "");
+        }
         if (r.shouldHardNavigate) {
           hardNavigateToFonctionsAfterCloudPull();
         }
@@ -121,6 +136,11 @@ export function CloudAutoSync() {
       schedulePush();
       if (getAuthToken()) {
         void syncCloudSessionBootstrap().then((boot) => {
+          if (boot.pullError || boot.applyError || boot.pushError) {
+            writeLastSyncError(
+              boot.pullError ?? boot.applyError ?? boot.pushError ?? "",
+            );
+          }
           if (boot.shouldHardNavigate) {
             hardNavigateToFonctionsAfterCloudPull();
           }

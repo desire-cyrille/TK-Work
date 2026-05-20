@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import {
   applyCloudPullEntries,
@@ -8,6 +8,8 @@ import {
 } from "../lib/cloudSync";
 import styles from "./CloudSyncPanel.module.css";
 
+const LAST_CLOUD_SYNC_ERROR_KEY = "tk-gestion-cloud-last-sync-error-v1";
+
 export function CloudSyncPanel() {
   const { isAuthenticated, profileEmail } = useAuth();
   const [busy, setBusy] = useState(false);
@@ -15,6 +17,20 @@ export function CloudSyncPanel() {
     type: "ok" | "err";
     text: string;
   } | null>(null);
+
+  useEffect(() => {
+    try {
+      const msg = sessionStorage.getItem(LAST_CLOUD_SYNC_ERROR_KEY) ?? "";
+      if (msg.trim()) {
+        setCloudMsg({
+          type: "err",
+          text: `Dernière erreur de synchronisation : ${msg}`,
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   async function onPull() {
     setCloudMsg(null);
