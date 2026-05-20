@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { SentenceCapitalizeDom } from "./components/SentenceCapitalizeDom";
 import { CloudAutoSync } from "./components/CloudAutoSync";
+import { AutoBackupTwiceDaily } from "./components/AutoBackupTwiceDaily";
 import { registerRapportImageCloudFlushListener } from "./lib/rapportActiviteImageDbCloud";
 import { AuthProvider } from "./context/AuthContext";
 import { BiensProvider } from "./context/BiensContext";
@@ -18,6 +19,7 @@ createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <SentenceCapitalizeDom />
       <CloudAutoSync />
+      <AutoBackupTwiceDaily />
       <AuthProvider>
         <ThemeSettingsProvider>
           <BiensProvider>

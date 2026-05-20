@@ -65,8 +65,27 @@ export function buildTkGestionBackupV1(): TkGestionBackupV1 {
   };
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function isoStampLocal(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function isoStampLocalWithTime(d: Date): string {
+  return `${isoStampLocal(d)}_${pad2(d.getHours())}-${pad2(d.getMinutes())}`;
+}
+
+export type DownloadBackupOptions = {
+  /** Ex: "backup_TK_RENT" */
+  prefix?: string;
+  /** Ajoute _HH-mm pour éviter les collisions. */
+  includeTime?: boolean;
+};
+
 /** @returns Nombre de clés localStorage non vides incluses dans le fichier. */
-export function downloadTkGestionBackup(): number {
+export function downloadTkGestionBackup(options?: DownloadBackupOptions): number {
   const data = buildTkGestionBackupV1();
   const blob = new Blob([JSON.stringify(data, null, 2)], {
     type: "application/json;charset=utf-8",
@@ -75,8 +94,9 @@ export function downloadTkGestionBackup(): number {
   const url = URL.createObjectURL(blob);
   a.href = url;
   const d = new Date();
-  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  a.download = `tk-gestion-sauvegarde-${stamp}.json`;
+  const stamp = options?.includeTime ? isoStampLocalWithTime(d) : isoStampLocal(d);
+  const prefix = (options?.prefix ?? "tk-gestion-sauvegarde").trim() || "tk-gestion-sauvegarde";
+  a.download = `${prefix}-${stamp}.json`;
   a.click();
   URL.revokeObjectURL(url);
   return Object.keys(data.entries).length;
