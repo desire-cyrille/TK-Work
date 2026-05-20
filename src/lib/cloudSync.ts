@@ -20,6 +20,88 @@ function delay(ms: number): Promise<void> {
     window.setTimeout(resolve, ms);
   });
 }
+
+const LAST_SUCCESSFUL_CLOUD_PUSH_BYTES_KEY =
+  "tk-gestion-cloud-last-successful-push-bytes-v1";
+const LAST_SUCCESSFUL_CLOUD_PUSH_KEYS_KEY =
+  "tk-gestion-cloud-last-successful-push-keys-v1";
+
+type CloudPushMetrics = { bytes: number; keys: number };
+
+function safeNumberFromStorage(key: string): number {
+  try {
+    const n = Number(localStorage.getItem(key) ?? "0");
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function rememberLastSuccessfulPushMetrics(m: CloudPushMetrics): void {
+  try {
+    localStorage.setItem(
+      LAST_SUCCESSFUL_CLOUD_PUSH_BYTES_KEY,
+      String(Math.max(0, Math.floor(m.bytes))),
+    );
+    localStorage.setItem(
+      LAST_SUCCESSFUL_CLOUD_PUSH_KEYS_KEY,
+      String(Math.max(0, Math.floor(m.keys))),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getLastSuccessfulPushMetrics(): CloudPushMetrics {
+  return {
+    bytes: safeNumberFromStorage(LAST_SUCCESSFUL_CLOUD_PUSH_BYTES_KEY),
+    keys: safeNumberFromStorage(LAST_SUCCESSFUL_CLOUD_PUSH_KEYS_KEY),
+  };
+}
+
+export type CloudPushRisk =
+  | { risky: false }
+  | {
+      risky: true;
+      reason: string;
+      prev: CloudPushMetrics;
+      cur: CloudPushMetrics;
+    };
+
+/**
+ * Protection anti-effacement : si l'état local est beaucoup plus petit que le
+ * dernier push réussi, bloquer l'auto-sync (et demander confirmation en manuel).
+ */
+export function assessCloudPushRisk(entries: Record<string, string>): CloudPushRisk {
+  const prev = getLastSuccessfulPushMetrics();
+  const cur: CloudPushMetrics = {
+    bytes: JSON.stringify(entries).length,
+    keys: Object.keys(entries).length,
+  };
+  if (prev.bytes <= 0 || prev.keys <= 0) return { risky: false };
+  if (cur.bytes <= 0 || cur.keys <= 0) {
+    return {
+      risky: true,
+      reason:
+        "État local vide — risque d’écraser le serveur. Faites « Récupérer » si besoin.",
+      prev,
+      cur,
+    };
+  }
+
+  // Seuils conservateurs : on bloque seulement si c’est vraiment un effondrement.
+  const bytesRatio = cur.bytes / prev.bytes;
+  const keysRatio = cur.keys / prev.keys;
+  const tooSmall = bytesRatio < 0.6 && keysRatio < 0.7;
+  if (!tooSmall) return { risky: false };
+  return {
+    risky: true,
+    reason:
+      "État local nettement plus petit que la dernière synchro réussie — auto-sync bloqué pour éviter un écrasement.",
+    prev,
+    cur,
+  };
+}
 /** Dernière version serveur appliquée ou envoyée avec succès (référence unique = nuage). */
 export const CLOUD_SERVER_VERSION_KEY = "tk-gestion-cloud-server-version-v1";
 
@@ -385,6 +467,10 @@ export async function cloudPush(): Promise<
   }
 
   if (lastVersion > 0) rememberCloudServerVersion(lastVersion);
+  rememberLastSuccessfulPushMetrics({
+    bytes: innerLen,
+    keys: Object.keys(entries).length,
+  });
   return { ok: true, version: lastVersion };
 }
 

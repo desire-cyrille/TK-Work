@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import {
+  assessCloudPushRisk,
   cloudPush,
   hardNavigateToFonctionsAfterCloudPull,
   prepareEntriesForCloudPush,
@@ -90,6 +91,13 @@ export function CloudAutoSync() {
       const entries = await prepareEntriesForCloudPush();
       // Protection: ne jamais écraser le serveur avec un état "vide" depuis un appareil vidé.
       if (Object.keys(entries).length === 0) return;
+      const risk = assessCloudPushRisk(entries);
+      if (risk.risky) {
+        writeLastSyncError(
+          `${risk.reason} (avant: ${risk.prev.keys} clés / ${risk.prev.bytes} o ; maintenant: ${risk.cur.keys} clés / ${risk.cur.bytes} o)`,
+        );
+        return;
+      }
       const curHash = hashEntries(entries);
       if (curHash && curHash === lastPushedHash.current) return;
       const r = await cloudPush();

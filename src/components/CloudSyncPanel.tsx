@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import {
+  assessCloudPushRisk,
   applyCloudPullEntries,
   cloudPull,
   cloudPush,
+  prepareEntriesForCloudPush,
   finalizeCloudPullOnDevice,
 } from "../lib/cloudSync";
 import styles from "./CloudSyncPanel.module.css";
@@ -67,6 +69,31 @@ export function CloudSyncPanel() {
   async function onPush() {
     setCloudMsg(null);
     setBusy(true);
+    // Anti-effacement : si l'état local est bien plus petit que la dernière synchro,
+    // demander une confirmation explicite sur l'envoi manuel.
+    try {
+      const entries = await prepareEntriesForCloudPush();
+      const risk = assessCloudPushRisk(entries);
+      if (risk.risky) {
+        const ok = window.confirm(
+          `${risk.reason}\n\nDernière synchro réussie : ${risk.prev.keys} clés (~${Math.round(
+            risk.prev.bytes / 1024,
+          )} Ko)\nÉtat actuel : ${risk.cur.keys} clés (~${Math.round(
+            risk.cur.bytes / 1024,
+          )} Ko)\n\nVoulez-vous quand même envoyer vers le serveur ?`,
+        );
+        if (!ok) {
+          setBusy(false);
+          setCloudMsg({
+            type: "err",
+            text: "Envoi annulé (protection anti-écrasement). Utilisez « Récupérer » si vous avez perdu des données.",
+          });
+          return;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
     const r = await cloudPush();
     setBusy(false);
     if (!r.ok) {
