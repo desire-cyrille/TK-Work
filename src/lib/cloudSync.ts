@@ -14,6 +14,8 @@ const LEGACY_CLOUD_TOKEN = "tk_gestion_cloud_token";
 const LEGACY_CLOUD_EMAIL = "tk_gestion_cloud_email";
 const AUTOBACKUP_BEFORE_PULL_KEY = "tk-gestion-autobackup-before-cloudpull-v1";
 export const FLUSH_BEFORE_CLOUD_PUSH_EVENT = "tk-gestion-flush-before-cloud-push";
+const CLOUD_BOOTSTRAP_APPLIED_VERSION_SESSION_KEY =
+  "tk-gestion-cloud-bootstrap-applied-version-v1";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -485,6 +487,21 @@ async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> 
     return { shouldHardNavigate: false, pullError: pull.error };
   }
 
+  // Sur certains mobiles, si la version "remembered" ne persiste pas, on peut
+  // entrer dans une boucle d'application + reload. On garde donc aussi une trace
+  // en sessionStorage pour ne pas ré-appliquer la même version dans la session.
+  try {
+    const alreadyApplied = Number(
+      sessionStorage.getItem(CLOUD_BOOTSTRAP_APPLIED_VERSION_SESSION_KEY) ?? "0",
+    );
+    if (alreadyApplied > 0 && alreadyApplied === pull.version) {
+      rememberCloudServerVersion(pull.version);
+      return { shouldHardNavigate: false };
+    }
+  } catch {
+    /* ignore */
+  }
+
   const localEntries = collectEntriesForCloudPush();
   const localSubstantive = hasSubstantiveLocalData(localEntries);
   const remoteSubstantive = serverHasSubstantiveData(pull);
@@ -503,6 +520,14 @@ async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> 
     }
     await finalizeCloudPullOnDevice();
     rememberCloudServerVersion(pull.version);
+    try {
+      sessionStorage.setItem(
+        CLOUD_BOOTSTRAP_APPLIED_VERSION_SESSION_KEY,
+        String(pull.version),
+      );
+    } catch {
+      /* ignore */
+    }
     return { shouldHardNavigate: true, pulled: true };
   }
 
