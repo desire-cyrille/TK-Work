@@ -118,9 +118,9 @@ export function CloudAutoSync() {
     void readBoolSession;
     void writeBoolSession;
 
-    // Push initial (si des données existent déjà).
-    schedulePush();
-
+    // Important : au démarrage, faire d'abord l'alignement sur le serveur (pull/push),
+    // puis seulement lancer les pushes périodiques. Sinon un appareil "vide" peut
+    // écraser le serveur par erreur.
     if (getAuthToken()) {
       void syncCloudSessionBootstrap().then((r) => {
         if (r.pullError || r.applyError || r.pushError) {
@@ -128,8 +128,14 @@ export function CloudAutoSync() {
         }
         if (r.shouldHardNavigate) {
           hardNavigateToFonctionsAfterCloudPull();
+          return;
         }
+        // Push initial après bootstrap (si des données existent déjà).
+        schedulePush();
       });
+    } else {
+      // Pas connecté : pas de nuage, pas d'auto-push.
+      // (Le user travaille en local et synchronisera après connexion.)
     }
 
     const onOnline = () => {

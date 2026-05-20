@@ -364,17 +364,13 @@ export async function cloudPush(): Promise<
   let lastVersion = 0;
   const innerLen = JSON.stringify(entries).length;
   if (innerLen <= CLOUD_ENTRIES_MAX_JSON_BYTES) {
-    const r = await pushBody({ entries });
+    // Sécurité : ne jamais "remplacer" le serveur depuis un appareil partiel.
+    // L'envoi automatique et l'envoi manuel utilisent une fusion (merge) par défaut.
+    const r = await pushBody({ entries, merge: true });
     if (!r.ok) return { ok: false, error: r.error };
     lastVersion = r.version;
   } else {
     const chunks = chunkEntriesByJsonSize(entries, CLOUD_ENTRIES_MAX_JSON_BYTES);
-    const reset = await pushBody({ reset: true });
-    if (!reset.ok) {
-      return { ok: false, error: reset.error };
-    }
-    lastVersion = reset.version;
-
     for (const chunk of chunks) {
       if (Object.keys(chunk).length === 0) continue;
       const part = await pushBody({ entries: chunk, merge: true });
