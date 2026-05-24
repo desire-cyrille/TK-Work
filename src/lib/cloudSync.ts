@@ -240,7 +240,7 @@ function saveAutoBackupBeforePull(): void {
 }
 
 /** Applique une copie serveur en conservant connexion et jeton sur cet appareil. */
-export function applyCloudPullEntries(entries: Record<string, string>) {
+export async function applyCloudPullEntries(entries: Record<string, string>) {
   // Sauvegarde locale automatique (dernier recours) avant tout écrasement.
   saveAutoBackupBeforePull();
 
@@ -261,7 +261,7 @@ export function applyCloudPullEntries(entries: Record<string, string>) {
     exportedAt: new Date().toISOString(),
     entries: safe,
   };
-  const r = applyTkGestionBackupV1(data);
+  const r = await applyTkGestionBackupV1(data);
   if (sessionKeep !== null) {
     try {
       localStorage.setItem("tk_gestion_session", sessionKeep);
@@ -514,7 +514,7 @@ async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> 
       if (remembered === 0) rememberCloudServerVersion(pull.version);
       return { shouldHardNavigate: false };
     }
-    const applied = applyCloudPullEntries(pull.entries);
+    const applied = await applyCloudPullEntries(pull.entries);
     if (!applied.ok) {
       return { shouldHardNavigate: false, applyError: applied.error };
     }

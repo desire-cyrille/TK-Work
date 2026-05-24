@@ -10,25 +10,36 @@ import { AuthProvider } from "./context/AuthContext";
 import { BiensProvider } from "./context/BiensContext";
 import { FinanceProvider } from "./context/FinanceContext";
 import { ThemeSettingsProvider } from "./context/ThemeSettingsContext";
+import {
+  hydrateTkGestionOverflowFromIdb,
+  installTkGestionStorageBridge,
+} from "./lib/tkGestionStorageBridge";
 import "./index.css";
 
 registerRapportImageCloudFlushListener();
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <SentenceCapitalizeDom />
-      <CloudAutoSync />
-      <AutoBackupTwiceDaily />
-      <AuthProvider>
-        <ThemeSettingsProvider>
-          <BiensProvider>
-            <FinanceProvider>
-              <App />
-            </FinanceProvider>
-          </BiensProvider>
-        </ThemeSettingsProvider>
-      </AuthProvider>
-    </BrowserRouter>
-  </StrictMode>
-);
+async function boot() {
+  await hydrateTkGestionOverflowFromIdb();
+  installTkGestionStorageBridge();
+
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <BrowserRouter>
+        <SentenceCapitalizeDom />
+        <CloudAutoSync />
+        <AutoBackupTwiceDaily />
+        <AuthProvider>
+          <ThemeSettingsProvider>
+            <BiensProvider>
+              <FinanceProvider>
+                <App />
+              </FinanceProvider>
+            </BiensProvider>
+          </ThemeSettingsProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </StrictMode>,
+  );
+}
+
+void boot();

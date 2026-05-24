@@ -739,6 +739,14 @@ export function Reglages() {
                 ouvertes ne verront le changement qu’après rechargement : la
                 restauration redémarrera l’application automatiquement.
               </p>
+              <p className={styles.hint}>
+                <strong>Safari</strong> : limite d’environ 5 Mo en stockage
+                local. Les gros blocs (rapports, etc.) sont automatiquement
+                déplacés en <strong>IndexedDB</strong> lors de la restauration.
+                Si besoin, supprimez les données du site via Réglages Safari →
+                Confidentialité → Gérer les données de site web (pas seulement
+                l’historique).
+              </p>
               <input
                 ref={backupFileRef}
                 type="file"
@@ -751,36 +759,50 @@ export function Reglages() {
                   setBackupMsg(null);
                   const reader = new FileReader();
                   reader.onload = () => {
-                    const text = String(reader.result ?? "");
-                    const parsed = parseTkGestionBackupJson(text);
-                    if (!parsed.ok) {
-                      setBackupMsg({ type: "err", text: parsed.error });
-                      return;
-                    }
-                    const n = Object.keys(parsed.data.entries).length;
-                    const bytes = estimateTkGestionBackupWriteBytes(parsed.data);
-                    const mb = bytes / (1024 * 1024);
-                    const msg = [
-                      `Fichier du ${new Date(parsed.data.exportedAt).toLocaleString("fr-FR")} — ${n} bloc(s) à restaurer.`,
-                      mb >= 3
-                        ? `Taille indicative ~${mb.toFixed(1)} Mo — risque de refus par le navigateur (quota).`
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join("\n");
-                    if (
-                      !window.confirm(
-                        `${msg}\n\nConfirmer la restauration ? Les données actuelles sur ce navigateur pour TK Gestion seront effacées.`,
-                      )
-                    ) {
-                      return;
-                    }
-                    const applied = applyTkGestionBackupV1(parsed.data);
-                    if (!applied.ok) {
-                      setBackupMsg({ type: "err", text: applied.error });
-                      return;
-                    }
-                    window.location.reload();
+                    void (async () => {
+                      const text = String(reader.result ?? "");
+                      const parsed = parseTkGestionBackupJson(text);
+                      if (!parsed.ok) {
+                        setBackupMsg({ type: "err", text: parsed.error });
+                        return;
+                      }
+                      const n = Object.keys(parsed.data.entries).length;
+                      const bytes = estimateTkGestionBackupWriteBytes(parsed.data);
+                      const mb = bytes / (1024 * 1024);
+                      const msg = [
+                        `Fichier du ${new Date(parsed.data.exportedAt).toLocaleString("fr-FR")} — ${n} bloc(s) à restaurer.`,
+                        mb >= 3
+                          ? `Taille indicative ~${mb.toFixed(1)} Mo — les blocs volumineux seront stockés en IndexedDB (compatible Safari).`
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join("\n");
+                      if (
+                        !window.confirm(
+                          `${msg}\n\nConfirmer la restauration ? Les données actuelles sur ce navigateur pour TK Gestion seront effacées.`,
+                        )
+                      ) {
+                        return;
+                      }
+                      setBackupMsg({
+                        type: "ok",
+                        text: "Restauration en cours…",
+                      });
+                      const applied = await applyTkGestionBackupV1(parsed.data);
+                      if (!applied.ok) {
+                        setBackupMsg({ type: "err", text: applied.error });
+                        return;
+                      }
+                      if (applied.partial && applied.skippedKeys?.length) {
+                        setBackupMsg({
+                          type: "err",
+                          text: `Restauration partielle : échec sur ${applied.skippedKeys.length} bloc(s) (${applied.skippedKeys.join(", ")}).`,
+                        });
+                        window.location.reload();
+                        return;
+                      }
+                      window.location.reload();
+                    })();
                   };
                   reader.onerror = () => {
                     setBackupMsg({

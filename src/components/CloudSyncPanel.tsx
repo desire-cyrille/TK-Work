@@ -57,7 +57,7 @@ export function CloudSyncPanel() {
     ) {
       return;
     }
-    const applied = applyCloudPullEntries(r.entries);
+    const applied = await applyCloudPullEntries(r.entries);
     if (!applied.ok) {
       setCloudMsg({ type: "err", text: applied.error });
       return;

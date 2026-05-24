@@ -1,5 +1,13 @@
 /** Export / import global des données stockées en localStorage par l’application. */
 
+import {
+  clearTkGestionStorageCompletely,
+  collectTkGestionStorageEntries,
+  flushTkGestionStorageWrites,
+  removeTkGestionStorageValue,
+  writeTkGestionStorageValue,
+} from "./tkGestionStorageBridge";
+
 export const TK_GESTION_BACKUP_FORMAT = "tk-gestion-backup" as const;
 export const TK_GESTION_BACKUP_VERSION = 1 as const;
 
@@ -46,14 +54,7 @@ export type TkGestionBackupV1 = {
 };
 
 function collectTkGestionEntriesFromLocalStorage(): Record<string, string> {
-  const entries: Record<string, string> = {};
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i);
-    if (!key || !isTkGestionStorageKey(key)) continue;
-    const v = localStorage.getItem(key);
-    if (v !== null) entries[key] = v;
-  }
-  return entries;
+  return collectTkGestionStorageEntries();
 }
 
 export function buildTkGestionBackupV1(): TkGestionBackupV1 {
@@ -162,14 +163,43 @@ export function parseTkGestionBackupJson(
   };
 }
 
-function clearAllTkGestionStorageKeys(): void {
+/** Cache / secours : ne pas réimporter depuis un fichier, supprimer avant restauration (quota Safari). */
+export const EPHEMERAL_TK_GESTION_KEYS = [
+  "tk-gestion-autobackup-before-cloudpull-v1",
+  "tk-gestion-cloud-autosync-last-pushed-hash-v1",
+  "tk-gestion-cloud-server-version-v1",
+] as const;
+
+export function purgeEphemeralTkGestionStorage(): void {
+  for (const key of EPHEMERAL_TK_GESTION_KEYS) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function filterEntriesForRestore(
+  entries: Record<string, string>,
+): Record<string, string> {
+  const skip = new Set<string>(EPHEMERAL_TK_GESTION_KEYS);
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(entries)) {
+    if (skip.has(k)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+function clearAllTkGestionStorageKeysSync(): void {
   const toRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i += 1) {
     const key = localStorage.key(i);
     if (key && isTkGestionStorageKey(key)) toRemove.push(key);
   }
   for (const key of toRemove) {
-    localStorage.removeItem(key);
+    removeTkGestionStorageValue(key);
   }
 }
 
@@ -194,12 +224,20 @@ const RESTORE_KEY_PRIORITY: readonly string[] = [
   "tk-gestion-rapport-activite-idb-export-v1",
 ];
 
-export function sortRestoreKeys(keys: string[]): string[] {
+export function sortRestoreKeys(
+  keys: string[],
+  entries?: Record<string, string>,
+): string[] {
   const pri = new Map(RESTORE_KEY_PRIORITY.map((k, i) => [k, i]));
   return [...keys].sort((a, b) => {
     const ia = pri.get(a) ?? 10_000;
     const ib = pri.get(b) ?? 10_000;
     if (ia !== ib) return ia - ib;
+    if (entries) {
+      const la = entries[a]?.length ?? 0;
+      const lb = entries[b]?.length ?? 0;
+      if (la !== lb) return la - lb;
+    }
     return a.localeCompare(b);
   });
 }
@@ -214,45 +252,83 @@ export function estimateTkGestionBackupWriteBytes(data: TkGestionBackupV1): numb
 }
 
 export type ApplyTkGestionBackupResult =
-  | { ok: true }
+  | { ok: true; partial?: boolean; skippedKeys?: string[] }
   | { ok: false; error: string };
 
 function rollbackTkGestionSnapshot(snapshot: Record<string, string>): void {
-  clearAllTkGestionStorageKeys();
+  clearAllTkGestionStorageKeysSync();
   for (const [k, v] of Object.entries(snapshot)) {
     try {
-      localStorage.setItem(k, v);
+      writeTkGestionStorageValue(k, v);
     } catch {
       /* rollback partiel si quota ; évite de boucler */
     }
   }
 }
 
+function isQuotaError(e: unknown): boolean {
+  return e instanceof DOMException && e.name === "QuotaExceededError";
+}
+
+function safariQuotaRestoreHint(mb: number): string {
+  return [
+    "Stockage Safari saturé (quota ~5 Mo par site).",
+    mb >= 4.8
+      ? `Votre sauvegarde fait ~${mb.toFixed(1)} Mo : même vide, Safari peut refuser le tout.`
+      : "Libérez de l’espace (voir ci-dessous) puis réessayez.",
+    "Réglages Safari → Confidentialité → Gérer les données de site web → supprimez l’ancienne entrée de ce site, ou ouvrez une fenêtre privée, reconnectez-vous, restaurez le fichier JSON.",
+  ].join(" ");
+}
+
 /**
  * Efface toutes les clés TK Gestion puis réécrit la sauvegarde.
- * En cas d’erreur (ex. quota localStorage), l’état précédent est restauré autant que possible.
+ * Les grosses valeurs basculent automatiquement en IndexedDB (Safari).
  */
-export function applyTkGestionBackupV1(
+export async function applyTkGestionBackupV1(
   data: TkGestionBackupV1,
-): ApplyTkGestionBackupResult {
+): Promise<ApplyTkGestionBackupResult> {
+  purgeEphemeralTkGestionStorage();
+  const entries = filterEntriesForRestore(data.entries);
+  const writeBytes = estimateTkGestionBackupWriteBytes({
+    ...data,
+    entries,
+  });
+  const mb = writeBytes / (1024 * 1024);
+
   const previousSnapshot = collectTkGestionEntriesFromLocalStorage();
   try {
-    clearAllTkGestionStorageKeys();
-    const ordered = sortRestoreKeys(Object.keys(data.entries));
+    await clearTkGestionStorageCompletely();
+    const ordered = sortRestoreKeys(Object.keys(entries), entries);
+    const skippedKeys: string[] = [];
     for (const key of ordered) {
       if (!isTkGestionStorageKey(key)) continue;
-      const value = data.entries[key];
+      const value = entries[key];
       if (typeof value !== "string") continue;
-      localStorage.setItem(key, value);
+      try {
+        writeTkGestionStorageValue(key, value);
+      } catch (e) {
+        if (isQuotaError(e)) {
+          skippedKeys.push(key);
+          continue;
+        }
+        throw e;
+      }
+    }
+    await flushTkGestionStorageWrites();
+    if (skippedKeys.length > 0) {
+      return {
+        ok: true,
+        partial: true,
+        skippedKeys,
+      };
     }
     return { ok: true };
   } catch (e) {
     rollbackTkGestionSnapshot(previousSnapshot);
-    if (e instanceof DOMException && e.name === "QuotaExceededError") {
+    if (isQuotaError(e)) {
       return {
         ok: false,
-        error:
-          "Stockage du navigateur plein (quota dépassé). Essayez avec Chrome sur ordinateur, ou réduisez la quantité de données stockées localement, puis refaites une sauvegarde.",
+        error: safariQuotaRestoreHint(mb),
       };
     }
     return {
