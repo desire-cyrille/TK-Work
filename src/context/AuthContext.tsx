@@ -11,8 +11,10 @@ import {
   clearAuthSession,
   decodeAuthTokenClaims,
   getAuthEmail,
-  getAuthToken,
+  getValidAuthToken,
+  readAuthSessionFromStorage,
   setAuthSession,
+  type AuthSessionSnapshot,
 } from "../lib/authToken";
 import { cloudPush } from "../lib/cloudSync";
 
@@ -24,12 +26,10 @@ export type ProfileUpdateResult =
   | { ok: true }
   | { ok: false; error: string };
 
-type AuthContextValue = {
-  isAuthenticated: boolean;
-  profileEmail: string;
-  role: "USER" | "ADMIN";
+type AuthContextValue = AuthSessionSnapshot & {
+  /** false tant que la session serveur n’a pas été vérifiée (évite les redirections instables). */
+  authReady: boolean;
   isAdmin: boolean;
-  mustChangePassword: boolean;
   login: (email: string, password: string) => Promise<AuthActionResult>;
   signup: (email: string, password: string) => Promise<AuthActionResult>;
   logout: () => Promise<void>;
@@ -43,33 +43,83 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const initialSession = readAuthSessionFromStorage();
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [profileEmail, setProfileEmail] = useState("admin@local");
-  const [role, setRole] = useState<"USER" | "ADMIN">("USER");
-  const [mustChangePassword, setMustChangePassword] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [profileEmail, setProfileEmail] = useState(initialSession.profileEmail);
+  const [role, setRole] = useState<"USER" | "ADMIN">(initialSession.role);
+  const [mustChangePassword, setMustChangePassword] = useState(
+    initialSession.mustChangePassword,
+  );
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    initialSession.isAuthenticated,
+  );
+  const [authReady, setAuthReady] = useState(!initialSession.isAuthenticated);
 
   useEffect(() => {
-    const tok = getAuthToken();
+    const tok = getValidAuthToken();
     if (!tok) {
       setIsAuthenticated(false);
       setRole("USER");
       setMustChangePassword(false);
       setProfileEmail(getAuthEmail() ?? "admin@local");
+      setAuthReady(true);
       return;
     }
-    const claims = decodeAuthTokenClaims(tok);
-    if (!claims) {
-      setIsAuthenticated(false);
-      setRole("USER");
-      setMustChangePassword(false);
-      setProfileEmail(getAuthEmail() ?? "admin@local");
-      return;
-    }
-    setIsAuthenticated(true);
-    setProfileEmail(claims.email);
-    setRole(claims.role);
-    setMustChangePassword(claims.mustChangePassword);
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch("/api/auth/session", {
+          headers: { Authorization: `Bearer ${tok}` },
+          cache: "no-store",
+        });
+        if (cancelled) return;
+        if (r.status === 401) {
+          clearAuthSession();
+          setIsAuthenticated(false);
+          setRole("USER");
+          setMustChangePassword(false);
+          setProfileEmail(getAuthEmail() ?? "admin@local");
+          return;
+        }
+        if (r.ok) {
+          const data = (await r.json().catch(() => ({}))) as {
+            email?: string;
+            role?: string;
+            mustChangePassword?: boolean;
+          };
+          if (typeof data.email === "string" && data.email) {
+            setProfileEmail(data.email);
+          }
+          setRole(data.role === "ADMIN" ? "ADMIN" : "USER");
+          setMustChangePassword(data.mustChangePassword === true);
+          setIsAuthenticated(true);
+          return;
+        }
+        const claims = decodeAuthTokenClaims(tok);
+        if (claims) {
+          setIsAuthenticated(true);
+          setProfileEmail(claims.email);
+          setRole(claims.role);
+          setMustChangePassword(claims.mustChangePassword);
+        }
+      } catch {
+        const claims = decodeAuthTokenClaims(tok);
+        if (!cancelled && claims) {
+          setIsAuthenticated(true);
+          setProfileEmail(claims.email);
+          setRole(claims.role);
+          setMustChangePassword(claims.mustChangePassword);
+        }
+      } finally {
+        if (!cancelled) setAuthReady(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const applySessionToken = useCallback((token: string, email: string) => {
@@ -79,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole(claims?.role ?? "USER");
     setMustChangePassword(claims?.mustChangePassword ?? false);
     setIsAuthenticated(true);
+    setAuthReady(true);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -122,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applySessionToken]);
 
   const logout = useCallback(async () => {
-    if (getAuthToken()) {
+    if (getValidAuthToken()) {
       try {
         await cloudPush();
       } catch {
@@ -134,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole("USER");
     setMustChangePassword(false);
     setIsAuthenticated(false);
+    setAuthReady(true);
   }, []);
 
   const updatePassword = useCallback(
@@ -142,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       newPassword: string,
       confirmNewPassword: string,
     ): Promise<ProfileUpdateResult> => {
-      const tok = getAuthToken();
+      const tok = getValidAuthToken();
       if (!tok) return { ok: false, error: "Non authentifié." };
       const r = await fetch("/api/auth/change-password", {
         method: "POST",
@@ -173,6 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
+      authReady,
       isAuthenticated,
       profileEmail,
       role,
@@ -185,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updatePassword,
     }),
     [
+      authReady,
       isAuthenticated,
       profileEmail,
       role,

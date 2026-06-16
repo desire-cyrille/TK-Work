@@ -111,6 +111,22 @@
   color: #fb7185;
 }
 
+.frameWarn {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 10px;
+}
+
+.frameWarn a {
+  color: #c2410c;
+  font-weight: 600;
+}
+
 .submit {
   margin-top: 0.35rem;
   font: inherit;

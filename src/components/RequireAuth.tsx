@@ -1,9 +1,15 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { AuthBootSplash } from "./AuthBootSplash";
 import { useAuth } from "../context/AuthContext";
 
 export function RequireAuth() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, authReady } = useAuth();
   const loc = useLocation();
+
+  if (!authReady) {
+    return <AuthBootSplash />;
+  }
+
   if (!isAuthenticated) {
     return (
       <Navigate

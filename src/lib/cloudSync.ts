@@ -7,7 +7,7 @@ import {
 import {
   AUTH_EMAIL_KEY,
   AUTH_TOKEN_KEY,
-  getAuthToken,
+  getValidAuthToken,
 } from "./authToken";
 
 const LEGACY_CLOUD_TOKEN = "tk_gestion_cloud_token";
@@ -16,6 +16,55 @@ const AUTOBACKUP_BEFORE_PULL_KEY = "tk-gestion-autobackup-before-cloudpull-v1";
 export const FLUSH_BEFORE_CLOUD_PUSH_EVENT = "tk-gestion-flush-before-cloud-push";
 const CLOUD_BOOTSTRAP_APPLIED_VERSION_SESSION_KEY =
   "tk-gestion-cloud-bootstrap-applied-version-v1";
+const CLOUD_BOOTSTRAP_APPLIED_VERSION_LS_KEY =
+  "tk-gestion-cloud-bootstrap-applied-version-ls-v1";
+const CLOUD_HARD_NAV_RELOAD_ONCE_KEY =
+  "tk-gestion-cloud-hard-nav-reload-once-v1";
+
+function getBootstrapAppliedVersion(): number {
+  let ss = 0;
+  let ls = 0;
+  try {
+    ss = Number(
+      sessionStorage.getItem(CLOUD_BOOTSTRAP_APPLIED_VERSION_SESSION_KEY) ??
+        "0",
+    );
+  } catch {
+    /* ignore */
+  }
+  try {
+    ls = Number(
+      localStorage.getItem(CLOUD_BOOTSTRAP_APPLIED_VERSION_LS_KEY) ?? "0",
+    );
+  } catch {
+    /* ignore */
+  }
+  const n = Math.max(ss, ls);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function rememberBootstrapAppliedVersion(version: number): void {
+  if (!Number.isFinite(version) || version <= 0) return;
+  const s = String(Math.floor(version));
+  try {
+    sessionStorage.setItem(CLOUD_BOOTSTRAP_APPLIED_VERSION_SESSION_KEY, s);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.setItem(CLOUD_BOOTSTRAP_APPLIED_VERSION_LS_KEY, s);
+  } catch {
+    /* ignore */
+  }
+}
+
+function isConnexionPath(): boolean {
+  try {
+    return /\/connexion\/?$/.test(window.location.pathname);
+  } catch {
+    return false;
+  }
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -349,7 +398,7 @@ export async function cloudPull(): Promise<
     }
   | { ok: false; error: string }
 > {
-  const token = getAuthToken();
+  const token = getValidAuthToken();
   const r = await fetch("/api/sync/pull", {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     cache: "no-store",
@@ -415,7 +464,7 @@ function chunkEntriesByJsonSize(
 export async function cloudPush(): Promise<
   { ok: true; version: number } | { ok: false; error: string }
 > {
-  const token = getAuthToken();
+  const token = getValidAuthToken();
   const entries = await prepareEntriesForCloudPush();
   const headers: HeadersInit = token
     ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
@@ -487,19 +536,11 @@ async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> 
     return { shouldHardNavigate: false, pullError: pull.error };
   }
 
-  // Sur certains mobiles, si la version "remembered" ne persiste pas, on peut
-  // entrer dans une boucle d'application + reload. On garde donc aussi une trace
-  // en sessionStorage pour ne pas ré-appliquer la même version dans la session.
-  try {
-    const alreadyApplied = Number(
-      sessionStorage.getItem(CLOUD_BOOTSTRAP_APPLIED_VERSION_SESSION_KEY) ?? "0",
-    );
-    if (alreadyApplied > 0 && alreadyApplied === pull.version) {
-      rememberCloudServerVersion(pull.version);
-      return { shouldHardNavigate: false };
-    }
-  } catch {
-    /* ignore */
+  // Évite les boucles de rechargement (Windows / sessionStorage volatile).
+  const alreadyApplied = getBootstrapAppliedVersion();
+  if (alreadyApplied > 0 && alreadyApplied === pull.version) {
+    rememberCloudServerVersion(pull.version);
+    return { shouldHardNavigate: false };
   }
 
   const localEntries = collectEntriesForCloudPush();
@@ -520,15 +561,9 @@ async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> 
     }
     await finalizeCloudPullOnDevice();
     rememberCloudServerVersion(pull.version);
-    try {
-      sessionStorage.setItem(
-        CLOUD_BOOTSTRAP_APPLIED_VERSION_SESSION_KEY,
-        String(pull.version),
-      );
-    } catch {
-      /* ignore */
-    }
-    return { shouldHardNavigate: true, pulled: true };
+    rememberBootstrapAppliedVersion(pull.version);
+    const shouldHardNavigate = !isConnexionPath();
+    return { shouldHardNavigate, pulled: true };
   }
 
   if (localSubstantive) {
@@ -552,7 +587,7 @@ async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> 
 
 /** Aligne l’appareil sur le nuage (idempotent ; un seul appel simultané). */
 export function syncCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> {
-  if (!getAuthToken()) {
+  if (!getValidAuthToken()) {
     return Promise.resolve({ shouldHardNavigate: false });
   }
   if (bootstrapInFlight) return bootstrapInFlight;
@@ -583,5 +618,21 @@ export function hardNavigateToFonctionsAfterCloudPull(): void {
   const base = import.meta.env.BASE_URL;
   const prefix = typeof base === "string" ? base.replace(/\/$/, "") : "";
   const path = prefix ? `${prefix}/fonctions` : "/fonctions";
+  const current = window.location.pathname.replace(/\/$/, "") || "/";
+  const target = path.replace(/\/$/, "") || "/fonctions";
+
+  if (current === target || current.endsWith("/fonctions")) {
+    try {
+      if (sessionStorage.getItem(CLOUD_HARD_NAV_RELOAD_ONCE_KEY) === "1") {
+        return;
+      }
+      sessionStorage.setItem(CLOUD_HARD_NAV_RELOAD_ONCE_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+    return;
+  }
+
   window.location.assign(path);
 }

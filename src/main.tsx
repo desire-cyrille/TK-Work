@@ -26,9 +26,9 @@ async function boot() {
     <StrictMode>
       <BrowserRouter>
         <SentenceCapitalizeDom />
-        <CloudAutoSync />
-        <AutoBackupTwiceDaily />
         <AuthProvider>
+          <CloudAutoSync />
+          <AutoBackupTwiceDaily />
           <ThemeSettingsProvider>
             <BiensProvider>
               <FinanceProvider>

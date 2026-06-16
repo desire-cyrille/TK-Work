@@ -5,7 +5,7 @@ import {
   hardNavigateToFonctionsAfterCloudPull,
   syncCloudPullAfterLogin,
 } from "../lib/cloudSync";
-import { decodeAuthTokenClaims, getAuthToken } from "../lib/authToken";
+import { decodeAuthTokenClaims, getValidAuthToken } from "../lib/authToken";
 import styles from "./Connexion.module.css";
 
 type Mode = "login" | "signup";
@@ -20,6 +20,7 @@ export function Connexion() {
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const inFrame = typeof window !== "undefined" && window.self !== window.top;
 
   useEffect(() => {
     let cancelled = false;
@@ -63,7 +64,7 @@ export function Connexion() {
       setErrorMsg(res.error);
       return;
     }
-    const tok = getAuthToken();
+    const tok = getValidAuthToken();
     const must =
       tok && decodeAuthTokenClaims(tok)?.mustChangePassword === true;
     if (must) {
@@ -95,6 +96,20 @@ export function Connexion() {
           se chargent <strong>automatiquement</strong> à la connexion. Inutile
           d’exporter un fichier JSON au quotidien si vous restez connecté.
         </p>
+        {inFrame ? (
+          <p className={styles.frameWarn} role="status">
+            L’application est ouverte dans une fenêtre intégrée. Si la connexion
+            clignote ou ne tient pas,{" "}
+            <a
+              href={window.location.href}
+              target="_top"
+              rel="noopener noreferrer"
+            >
+              ouvrez l’intranet dans l’onglet principal
+            </a>
+            .
+          </p>
+        ) : null}
         <div className={styles.modeRow}>
           <button
             type="button"

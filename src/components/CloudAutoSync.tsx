@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useAuth } from "../context/AuthContext";
 import {
   assessCloudPushRisk,
   cloudPush,
@@ -6,7 +7,7 @@ import {
   prepareEntriesForCloudPush,
   syncCloudSessionBootstrap,
 } from "../lib/cloudSync";
-import { getAuthToken } from "../lib/authToken";
+import { getValidAuthToken } from "../lib/authToken";
 
 const PUSH_DEBOUNCE_MS = 1_500;
 const LAST_PUSHED_HASH_KEY = "tk-gestion-cloud-autosync-last-pushed-hash-v1";
@@ -21,10 +22,12 @@ const LAST_CLOUD_SYNC_ERROR_KEY = "tk-gestion-cloud-last-sync-error-v1";
  * Au démarrage (session connectée), alignement sur le nuage si une version plus récente existe.
  */
 export function CloudAutoSync() {
+  const { authReady, isAuthenticated } = useAuth();
   const inFlightPush = useRef(false);
   const lastPushedHash = useRef<string>("");
   const pushTimer = useRef<number | null>(null);
   const lastBootError = useRef<string>("");
+  const bootstrapStarted = useRef(false);
 
   function readStringSession(key: string): string {
     try {
@@ -52,24 +55,7 @@ export function CloudAutoSync() {
     console.warn("Synchronisation nuage :", msg);
   }
 
-  function readBoolSession(key: string): boolean {
-    try {
-      return sessionStorage.getItem(key) === "1";
-    } catch {
-      return false;
-    }
-  }
-
-  function writeBoolSession(key: string, v: boolean) {
-    try {
-      sessionStorage.setItem(key, v ? "1" : "0");
-    } catch {
-      /* ignore */
-    }
-  }
-
   function hashEntries(entries: Record<string, string>): string {
-    // Hash léger (non cryptographique) pour éviter des push inutiles.
     const keys = Object.keys(entries).sort();
     let h = 0;
     for (const k of keys) {
@@ -84,12 +70,10 @@ export function CloudAutoSync() {
 
   async function doPush() {
     if (inFlightPush.current) return;
-    // Pas d'auto-sync sans connexion (évite de spammer /api/sync en 401).
-    if (!getAuthToken()) return;
+    if (!getValidAuthToken()) return;
     inFlightPush.current = true;
     try {
       const entries = await prepareEntriesForCloudPush();
-      // Protection: ne jamais écraser le serveur avec un état "vide" depuis un appareil vidé.
       if (Object.keys(entries).length === 0) return;
       const risk = assessCloudPushRisk(entries);
       if (risk.risky) {
@@ -118,37 +102,34 @@ export function CloudAutoSync() {
     }, PUSH_DEBOUNCE_MS);
   }
 
+  function runBootstrap() {
+    if (!getValidAuthToken()) return;
+    void syncCloudSessionBootstrap().then((r) => {
+      if (r.pullError || r.applyError || r.pushError) {
+        writeLastSyncError(r.pullError ?? r.applyError ?? r.pushError ?? "");
+      }
+      if (r.shouldHardNavigate) {
+        hardNavigateToFonctionsAfterCloudPull();
+        return;
+      }
+      schedulePush();
+    });
+  }
+
   useEffect(() => {
+    if (!authReady || !isAuthenticated) return;
+
     lastPushedHash.current = readStringSession(LAST_PUSHED_HASH_KEY);
     lastBootError.current = readStringSession(LAST_CLOUD_SYNC_ERROR_KEY);
-    // Gardé pour compat : certaines anciennes sessions ont pu écrire ces clés.
-    // (Ne sert plus tant qu'on ne fait pas de pull automatique.)
-    void readBoolSession;
-    void writeBoolSession;
 
-    // Important : au démarrage, faire d'abord l'alignement sur le serveur (pull/push),
-    // puis seulement lancer les pushes périodiques. Sinon un appareil "vide" peut
-    // écraser le serveur par erreur.
-    if (getAuthToken()) {
-      void syncCloudSessionBootstrap().then((r) => {
-        if (r.pullError || r.applyError || r.pushError) {
-          writeLastSyncError(r.pullError ?? r.applyError ?? r.pushError ?? "");
-        }
-        if (r.shouldHardNavigate) {
-          hardNavigateToFonctionsAfterCloudPull();
-          return;
-        }
-        // Push initial après bootstrap (si des données existent déjà).
-        schedulePush();
-      });
-    } else {
-      // Pas connecté : pas de nuage, pas d'auto-push.
-      // (Le user travaille en local et synchronisera après connexion.)
+    if (!bootstrapStarted.current) {
+      bootstrapStarted.current = true;
+      runBootstrap();
     }
 
     const onOnline = () => {
       schedulePush();
-      if (getAuthToken()) {
+      if (getValidAuthToken()) {
         void syncCloudSessionBootstrap().then((boot) => {
           if (boot.pullError || boot.applyError || boot.pushError) {
             writeLastSyncError(
@@ -186,8 +167,7 @@ export function CloudAutoSync() {
       for (const ev of events) document.removeEventListener(ev, onUserActivity, true);
       if (pushTimer.current !== null) window.clearTimeout(pushTimer.current);
     };
-  }, []);
+  }, [authReady, isAuthenticated]);
 
   return null;
 }
-

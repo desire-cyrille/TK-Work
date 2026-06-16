@@ -68,6 +68,53 @@ export function getAuthToken(): string | null {
   }
 }
 
+export type AuthSessionSnapshot = {
+  isAuthenticated: boolean;
+  profileEmail: string;
+  role: "USER" | "ADMIN";
+  mustChangePassword: boolean;
+};
+
+/** Lecture synchrone au démarrage (évite le flash connexion ↔ fonctions). */
+export function readAuthSessionFromStorage(): AuthSessionSnapshot {
+  const fallback: AuthSessionSnapshot = {
+    isAuthenticated: false,
+    profileEmail: getAuthEmail() ?? "admin@local",
+    role: "USER",
+    mustChangePassword: false,
+  };
+  const tok = getAuthToken();
+  if (!tok || isAuthTokenExpired(tok)) {
+    if (tok) clearAuthSession();
+    return fallback;
+  }
+  const claims = decodeAuthTokenClaims(tok);
+  if (!claims) {
+    clearAuthSession();
+    return fallback;
+  }
+  return {
+    isAuthenticated: true,
+    profileEmail: claims.email,
+    role: claims.role,
+    mustChangePassword: claims.mustChangePassword,
+  };
+}
+
+/** Jeton utilisable côté client (expiré / illisible → effacé). */
+export function getValidAuthToken(): string | null {
+  const tok = getAuthToken();
+  if (!tok || isAuthTokenExpired(tok)) {
+    if (tok) clearAuthSession();
+    return null;
+  }
+  if (!decodeAuthTokenClaims(tok)) {
+    clearAuthSession();
+    return null;
+  }
+  return tok;
+}
+
 export function getAuthEmail(): string | null {
   try {
     return localStorage.getItem(AUTH_EMAIL_KEY);
