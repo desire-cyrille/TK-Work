@@ -3,8 +3,8 @@ import { useAuth } from "../context/AuthContext";
 import {
   assessCloudPushRisk,
   cloudPush,
-  hardNavigateToFonctionsAfterCloudPull,
   prepareEntriesForCloudPush,
+  refreshAppAfterCloudPull,
   syncCloudSessionBootstrap,
 } from "../lib/cloudSync";
 import { getValidAuthToken } from "../lib/authToken";
@@ -108,9 +108,8 @@ export function CloudAutoSync() {
       if (r.pullError || r.applyError || r.pushError) {
         writeLastSyncError(r.pullError ?? r.applyError ?? r.pushError ?? "");
       }
-      if (r.shouldHardNavigate) {
-        hardNavigateToFonctionsAfterCloudPull();
-        return;
+      if (r.shouldReloadLocalData) {
+        refreshAppAfterCloudPull();
       }
       schedulePush();
     });
@@ -136,8 +135,8 @@ export function CloudAutoSync() {
               boot.pullError ?? boot.applyError ?? boot.pushError ?? "",
             );
           }
-          if (boot.shouldHardNavigate) {
-            hardNavigateToFonctionsAfterCloudPull();
+          if (boot.shouldReloadLocalData) {
+            refreshAppAfterCloudPull();
           }
         });
       }

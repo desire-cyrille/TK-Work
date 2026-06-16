@@ -14,6 +14,7 @@ import {
   saveThemeSettings,
   type ThemeSettings,
 } from "./themeSettingsStorage";
+import { TK_GESTION_RELOAD_LOCAL_DATA_EVENT } from "../lib/reloadLocalAppData";
 
 type ThemeSettingsContextValue = {
   settings: ThemeSettings;
@@ -35,6 +36,13 @@ export function ThemeSettingsProvider({ children }: { children: ReactNode }) {
     saveThemeSettings(settings);
     applyThemeToDocument(settings);
   }, [settings]);
+
+  useEffect(() => {
+    const onReload = () => setSettingsState(loadThemeSettings());
+    window.addEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+    return () =>
+      window.removeEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+  }, []);
 
   const setSettings = useCallback((s: ThemeSettings) => {
     setSettingsState(s);

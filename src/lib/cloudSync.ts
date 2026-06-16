@@ -9,6 +9,7 @@ import {
   AUTH_TOKEN_KEY,
   getValidAuthToken,
 } from "./authToken";
+import { notifyLocalAppDataReload } from "./reloadLocalAppData";
 
 const LEGACY_CLOUD_TOKEN = "tk_gestion_cloud_token";
 const LEGACY_CLOUD_EMAIL = "tk_gestion_cloud_email";
@@ -18,8 +19,9 @@ const CLOUD_BOOTSTRAP_APPLIED_VERSION_SESSION_KEY =
   "tk-gestion-cloud-bootstrap-applied-version-v1";
 const CLOUD_BOOTSTRAP_APPLIED_VERSION_LS_KEY =
   "tk-gestion-cloud-bootstrap-applied-version-ls-v1";
-const CLOUD_HARD_NAV_RELOAD_ONCE_KEY =
-  "tk-gestion-cloud-hard-nav-reload-once-v1";
+
+/** Mémoire processus : filet si sessionStorage/localStorage indisponibles (iframe, Chrome). */
+let memoryBootstrapAppliedVersion = 0;
 
 function getBootstrapAppliedVersion(): number {
   let ss = 0;
@@ -39,13 +41,14 @@ function getBootstrapAppliedVersion(): number {
   } catch {
     /* ignore */
   }
-  const n = Math.max(ss, ls);
+  const n = Math.max(memoryBootstrapAppliedVersion, ss, ls);
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
 function rememberBootstrapAppliedVersion(version: number): void {
   if (!Number.isFinite(version) || version <= 0) return;
-  const s = String(Math.floor(version));
+  memoryBootstrapAppliedVersion = Math.floor(version);
+  const s = String(memoryBootstrapAppliedVersion);
   try {
     sessionStorage.setItem(CLOUD_BOOTSTRAP_APPLIED_VERSION_SESSION_KEY, s);
   } catch {
@@ -58,13 +61,6 @@ function rememberBootstrapAppliedVersion(version: number): void {
   }
 }
 
-function isConnexionPath(): boolean {
-  try {
-    return /\/connexion\/?$/.test(window.location.pathname);
-  } catch {
-    return false;
-  }
-}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -157,7 +153,7 @@ export function assessCloudPushRisk(entries: Record<string, string>): CloudPushR
 export const CLOUD_SERVER_VERSION_KEY = "tk-gestion-cloud-server-version-v1";
 
 export type CloudSessionBootstrapResult = {
-  shouldHardNavigate: boolean;
+  shouldReloadLocalData: boolean;
   pulled?: boolean;
   pushed?: boolean;
   pullError?: string;
@@ -533,14 +529,14 @@ export async function cloudPush(): Promise<
 async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> {
   const pull = await cloudPull();
   if (!pull.ok) {
-    return { shouldHardNavigate: false, pullError: pull.error };
+    return { shouldReloadLocalData: false, pullError: pull.error };
   }
 
   // Évite les boucles de rechargement (Windows / sessionStorage volatile).
   const alreadyApplied = getBootstrapAppliedVersion();
   if (alreadyApplied > 0 && alreadyApplied === pull.version) {
     rememberCloudServerVersion(pull.version);
-    return { shouldHardNavigate: false };
+    return { shouldReloadLocalData: false };
   }
 
   const localEntries = collectEntriesForCloudPush();
@@ -553,23 +549,22 @@ async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> 
     const shouldApply = serverNewer || !localSubstantive;
     if (!shouldApply) {
       if (remembered === 0) rememberCloudServerVersion(pull.version);
-      return { shouldHardNavigate: false };
+      return { shouldReloadLocalData: false };
     }
     const applied = await applyCloudPullEntries(pull.entries);
     if (!applied.ok) {
-      return { shouldHardNavigate: false, applyError: applied.error };
+      return { shouldReloadLocalData: false, applyError: applied.error };
     }
     await finalizeCloudPullOnDevice();
     rememberCloudServerVersion(pull.version);
     rememberBootstrapAppliedVersion(pull.version);
-    const shouldHardNavigate = !isConnexionPath();
-    return { shouldHardNavigate, pulled: true };
+    return { shouldReloadLocalData: true, pulled: true };
   }
 
   if (localSubstantive) {
     const pushed = await cloudPush();
     if (!pushed.ok) {
-      return { shouldHardNavigate: false, pushError: pushed.error };
+      return { shouldReloadLocalData: false, pushError: pushed.error };
     }
     if (pushed.version > 0) {
       rememberCloudServerVersion(pushed.version);
@@ -579,16 +574,16 @@ async function runCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> 
         rememberCloudServerVersion(after.version);
       }
     }
-    return { shouldHardNavigate: false, pushed: true };
+    return { shouldReloadLocalData: false, pushed: true };
   }
 
-  return { shouldHardNavigate: false };
+  return { shouldReloadLocalData: false };
 }
 
 /** Aligne l’appareil sur le nuage (idempotent ; un seul appel simultané). */
 export function syncCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult> {
   if (!getValidAuthToken()) {
-    return Promise.resolve({ shouldHardNavigate: false });
+    return Promise.resolve({ shouldReloadLocalData: false });
   }
   if (bootstrapInFlight) return bootstrapInFlight;
   bootstrapInFlight = runCloudSessionBootstrap().finally(() => {
@@ -601,38 +596,24 @@ export function syncCloudSessionBootstrap(): Promise<CloudSessionBootstrapResult
  * Après connexion ou inscription : alignement automatique sur le nuage.
  */
 export async function syncCloudPullAfterLogin(): Promise<{
-  shouldHardNavigate: boolean;
+  shouldReloadLocalData: boolean;
   pullError?: string;
   applyError?: string;
 }> {
   const r = await syncCloudSessionBootstrap();
   return {
-    shouldHardNavigate: r.shouldHardNavigate,
+    shouldReloadLocalData: r.shouldReloadLocalData,
     pullError: r.pullError,
     applyError: r.applyError,
   };
 }
 
-/** Rechargement vers la page Fonctions après application d’une copie nuage (état React obsolète). */
+/** Recharge les données locales en mémoire après un pull (sans recharger la page). */
+export function refreshAppAfterCloudPull(): void {
+  notifyLocalAppDataReload();
+}
+
+/** @deprecated Utiliser {@link refreshAppAfterCloudPull}. */
 export function hardNavigateToFonctionsAfterCloudPull(): void {
-  const base = import.meta.env.BASE_URL;
-  const prefix = typeof base === "string" ? base.replace(/\/$/, "") : "";
-  const path = prefix ? `${prefix}/fonctions` : "/fonctions";
-  const current = window.location.pathname.replace(/\/$/, "") || "/";
-  const target = path.replace(/\/$/, "") || "/fonctions";
-
-  if (current === target || current.endsWith("/fonctions")) {
-    try {
-      if (sessionStorage.getItem(CLOUD_HARD_NAV_RELOAD_ONCE_KEY) === "1") {
-        return;
-      }
-      sessionStorage.setItem(CLOUD_HARD_NAV_RELOAD_ONCE_KEY, "1");
-    } catch {
-      /* ignore */
-    }
-    window.location.reload();
-    return;
-  }
-
-  window.location.assign(path);
+  refreshAppAfterCloudPull();
 }

@@ -1,4 +1,5 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { AuthBootSplash } from "./components/AuthBootSplash";
 import { GateLayout } from "./components/GateLayout";
 import {
   LegacyLocataireModifierRedirect,
@@ -32,10 +33,21 @@ import { RapportActiviteAccueil } from "./pages/RapportActiviteAccueil";
 import { RapportActiviteNouveauProjet } from "./pages/RapportActiviteNouveauProjet";
 import { RapportActiviteProjetDetail } from "./pages/RapportActiviteProjetDetail";
 import { RapportActiviteRedaction } from "./pages/RapportActiviteRedaction";
+import { useAuth } from "./context/AuthContext";
+
+function AppEntryRedirect() {
+  const { isAuthenticated, authReady } = useAuth();
+  if (!authReady) return <AuthBootSplash />;
+  return (
+    <Navigate to={isAuthenticated ? "/fonctions" : "/connexion"} replace />
+  );
+}
 
 export default function App() {
   return (
     <Routes>
+      <Route index element={<AppEntryRedirect />} />
+
       <Route element={<RedirectIfAuthed />}>
         <Route path="/connexion" element={<Connexion />} />
       </Route>
@@ -146,7 +158,6 @@ export default function App() {
           </Route>
         </Route>
 
-        <Route index element={<Navigate to="/fonctions" replace />} />
         <Route path="*" element={<Navigate to="/fonctions" replace />} />
       </Route>
     </Routes>

@@ -14,11 +14,13 @@ import {
   hydrateTkGestionOverflowFromIdb,
   installTkGestionStorageBridge,
 } from "./lib/tkGestionStorageBridge";
+import { escapeEmbeddedFrameIfNeeded } from "./lib/reloadLocalAppData";
 import "./index.css";
 
 registerRapportImageCloudFlushListener();
 
 async function boot() {
+  if (escapeEmbeddedFrameIfNeeded()) return;
   await hydrateTkGestionOverflowFromIdb();
   installTkGestionStorageBridge();
 

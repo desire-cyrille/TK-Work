@@ -2,10 +2,11 @@ import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
-  hardNavigateToFonctionsAfterCloudPull,
+  refreshAppAfterCloudPull,
   syncCloudPullAfterLogin,
 } from "../lib/cloudSync";
 import { decodeAuthTokenClaims, getValidAuthToken } from "../lib/authToken";
+import { escapeEmbeddedFrameIfNeeded } from "../lib/reloadLocalAppData";
 import styles from "./Connexion.module.css";
 
 type Mode = "login" | "signup";
@@ -21,6 +22,10 @@ export function Connexion() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const inFrame = typeof window !== "undefined" && window.self !== window.top;
+
+  useEffect(() => {
+    escapeEmbeddedFrameIfNeeded();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,9 +82,8 @@ export function Connexion() {
     if (sync.pullError || sync.applyError) {
       console.warn("Nuage après connexion :", sync.pullError ?? sync.applyError);
     }
-    if (sync.shouldHardNavigate) {
-      hardNavigateToFonctionsAfterCloudPull();
-      return;
+    if (sync.shouldReloadLocalData) {
+      refreshAppAfterCloudPull();
     }
     navigate("/fonctions", { replace: true });
   }

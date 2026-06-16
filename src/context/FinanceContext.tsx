@@ -19,6 +19,7 @@ import {
 } from "./financeStorage";
 import { fusionnerMoisFinanceAvecContrat } from "../lib/moisFinance";
 import { parseEuro } from "../lib/money";
+import { TK_GESTION_RELOAD_LOCAL_DATA_EVENT } from "../lib/reloadLocalAppData";
 
 function newId() {
   return crypto.randomUUID();
@@ -77,6 +78,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveFinanceState(state);
   }, [state]);
+
+  useEffect(() => {
+    const onReload = () => setState(loadFinanceState());
+    window.addEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+    return () =>
+      window.removeEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+  }, []);
 
   useEffect(() => {
     const idsActifs = new Set(contratsLocation.map((c) => c.id));

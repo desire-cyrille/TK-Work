@@ -19,6 +19,7 @@ import {
   saveBiensState,
   type BiensState,
 } from "./biensStorage";
+import { TK_GESTION_RELOAD_LOCAL_DATA_EVENT } from "../lib/reloadLocalAppData";
 
 function newId() {
   return crypto.randomUUID();
@@ -56,6 +57,13 @@ export function BiensProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveBiensState(state);
   }, [state]);
+
+  useEffect(() => {
+    const onReload = () => setState(loadBiensState());
+    window.addEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+    return () =>
+      window.removeEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+  }, []);
 
   const addBailleur = useCallback((data: Omit<Bailleur, "id">) => {
     const bailleur: Bailleur = { ...data, id: newId() };
