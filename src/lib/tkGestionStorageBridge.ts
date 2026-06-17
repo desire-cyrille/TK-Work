@@ -14,6 +14,13 @@ const memoryCache = new Map<string, string>();
 let bridgeInstalled = false;
 const pendingWrites = new Set<Promise<void>>();
 
+/** Accès natifs — ne jamais rappeler localStorage.getItem après patch (récursion). */
+const nativeGetItem = localStorage.getItem.bind(localStorage);
+const nativeSetItem = localStorage.setItem.bind(localStorage);
+const nativeRemoveItem = localStorage.removeItem.bind(localStorage);
+const nativeKey = localStorage.key.bind(localStorage);
+const nativeLength = () => localStorage.length;
+
 function trackWrite(p: Promise<void>): void {
   pendingWrites.add(p);
   void p.finally(() => {
@@ -25,8 +32,18 @@ function isTkGestionStorageKey(key: string): boolean {
   return key.startsWith("tk-gestion-") || key.startsWith("tk_gestion_");
 }
 
+/** Jetons de session : toujours en localStorage natif (pas de pont IDB). */
+const DIRECT_LOCAL_KEYS = new Set([
+  "tk_gestion_auth_token",
+  "tk_gestion_auth_email",
+]);
+
 function isOverflowKey(key: string): boolean {
-  return isTkGestionStorageKey(key) && !key.includes("#");
+  return (
+    isTkGestionStorageKey(key) &&
+    !key.includes("#") &&
+    !DIRECT_LOCAL_KEYS.has(key)
+  );
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -117,15 +134,15 @@ function isQuotaError(e: unknown): boolean {
 }
 
 function readNative(key: string): string | null {
-  return localStorage.getItem(key);
+  return nativeGetItem(key);
 }
 
 function writeNative(key: string, value: string): void {
-  localStorage.setItem(key, value);
+  nativeSetItem(key, value);
 }
 
 function removeNative(key: string): void {
-  localStorage.removeItem(key);
+  nativeRemoveItem(key);
 }
 
 export function getTkGestionStorageValue(key: string): string | null {
@@ -173,8 +190,8 @@ export function removeTkGestionStorageValue(key: string): void {
 export function collectTkGestionStorageEntries(): Record<string, string> {
   const entries: Record<string, string> = {};
   const seen = new Set<string>();
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i);
+  for (let i = 0; i < nativeLength(); i += 1) {
+    const key = nativeKey(i);
     if (!key || !isTkGestionStorageKey(key)) continue;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -196,8 +213,8 @@ export async function flushTkGestionStorageWrites(): Promise<void> {
 export async function clearTkGestionStorageCompletely(): Promise<void> {
   memoryCache.clear();
   const toRemove: string[] = [];
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i);
+  for (let i = 0; i < nativeLength(); i += 1) {
+    const key = nativeKey(i);
     if (key && isTkGestionStorageKey(key)) toRemove.push(key);
   }
   for (const key of toRemove) removeNative(key);
@@ -219,8 +236,8 @@ export async function hydrateTkGestionOverflowFromIdb(): Promise<void> {
         }
       }
     }
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i);
+    for (let i = 0; i < nativeLength(); i += 1) {
+      const key = nativeKey(i);
       if (!key || !isOverflowKey(key)) continue;
       const raw = readNative(key);
       if (raw?.startsWith(IDB_MARKER) && !memoryCache.has(key)) {
@@ -237,18 +254,14 @@ export function installTkGestionStorageBridge(): void {
   if (bridgeInstalled) return;
   bridgeInstalled = true;
 
-  const nativeGet = localStorage.getItem.bind(localStorage);
-  const nativeSet = localStorage.setItem.bind(localStorage);
-  const nativeRemove = localStorage.removeItem.bind(localStorage);
-
   localStorage.getItem = (key: string): string | null => {
-    if (!isOverflowKey(key)) return nativeGet(key);
+    if (!isOverflowKey(key)) return nativeGetItem(key);
     return getTkGestionStorageValue(key);
   };
 
   localStorage.setItem = (key: string, value: string): void => {
     if (!isOverflowKey(key)) {
-      nativeSet(key, value);
+      nativeSetItem(key, value);
       return;
     }
     writeTkGestionStorageValue(key, value);
@@ -256,7 +269,7 @@ export function installTkGestionStorageBridge(): void {
 
   localStorage.removeItem = (key: string): void => {
     if (!isOverflowKey(key)) {
-      nativeRemove(key);
+      nativeRemoveItem(key);
       return;
     }
     removeTkGestionStorageValue(key);

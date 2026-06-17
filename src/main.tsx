@@ -19,7 +19,9 @@ import "./index.css";
 registerRapportImageCloudFlushListener();
 
 function renderApp() {
-  createRoot(document.getElementById("root")!).render(
+  const rootEl = document.getElementById("root");
+  if (!rootEl) return;
+  createRoot(rootEl).render(
     <StrictMode>
       <BrowserRouter>
         <SentenceCapitalizeDom />
@@ -40,9 +42,17 @@ function renderApp() {
 }
 
 async function boot() {
-  installTkGestionStorageBridge();
-  renderApp();
-  void hydrateTkGestionOverflowFromIdb();
+  try {
+    installTkGestionStorageBridge();
+    renderApp();
+    void hydrateTkGestionOverflowFromIdb();
+  } catch (e) {
+    const rootEl = document.getElementById("root");
+    const msg = e instanceof Error ? e.message : String(e);
+    if (rootEl) {
+      rootEl.innerHTML = `<div style="padding:2rem;font-family:sans-serif;max-width:32rem;margin:0 auto"><h1 style="color:#c2410c">Erreur au démarrage</h1><p>${msg}</p><p><a href="/connexion">Recharger la page de connexion</a></p></div>`;
+    }
+  }
 }
 
 void boot();
