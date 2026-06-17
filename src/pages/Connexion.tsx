@@ -6,7 +6,7 @@ import {
   syncCloudPullAfterLogin,
 } from "../lib/cloudSync";
 import { decodeAuthTokenClaims, getValidAuthToken } from "../lib/authToken";
-import { escapeEmbeddedFrameIfNeeded } from "../lib/reloadLocalAppData";
+import { appOpenInNewTabUrl, isEmbeddedFrame } from "../lib/reloadLocalAppData";
 import styles from "./Connexion.module.css";
 
 type Mode = "login" | "signup";
@@ -21,11 +21,8 @@ export function Connexion() {
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const inFrame = typeof window !== "undefined" && window.self !== window.top;
-
-  useEffect(() => {
-    escapeEmbeddedFrameIfNeeded();
-  }, []);
+  const inFrame = isEmbeddedFrame();
+  const openInTabUrl = appOpenInNewTabUrl();
 
   useEffect(() => {
     let cancelled = false;
@@ -101,18 +98,23 @@ export function Connexion() {
           d’exporter un fichier JSON au quotidien si vous restez connecté.
         </p>
         {inFrame ? (
-          <p className={styles.frameWarn} role="status">
-            L’application est ouverte dans une fenêtre intégrée. Si la connexion
-            clignote ou ne tient pas,{" "}
+          <div className={styles.frameWarn} role="status">
+            <p className={styles.frameWarnTitle}>
+              Connexion instable depuis le site tkpro.fr
+            </p>
+            <p className={styles.frameWarnText}>
+              Ouvrez l’application dans un <strong>nouvel onglet</strong> pour
+              vous connecter sans interruption.
+            </p>
             <a
-              href={window.location.href}
-              target="_top"
+              className={styles.frameWarnBtn}
+              href={openInTabUrl}
+              target="_blank"
               rel="noopener noreferrer"
             >
-              ouvrez l’intranet dans l’onglet principal
+              Ouvrir TK Gestion dans un nouvel onglet
             </a>
-            .
-          </p>
+          </div>
         ) : null}
         <div className={styles.modeRow}>
           <button

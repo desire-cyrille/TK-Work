@@ -10,13 +10,15 @@ export function notifyLocalAppDataReload(): void {
   }
 }
 
-/** Ouvre l’app en plein onglet si elle est intégrée dans tkpro.fr (évite les boucles Chrome). */
-export function escapeEmbeddedFrameIfNeeded(): boolean {
+export function isEmbeddedFrame(): boolean {
   try {
-    if (window.self === window.top) return false;
-    window.top!.location.href = window.location.href;
-    return true;
+    return window.self !== window.top;
   } catch {
-    return false;
+    return true;
   }
+}
+
+/** URL à ouvrir en plein onglet (depuis tkpro.fr / iframe). */
+export function appOpenInNewTabUrl(): string {
+  return window.location.href;
 }

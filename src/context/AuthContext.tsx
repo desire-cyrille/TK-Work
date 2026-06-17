@@ -12,9 +12,7 @@ import {
   decodeAuthTokenClaims,
   getAuthEmail,
   getValidAuthToken,
-  readAuthSessionFromStorage,
   setAuthSession,
-  type AuthSessionSnapshot,
 } from "../lib/authToken";
 import { cloudPush } from "../lib/cloudSync";
 
@@ -26,10 +24,14 @@ export type ProfileUpdateResult =
   | { ok: true }
   | { ok: false; error: string };
 
-type AuthContextValue = AuthSessionSnapshot & {
-  /** false tant que la session serveur n’a pas été vérifiée (évite les redirections instables). */
-  authReady: boolean;
+type AuthContextValue = {
+  isAuthenticated: boolean;
+  profileEmail: string;
+  role: "USER" | "ADMIN";
   isAdmin: boolean;
+  mustChangePassword: boolean;
+  /** false tant que la session serveur n’a pas été vérifiée (routes protégées). */
+  authReady: boolean;
   login: (email: string, password: string) => Promise<AuthActionResult>;
   signup: (email: string, password: string) => Promise<AuthActionResult>;
   logout: () => Promise<void>;
@@ -43,18 +45,17 @@ type AuthContextValue = AuthSessionSnapshot & {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const initialSession = readAuthSessionFromStorage();
+const pendingTokenOnBoot = getValidAuthToken() !== null;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [profileEmail, setProfileEmail] = useState(initialSession.profileEmail);
-  const [role, setRole] = useState<"USER" | "ADMIN">(initialSession.role);
-  const [mustChangePassword, setMustChangePassword] = useState(
-    initialSession.mustChangePassword,
+  const [profileEmail, setProfileEmail] = useState(
+    getAuthEmail() ?? "admin@local",
   );
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    initialSession.isAuthenticated,
-  );
-  const [authReady, setAuthReady] = useState(!initialSession.isAuthenticated);
+  const [role, setRole] = useState<"USER" | "ADMIN">("USER");
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  /** Ne jamais présumer connecté avant validation serveur (évite les boucles Chrome). */
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authReady, setAuthReady] = useState(!pendingTokenOnBoot);
 
   useEffect(() => {
     const tok = getValidAuthToken();
@@ -97,20 +98,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsAuthenticated(true);
           return;
         }
-        const claims = decodeAuthTokenClaims(tok);
-        if (claims) {
-          setIsAuthenticated(true);
-          setProfileEmail(claims.email);
-          setRole(claims.role);
-          setMustChangePassword(claims.mustChangePassword);
-        }
+        /* Session non confirmée (404 réseau, 503…) : rester sur la page connexion. */
+        clearAuthSession();
+        setIsAuthenticated(false);
       } catch {
-        const claims = decodeAuthTokenClaims(tok);
-        if (!cancelled && claims) {
-          setIsAuthenticated(true);
-          setProfileEmail(claims.email);
-          setRole(claims.role);
-          setMustChangePassword(claims.mustChangePassword);
+        if (!cancelled) {
+          clearAuthSession();
+          setIsAuthenticated(false);
         }
       } finally {
         if (!cancelled) setAuthReady(true);

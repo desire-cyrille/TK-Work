@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useAuth } from "../context/AuthContext";
 import { downloadTkGestionBackup, type TkGestionBackupV1 } from "../lib/appDataBackup";
 import { collectEntriesForCloudPush, hasSubstantiveLocalData } from "../lib/cloudSync";
 
@@ -43,6 +44,7 @@ function writeLastAutoBackupCache(data: TkGestionBackupV1) {
  * secours.
  */
 export function AutoBackupTwiceDaily() {
+  const { authReady, isAuthenticated } = useAuth();
   const running = useRef(false);
   const timer = useRef<number | null>(null);
 
@@ -78,6 +80,8 @@ export function AutoBackupTwiceDaily() {
   }
 
   useEffect(() => {
+    if (!authReady || !isAuthenticated) return;
+
     void maybeBackup("startup");
 
     const onVisibility = () => {
@@ -96,7 +100,7 @@ export function AutoBackupTwiceDaily() {
       if (timer.current !== null) window.clearInterval(timer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authReady, isAuthenticated]);
 
   return null;
 }
