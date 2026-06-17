@@ -121,10 +121,14 @@ export function CloudAutoSync() {
     lastPushedHash.current = readStringSession(LAST_PUSHED_HASH_KEY);
     lastBootError.current = readStringSession(LAST_CLOUD_SYNC_ERROR_KEY);
 
-    if (!bootstrapStarted.current) {
+    const startBootstrap = () => {
+      if (bootstrapStarted.current) return;
       bootstrapStarted.current = true;
       runBootstrap();
-    }
+    };
+
+    // Laisser la navigation post-connexion se terminer avant le sync nuage.
+    const bootTimer = window.setTimeout(startBootstrap, 800);
 
     const onOnline = () => {
       schedulePush();
@@ -160,6 +164,7 @@ export function CloudAutoSync() {
     for (const ev of events) document.addEventListener(ev, onUserActivity, true);
 
     return () => {
+      window.clearTimeout(bootTimer);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("pagehide", onPageHide);
       document.removeEventListener("visibilitychange", onVisibility);

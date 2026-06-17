@@ -30,7 +30,7 @@ type AuthContextValue = {
   role: "USER" | "ADMIN";
   isAdmin: boolean;
   mustChangePassword: boolean;
-  /** false tant que la session serveur n’a pas été vérifiée (routes protégées). */
+  /** true une fois la vérification initiale du jeton terminée (routes protégées). */
   authReady: boolean;
   login: (email: string, password: string) => Promise<AuthActionResult>;
   signup: (email: string, password: string) => Promise<AuthActionResult>;
@@ -53,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
   const [role, setRole] = useState<"USER" | "ADMIN">("USER");
   const [mustChangePassword, setMustChangePassword] = useState(false);
-  /** Ne jamais présumer connecté avant validation serveur (évite les boucles Chrome). */
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authReady, setAuthReady] = useState(!pendingTokenOnBoot);
 
@@ -98,13 +97,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsAuthenticated(true);
           return;
         }
-        /* Session non confirmée (404 réseau, 503…) : rester sur la page connexion. */
-        clearAuthSession();
-        setIsAuthenticated(false);
+        /* 404/503 : garder le jeton, ne pas effacer (évite déconnexions intempestives). */
+        const claims = decodeAuthTokenClaims(tok);
+        if (claims) {
+          setProfileEmail(claims.email);
+          setRole(claims.role);
+          setMustChangePassword(claims.mustChangePassword);
+          setIsAuthenticated(true);
+        }
       } catch {
-        if (!cancelled) {
-          clearAuthSession();
-          setIsAuthenticated(false);
+        const tok2 = getValidAuthToken();
+        const claims = tok2 ? decodeAuthTokenClaims(tok2) : null;
+        if (!cancelled && claims) {
+          setProfileEmail(claims.email);
+          setRole(claims.role);
+          setMustChangePassword(claims.mustChangePassword);
+          setIsAuthenticated(true);
         }
       } finally {
         if (!cancelled) setAuthReady(true);

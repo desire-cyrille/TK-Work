@@ -148,6 +148,29 @@
   background: #c2410c;
 }
 
+.alreadyRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.secondaryBtn {
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.65rem 1rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  color: var(--brand-pink, #e53935);
+  background: transparent;
+  border: 1px solid var(--border-on-light, #ddd);
+}
+
+.secondaryBtn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .submit {
   margin-top: 0.35rem;
   font: inherit;

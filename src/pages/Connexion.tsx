@@ -1,10 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import {
-  refreshAppAfterCloudPull,
-  syncCloudPullAfterLogin,
-} from "../lib/cloudSync";
 import { decodeAuthTokenClaims, getValidAuthToken } from "../lib/authToken";
 import { appOpenInNewTabUrl, isEmbeddedFrame } from "../lib/reloadLocalAppData";
 import styles from "./Connexion.module.css";
@@ -12,7 +8,8 @@ import styles from "./Connexion.module.css";
 type Mode = "login" | "signup";
 
 export function Connexion() {
-  const { login, signup } = useAuth();
+  const { login, signup, logout, isAuthenticated, authReady, profileEmail } =
+    useAuth();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState<Mode>("login");
@@ -61,8 +58,8 @@ export function Connexion() {
       mode === "signup"
         ? await signup(email.trim(), password)
         : await login(email.trim(), password);
+    setLoading(false);
     if (!res.ok) {
-      setLoading(false);
       setErrorMsg(res.error);
       return;
     }
@@ -74,15 +71,65 @@ export function Connexion() {
       navigate("/changement-mot-de-passe", { replace: true });
       return;
     }
-    const sync = await syncCloudPullAfterLogin();
-    setLoading(false);
-    if (sync.pullError || sync.applyError) {
-      console.warn("Nuage après connexion :", sync.pullError ?? sync.applyError);
-    }
-    if (sync.shouldReloadLocalData) {
-      refreshAppAfterCloudPull();
-    }
     navigate("/fonctions", { replace: true });
+  }
+
+  if (inFrame) {
+    return (
+      <div className={styles.shell}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>Connexion TK Gestion</h1>
+          <div className={styles.frameWarn} role="status">
+            <p className={styles.frameWarnTitle}>
+              Connexion impossible dans la fenêtre tkpro.fr
+            </p>
+            <p className={styles.frameWarnText}>
+              Chrome et les navigateurs bloquent une connexion fiable dans une
+              fenêtre intégrée. Utilisez le bouton ci-dessous pour ouvrir
+              l’application dans un <strong>onglet dédié</strong>, puis
+              connectez-vous.
+            </p>
+            <a
+              className={styles.frameWarnBtn}
+              href={openInTabUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Ouvrir TK Gestion dans un nouvel onglet
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (authReady && isAuthenticated && !loading) {
+    return (
+      <div className={styles.shell}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>Déjà connecté</h1>
+          <p className={styles.hint}>
+            Session active pour <strong>{profileEmail}</strong>.
+          </p>
+          <div className={styles.alreadyRow}>
+            <button
+              type="button"
+              className={styles.submit}
+              onClick={() => navigate("/fonctions", { replace: true })}
+            >
+              Continuer vers l’application
+            </button>
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              onClick={() => void logout()}
+            >
+              Utiliser un autre compte
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -94,28 +141,8 @@ export function Connexion() {
         <p className={styles.hint}>
           Chaque personne a <strong>ses identifiants</strong> ; les données
           métier (biens, devis, rapports) sont <strong>sur le serveur</strong> et
-          se chargent <strong>automatiquement</strong> à la connexion. Inutile
-          d’exporter un fichier JSON au quotidien si vous restez connecté.
+          se chargent <strong>automatiquement</strong> à la connexion.
         </p>
-        {inFrame ? (
-          <div className={styles.frameWarn} role="status">
-            <p className={styles.frameWarnTitle}>
-              Connexion instable depuis le site tkpro.fr
-            </p>
-            <p className={styles.frameWarnText}>
-              Ouvrez l’application dans un <strong>nouvel onglet</strong> pour
-              vous connecter sans interruption.
-            </p>
-            <a
-              className={styles.frameWarnBtn}
-              href={openInTabUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Ouvrir TK Gestion dans un nouvel onglet
-            </a>
-          </div>
-        ) : null}
         <div className={styles.modeRow}>
           <button
             type="button"
@@ -171,7 +198,7 @@ export function Connexion() {
           {errorMsg ? <p className={styles.error}>{errorMsg}</p> : null}
           <button type="submit" className={styles.submit} disabled={loading}>
             {loading
-              ? "Synchronisation…"
+              ? "Connexion…"
               : mode === "signup"
                 ? "Créer le compte et se connecter"
                 : "Se connecter"}
