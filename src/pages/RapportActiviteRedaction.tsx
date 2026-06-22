@@ -118,14 +118,14 @@ async function migrateBrouillonImagesToIdb(
     if (!s) return s;
     if (isImageRef(s)) return s;
     if (!isInlineImageDataUrl(s)) return s;
-    // Les dataURLs trop petites ne posent pas problème, mais on homogénéise.
-    return await putImageDataUrl(s);
+    try {
+      return await putImageDataUrl(s);
+    } catch {
+      return s;
+    }
   }
 
-  next.visuels.logoPrincipal = await migrateStr(next.visuels.logoPrincipal);
-  next.visuels.logoClient = await migrateStr(next.visuels.logoClient);
-  next.visuels.couverture = await migrateStr(next.visuels.couverture);
-
+  // Logos / couverture : garder en data URL inline (fiable pour le PDF, peu volumineux).
   for (const [sid, arr] of Object.entries(next.visuels.photosParSite ?? {})) {
     const out: string[] = [];
     for (const s of arr ?? []) out.push((await migrateStr(s)) ?? "");
@@ -372,31 +372,48 @@ export function RapportActiviteRedaction() {
     maxEdge: number,
     patchVisuels: (
       v: RapportBrouillonState["visuels"],
-      ref: string,
+      stored: string,
     ) => RapportBrouillonState["visuels"],
+    opts?: { jpegQuality?: number; useIdb?: boolean },
   ) {
     if (!projet) return;
-    const r = await importerImageEnDataUrl(file, { maxEdge, jpegQuality: 0.82 });
+    const r = await importerImageEnDataUrl(file, {
+      maxEdge,
+      jpegQuality: opts?.jpegQuality ?? 0.78,
+    });
     if (!r.ok) {
       window.alert(r.message);
       return;
     }
+    let stored = r.dataUrl;
+    if (opts?.useIdb) {
+      try {
+        stored = await putImageDataUrl(r.dataUrl);
+      } catch {
+        if (r.dataUrl.length > 450_000) {
+          window.alert(
+            "Impossible d’enregistrer cette image (espace local saturé). Utilisez une photo plus légère ou supprimez d’anciennes images du rapport.",
+          );
+          return;
+        }
+        stored = r.dataUrl;
+      }
+    }
+    const cur = draftRef.current;
+    if (!cur) return;
+    const next = alignerParSite(
+      {
+        ...cur,
+        visuels: patchVisuels({ ...cur.visuels }, stored),
+      },
+      projet,
+    );
     try {
-      const ref = await putImageDataUrl(r.dataUrl);
-      const cur = draftRef.current;
-      if (!cur) return;
-      const next = alignerParSite(
-        {
-          ...cur,
-          visuels: patchVisuels({ ...cur.visuels }, ref),
-        },
-        projet,
-      );
       setDraft(next);
       sauvegarderBrouillonProjet(projet.id, next);
     } catch {
       window.alert(
-        "Image enregistrée localement impossible. Réduisez la taille du fichier ou libérez de l’espace, puis réessayez.",
+        "Image chargée mais enregistrement du brouillon impossible (espace local saturé). Réduisez le contenu du rapport ou libérez de l’espace dans le navigateur.",
       );
     }
   }
@@ -772,9 +789,9 @@ export function RapportActiviteRedaction() {
                           const f = e.target.files?.[0];
                           e.target.value = "";
                           if (!f) return;
-                          void importerVisuelRapport(f, 600, (v, ref) => ({
+                          void importerVisuelRapport(f, 480, (v, stored) => ({
                             ...v,
-                            logoPrincipal: ref,
+                            logoPrincipal: stored,
                           }));
                         }}
                       />
@@ -790,9 +807,9 @@ export function RapportActiviteRedaction() {
                           const f = e.target.files?.[0];
                           e.target.value = "";
                           if (!f) return;
-                          void importerVisuelRapport(f, 600, (v, ref) => ({
+                          void importerVisuelRapport(f, 480, (v, stored) => ({
                             ...v,
-                            logoClient: ref,
+                            logoClient: stored,
                           }));
                         }}
                       />
@@ -808,10 +825,15 @@ export function RapportActiviteRedaction() {
                           const f = e.target.files?.[0];
                           e.target.value = "";
                           if (!f) return;
-                          void importerVisuelRapport(f, 2400, (v, ref) => ({
-                            ...v,
-                            couverture: ref,
-                          }));
+                          void importerVisuelRapport(
+                            f,
+                            1400,
+                            (v, stored) => ({
+                              ...v,
+                              couverture: stored,
+                            }),
+                            { jpegQuality: 0.8 },
+                          );
                         }}
                       />
                       <RapportVisuelPreview refOrDataUrl={draft.visuels.couverture} />
@@ -833,9 +855,23 @@ export function RapportActiviteRedaction() {
                       const cur = [...(draft.visuels.photosParSite[sid] ?? [])];
                       for (const f of files) {
                         if (cur.length >= MAX_PHOTOS_VISUELS_PAR_SITE) break;
-                        const r = await importerImageEnDataUrl(f);
-                        if (r.ok) cur.push(await putImageDataUrl(r.dataUrl));
-                        else window.alert(r.message);
+                        const r = await importerImageEnDataUrl(f, {
+                          maxEdge: 1400,
+                          jpegQuality: 0.78,
+                        });
+                        if (!r.ok) {
+                          window.alert(r.message);
+                          continue;
+                        }
+                        try {
+                          cur.push(await putImageDataUrl(r.dataUrl));
+                        } catch {
+                          if (r.dataUrl.length <= 450_000) cur.push(r.dataUrl);
+                          else
+                            window.alert(
+                              "Photo trop lourde pour l’espace local. Choisissez une image plus petite.",
+                            );
+                        }
                       }
                       majDraft((d) => ({
                         ...d,
