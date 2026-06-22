@@ -89,3 +89,38 @@ export async function importerImageEnDataUrl(
     URL.revokeObjectURL(objUrl);
   }
 }
+
+function loadImageFromDataUrl(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("decode"));
+    el.src = dataUrl;
+  });
+}
+
+/** Miniature légère pour l’aperçu UI (évite de charger des Mo en mémoire). */
+export async function imageDataUrlPreviewThumb(
+  dataUrl: string,
+  maxEdge = 160,
+): Promise<string> {
+  if (!dataUrl.startsWith("data:image/")) return dataUrl;
+  try {
+    const img = await loadImageFromDataUrl(dataUrl);
+    const w0 = img.naturalWidth || img.width;
+    const h0 = img.naturalHeight || img.height;
+    if (!w0 || !h0) return dataUrl;
+    const scale = maxEdge / Math.max(w0, h0, 1);
+    const w = Math.max(1, Math.round(w0 * scale));
+    const h = Math.max(1, Math.round(h0 * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", 0.72);
+  } catch {
+    return dataUrl.length <= 120_000 ? dataUrl : "";
+  }
+}

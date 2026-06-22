@@ -13,7 +13,7 @@ import {
   genererRapportActivitePdfBlob,
   telechargerRapportActivitePdf,
 } from "../lib/exportRapportActivitePdf";
-import { importerImageEnDataUrl } from "../lib/rapportImageImport";
+import { importerImageEnDataUrl, imageDataUrlPreviewThumb } from "../lib/rapportImageImport";
 import {
   putImageDataUrl,
   requestPersistentStorage,
@@ -93,20 +93,27 @@ function isInlineImageDataUrl(v: unknown): v is string {
   return typeof v === "string" && v.startsWith("data:image/");
 }
 
-function hasInlineImages(b: RapportBrouillonState): boolean {
+/** Images inline à migrer vers IndexedDB (photos site / domaines — pas logos ni couverture). */
+function hasMigrateableInlineImages(b: RapportBrouillonState): boolean {
+  return countMigrateableInlineImages(b) > 0;
+}
+
+function countMigrateableInlineImages(b: RapportBrouillonState): number {
+  let n = 0;
   const v = b.visuels;
-  if (isInlineImageDataUrl(v.logoPrincipal)) return true;
-  if (isInlineImageDataUrl(v.logoClient)) return true;
-  if (isInlineImageDataUrl(v.couverture)) return true;
   for (const arr of Object.values(v.photosParSite ?? {})) {
-    if (arr?.some(isInlineImageDataUrl)) return true;
+    for (const s of arr ?? []) {
+      if (isInlineImageDataUrl(s)) n += 1;
+    }
   }
   for (const site of Object.values(b.parSite ?? {})) {
     for (const bloc of Object.values(site.domainesTexte ?? {})) {
-      if ((bloc?.photos ?? []).some(isInlineImageDataUrl)) return true;
+      for (const s of bloc?.photos ?? []) {
+        if (isInlineImageDataUrl(s)) n += 1;
+      }
     }
   }
-  return false;
+  return n;
 }
 
 async function migrateBrouillonImagesToIdb(
@@ -153,22 +160,46 @@ function RapportVisuelPreview({ refOrDataUrl }: { refOrDataUrl?: string }) {
       setSrc(null);
       return;
     }
+    if (raw.startsWith("data:image/")) {
+      if (raw.length <= 120_000) {
+        setSrc(raw);
+        return;
+      }
+      void (async () => {
+        try {
+          const thumb = await imageDataUrlPreviewThumb(raw);
+          if (!cancelled) setSrc(thumb);
+        } catch {
+          if (!cancelled) setSrc(null);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
     void (async () => {
       const resolved = await ensureImageRefDataUrl(raw);
-      if (!cancelled) setSrc(resolved?.startsWith("data:image/") ? resolved : null);
+      if (cancelled) return;
+      if (!resolved?.startsWith("data:image/")) {
+        setSrc(null);
+        return;
+      }
+      if (resolved.length <= 120_000) {
+        setSrc(resolved);
+        return;
+      }
+      try {
+        setSrc(await imageDataUrlPreviewThumb(resolved));
+      } catch {
+        setSrc(null);
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [refOrDataUrl]);
   if (!src) return null;
-  return (
-    <img
-      src={src}
-      alt=""
-      className={styles.visuelPreview}
-    />
-  );
+  return <img src={src} alt="" className={styles.visuelPreview} />;
 }
 
 export function RapportActiviteRedaction() {
@@ -292,20 +323,21 @@ export function RapportActiviteRedaction() {
   }, []);
 
   useEffect(() => {
-    // Migration “one-shot” des anciens brouillons stockant des dataURLs dans localStorage.
-    // On déporte les images dans IndexedDB et on ne garde que des références.
+    // Migration one-shot : photos site/domaines inline → IndexedDB (pas logos/couverture).
     if (!projet || !draft) return;
-    if (!hasInlineImages(draft)) return;
+    if (!hasMigrateableInlineImages(draft)) return;
+    const inlineBefore = countMigrateableInlineImages(draft);
     let cancelled = false;
     (async () => {
       try {
         const migrated = await migrateBrouillonImagesToIdb(draft);
         if (cancelled) return;
+        if (countMigrateableInlineImages(migrated) >= inlineBefore) return;
         setDraft(migrated);
         try {
           sauvegarderBrouillonProjet(projet.id, migrated);
         } catch {
-          /* ignore: si quota déjà saturé, le prochain flush sera léger */
+          /* quota */
         }
       } catch {
         /* ignore */
