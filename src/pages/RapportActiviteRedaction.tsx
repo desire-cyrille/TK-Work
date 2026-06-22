@@ -19,6 +19,7 @@ import {
   requestPersistentStorage,
   isImageRef,
 } from "../lib/rapportActiviteImageDb";
+import { ensureImageRefDataUrl } from "../lib/rapportActiviteImageDbCloud";
 import {
   appliquerPrefillType,
   enregistrerRapportValide,
@@ -141,6 +142,33 @@ async function migrateBrouillonImagesToIdb(
     }
   }
   return next;
+}
+
+function RapportVisuelPreview({ refOrDataUrl }: { refOrDataUrl?: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const raw = refOrDataUrl?.trim();
+    if (!raw) {
+      setSrc(null);
+      return;
+    }
+    void (async () => {
+      const resolved = await ensureImageRefDataUrl(raw);
+      if (!cancelled) setSrc(resolved?.startsWith("data:image/") ? resolved : null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refOrDataUrl]);
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt=""
+      className={styles.visuelPreview}
+    />
+  );
 }
 
 export function RapportActiviteRedaction() {
@@ -337,6 +365,40 @@ export function RapportActiviteRedaction() {
     setDraft((cur) =>
       cur ? fn(alignerParSite(clone(cur), projetCourant)) : cur,
     );
+  }
+
+  async function importerVisuelRapport(
+    file: File,
+    maxEdge: number,
+    patchVisuels: (
+      v: RapportBrouillonState["visuels"],
+      ref: string,
+    ) => RapportBrouillonState["visuels"],
+  ) {
+    if (!projet) return;
+    const r = await importerImageEnDataUrl(file, { maxEdge, jpegQuality: 0.82 });
+    if (!r.ok) {
+      window.alert(r.message);
+      return;
+    }
+    try {
+      const ref = await putImageDataUrl(r.dataUrl);
+      const cur = draftRef.current;
+      if (!cur) return;
+      const next = alignerParSite(
+        {
+          ...cur,
+          visuels: patchVisuels({ ...cur.visuels }, ref),
+        },
+        projet,
+      );
+      setDraft(next);
+      sauvegarderBrouillonProjet(projet.id, next);
+    } catch {
+      window.alert(
+        "Image enregistrée localement impossible. Réduisez la taille du fichier ou libérez de l’espace, puis réessayez.",
+      );
+    }
   }
 
   function onFusion() {
@@ -706,20 +768,17 @@ export function RapportActiviteRedaction() {
                         type="file"
                         accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
                         className={styles.input}
-                        onChange={async (e) => {
+                        onChange={(e) => {
                           const f = e.target.files?.[0];
                           e.target.value = "";
                           if (!f) return;
-                          const r = await importerImageEnDataUrl(f);
-                          if (r.ok) {
-                            const ref = await putImageDataUrl(r.dataUrl);
-                            majDraft((d) => ({
-                              ...d,
-                              visuels: { ...d.visuels, logoPrincipal: ref },
-                            }));
-                          } else window.alert(r.message);
+                          void importerVisuelRapport(f, 600, (v, ref) => ({
+                            ...v,
+                            logoPrincipal: ref,
+                          }));
                         }}
                       />
+                      <RapportVisuelPreview refOrDataUrl={draft.visuels.logoPrincipal} />
                     </label>
                     <label className={styles.label}>
                       Logo client (haut droite)
@@ -727,20 +786,17 @@ export function RapportActiviteRedaction() {
                         type="file"
                         accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
                         className={styles.input}
-                        onChange={async (e) => {
+                        onChange={(e) => {
                           const f = e.target.files?.[0];
                           e.target.value = "";
                           if (!f) return;
-                          const r = await importerImageEnDataUrl(f);
-                          if (r.ok) {
-                            const ref = await putImageDataUrl(r.dataUrl);
-                            majDraft((d) => ({
-                              ...d,
-                              visuels: { ...d.visuels, logoClient: ref },
-                            }));
-                          } else window.alert(r.message);
+                          void importerVisuelRapport(f, 600, (v, ref) => ({
+                            ...v,
+                            logoClient: ref,
+                          }));
                         }}
                       />
+                      <RapportVisuelPreview refOrDataUrl={draft.visuels.logoClient} />
                     </label>
                     <label className={styles.label}>
                       Photo de couverture
@@ -748,20 +804,17 @@ export function RapportActiviteRedaction() {
                         type="file"
                         accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
                         className={styles.input}
-                        onChange={async (e) => {
+                        onChange={(e) => {
                           const f = e.target.files?.[0];
                           e.target.value = "";
                           if (!f) return;
-                          const r = await importerImageEnDataUrl(f);
-                          if (r.ok) {
-                            const ref = await putImageDataUrl(r.dataUrl);
-                            majDraft((d) => ({
-                              ...d,
-                              visuels: { ...d.visuels, couverture: ref },
-                            }));
-                          } else window.alert(r.message);
+                          void importerVisuelRapport(f, 2400, (v, ref) => ({
+                            ...v,
+                            couverture: ref,
+                          }));
                         }}
                       />
+                      <RapportVisuelPreview refOrDataUrl={draft.visuels.couverture} />
                     </label>
                   </div>
                   <p className={styles.hint}>

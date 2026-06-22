@@ -4,6 +4,17 @@
   color: var(--workspace-text, #fff);
 }
 
+.visuelPreview {
+  display: block;
+  margin-top: 0.5rem;
+  max-width: 100%;
+  max-height: 5rem;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--border-on-light, rgba(0, 0, 0, 0.12));
+  background: #fff;
+}
+
 .tabsMain {
   display: flex;
   flex-wrap: wrap;

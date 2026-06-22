@@ -38,14 +38,21 @@ export function imageRefId(ref: string): string {
   return ref.startsWith(REF_PREFIX) ? ref.slice(REF_PREFIX.length) : ref;
 }
 
-export async function putImageDataUrl(dataUrl: string): Promise<string> {
-  const id = crypto.randomUUID();
+/** Enregistre une data URL sous un id précis (restauration nuage / sync). */
+export async function putImageDataUrlAtId(
+  id: string,
+  dataUrl: string,
+): Promise<string> {
   const db = await openDb();
   const tx = db.transaction(STORE, "readwrite");
   tx.objectStore(STORE).put(dataUrl, id);
   await txDone(tx);
   db.close();
   return makeImageRef(id);
+}
+
+export async function putImageDataUrl(dataUrl: string): Promise<string> {
+  return putImageDataUrlAtId(crypto.randomUUID(), dataUrl);
 }
 
 export async function getImageDataUrl(refOrId: string): Promise<string | null> {

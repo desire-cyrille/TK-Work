@@ -5,7 +5,7 @@ import {
   type RapportActiviteProjet,
   type RapportBrouillonState,
 } from "./rapportActiviteTypes";
-import { getImageDataUrl, isImageRef } from "./rapportActiviteImageDb";
+import { ensureImageRefDataUrl } from "./rapportActiviteImageDbCloud";
 
 const W = 210;
 const M = 14;
@@ -24,19 +24,55 @@ function fmtType(t: RapportBrouillonState["typeRapport"]): string {
 }
 
 function imageFormat(dataUrl: string): "PNG" | "JPEG" {
-  if (dataUrl.startsWith("data:image/jpeg")) return "JPEG";
+  if (/^data:image\/jpe?g/i.test(dataUrl)) return "JPEG";
   return "PNG";
+}
+
+function loadImageElement(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("image_decode_failed"));
+    img.src = dataUrl;
+  });
+}
+
+/** Ré-encode via canvas si jsPDF ne lit pas la data URL telle quelle. */
+async function normalizeForJsPdf(dataUrl: string): Promise<string> {
+  if (!dataUrl.startsWith("data:image/")) return dataUrl;
+  try {
+    const img = await loadImageElement(dataUrl);
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    if (!w || !h) return dataUrl;
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    if (!/^data:image\/png/i.test(dataUrl)) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL(
+      /^data:image\/png/i.test(dataUrl) ? "image/png" : "image/jpeg",
+      0.92,
+    );
+  } catch {
+    return dataUrl;
+  }
 }
 
 async function resolveImageDataUrl(
   refOrDataUrl: string | undefined,
 ): Promise<string | undefined> {
-  if (!refOrDataUrl) return undefined;
-  if (isImageRef(refOrDataUrl)) {
-    const v = await getImageDataUrl(refOrDataUrl);
-    return v ?? undefined;
-  }
-  return refOrDataUrl;
+  if (!refOrDataUrl?.trim()) return undefined;
+  const raw = refOrDataUrl.trim();
+  if (raw.startsWith("data:image/")) return normalizeForJsPdf(raw);
+  const resolved = await ensureImageRefDataUrl(raw);
+  if (!resolved?.startsWith("data:image/")) return undefined;
+  return normalizeForJsPdf(resolved);
 }
 
 /** Dessine l’image dans le rectangle en conservant le ratio (type « contain »). */

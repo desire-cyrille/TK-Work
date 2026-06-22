@@ -7,7 +7,7 @@ import {
   getImageDataUrl,
   imageRefId,
   isImageRef,
-  putImageDataUrl,
+  putImageDataUrlAtId,
 } from "./rapportActiviteImageDb";
 
 export const RAPPORT_IDB_CLOUD_STORAGE_KEY =
@@ -135,7 +135,7 @@ export async function ensureImageRefDataUrl(ref: string): Promise<string | null>
     const parsed = JSON.parse(raw) as IdbCloudExportV1;
     const dataUrl = parsed.images?.[id];
     if (!dataUrl?.startsWith("data:")) return null;
-    await putImageDataUrl(dataUrl);
+    await putImageDataUrlAtId(id, dataUrl);
     return dataUrl;
   } catch {
     return null;
