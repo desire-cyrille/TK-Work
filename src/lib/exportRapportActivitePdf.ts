@@ -124,7 +124,12 @@ function drawFooter(doc: jsPDF, text: string, pageH: number) {
   doc.setFontSize(8);
   doc.setTextColor(80, 80, 90);
   const lines = doc.splitTextToSize(text.trim() || " ", W - 2 * M) as string[];
-  doc.text(lines, M, pageH - 12);
+  const centerX = W / 2;
+  const lineH = 3.6;
+  const baseY = pageH - 10 - (lines.length - 1) * lineH;
+  for (let i = 0; i < lines.length; i += 1) {
+    doc.text(lines[i]!, centerX, baseY + i * lineH, { align: "center" });
+  }
 }
 
 function drawEtatCarre(doc: jsPDF, x: number, y: number, etat: string) {
@@ -461,15 +466,41 @@ export async function genererRapportActivitePdfBlobAsync(
   doc.addPage();
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, W, pageH, "F");
-  await addImageContainResolved(doc, b.visuels.couverture, M, M, W - 2 * M, 100);
+
+  const lastCenterX = W / 2;
+  const footerReserve = 22;
+  const coverBoxW = W - 2 * M;
+  const coverBoxH = 95;
+
+  const msg =
+    projet.dernierePageMessage.trim() || "Merci de votre confiance.";
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  const msgLines = doc.splitTextToSize(
-    projet.dernierePageMessage.trim() ||
-      "Merci de votre confiance.",
-    W - 2 * M,
-  ) as string[];
-  doc.text(msgLines, M, 118);
+  doc.setTextColor(50, 50, 55);
+  const msgLines = doc.splitTextToSize(msg, coverBoxW) as string[];
+  const msgLineH = 5.8;
+  const msgBlockH = msgLines.length * msgLineH;
+  const gapAfterCover = 12;
+  const blockH = coverBoxH + gapAfterCover + msgBlockH;
+  const coverY = Math.max(M, (pageH - footerReserve - blockH) / 2);
+
+  const hasLastCover = await addImageContainResolved(
+    doc,
+    b.visuels.couverture,
+    M,
+    coverY,
+    coverBoxW,
+    coverBoxH,
+  );
+
+  let msgY = coverY + coverBoxH + gapAfterCover;
+  if (!hasLastCover) {
+    msgY = Math.max(M + 16, (pageH - footerReserve - msgBlockH) / 2);
+  }
+  for (const line of msgLines) {
+    doc.text(line, lastCenterX, msgY, { align: "center" });
+    msgY += msgLineH;
+  }
   drawFooter(doc, projet.piedPagePdf, pageH);
 
   return doc.output("blob");
