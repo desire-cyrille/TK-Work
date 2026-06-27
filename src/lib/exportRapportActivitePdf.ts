@@ -482,18 +482,18 @@ export async function genererRapportActivitePdfBlobAsync(
   const msgBlockH = msgLines.length * msgLineH;
   const gapAfterCover = 12;
   const blockH = coverBoxH + gapAfterCover + msgBlockH;
-  const coverY = Math.max(M, (pageH - footerReserve - blockH) / 2);
+  const lastCoverY = Math.max(M, (pageH - footerReserve - blockH) / 2);
 
   const hasLastCover = await addImageContainResolved(
     doc,
     b.visuels.couverture,
     M,
-    coverY,
+    lastCoverY,
     coverBoxW,
     coverBoxH,
   );
 
-  let msgY = coverY + coverBoxH + gapAfterCover;
+  let msgY = lastCoverY + coverBoxH + gapAfterCover;
   if (!hasLastCover) {
     msgY = Math.max(M + 16, (pageH - footerReserve - msgBlockH) / 2);
   }
