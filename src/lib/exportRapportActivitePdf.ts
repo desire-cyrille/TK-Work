@@ -10,19 +10,6 @@ import { ensureImageRefDataUrl } from "./rapportActiviteImageDbCloud";
 const W = 210;
 const M = 14;
 
-function fmtType(t: RapportBrouillonState["typeRapport"]): string {
-  switch (t) {
-    case "quotidien":
-      return "Quotidien";
-    case "mensuel":
-      return "Mensuel";
-    case "fin_mission":
-      return "Fin de mission";
-    default:
-      return "Simple";
-  }
-}
-
 function imageFormat(dataUrl: string): "PNG" | "JPEG" {
   if (/^data:image\/jpe?g/i.test(dataUrl)) return "JPEG";
   return "PNG";
@@ -216,12 +203,6 @@ export async function genererRapportActivitePdfBlobAsync(
     }
     yMeta += 1;
   }
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.setTextColor(50, 50, 55);
-  doc.text(fmtType(b.typeRapport), centerX, yMeta, { align: "center" });
-  yMeta += 7;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
