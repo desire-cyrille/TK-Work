@@ -22,6 +22,7 @@ import {
 } from "../lib/devisStorage";
 import {
   dateDevisEffective,
+  deltaJoursIso,
   regrouperDevisParTitre,
 } from "../lib/devisDuplicate";
 import {
@@ -766,10 +767,16 @@ export function DevisListe() {
                   Dupliquer le devis
                 </h2>
                 <p className={styles.modalHint}>
-                  Copie de « {dupSource.titre} ». Le titre reste le même (dossier
-                  commun). L’annexe PDF du logiciel de comptabilité n’est pas
-                  recopiée. Les dates (AAAA-MM-JJ ou JJ/MM/AAAA) dans les textes
-                  sont décalées selon la nouvelle date.
+                  Copie de « {dupSource.titre} ». Date actuelle :{" "}
+                  {fmtJour(dateDevisEffective(dupSource))}. Le titre reste le
+                  même (dossier commun). L’annexe PDF du logiciel de comptabilité
+                  n’est pas recopiée. Les dates (AAAA-MM-JJ ou JJ/MM/AAAA) dans
+                  les textes sont décalées du même nombre de jours que cette
+                  nouvelle date
+                  {dupDate && dateDevisEffective(dupSource)
+                    ? ` (${deltaJoursIso(dateDevisEffective(dupSource), dupDate) >= 0 ? "+" : ""}${deltaJoursIso(dateDevisEffective(dupSource), dupDate)} j)`
+                    : ""}
+                  .
                 </p>
                 <form onSubmit={onConfirmerDuplication}>
                   <label className={styles.label}>
