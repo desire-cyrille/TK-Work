@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PageFrame } from "../components/PageFrame";
 import {
   buildMergedSynthese,
-  buildSyntheseBarGroupedSeries,
   cloneChargesGlobal,
   cloneMonthVentilation,
   computeVentilationMonthTotals,
@@ -18,7 +17,23 @@ import {
   newLine,
   parseEuroInputDisplay,
   saveAirbnbState,
+  type SyntheseGroupedBucket,
 } from "../lib/airbnbStorage";
+import {
+  buildSyntheseGroupedBars,
+  buildSyntheseTotalBars,
+  computeSyntheseViewTotals,
+  currentYearMonth,
+  defaultSyntheseViewQuery,
+  isAllListingsSelected,
+  listSyntheseDataMonths,
+  listSyntheseSelectYears,
+  monthsInclusive,
+  yearOfMonth,
+  type SyntheseBar,
+  type SyntheseGranularity,
+  type SyntheseViewQuery,
+} from "../lib/airbnbSyntheseView";
 import {
   AIRBNB_LISTINGS,
   AIRBNB_LISTING_ACTIVE_FROM,
@@ -76,58 +91,6 @@ const CHARGE_FIELDS: {
   { key: "assurance", label: "Assurance" },
 ];
 
-/**
- * Séries synthèse : années strictement avant l’année civile en cours → 1 bâton / an (somme des mois) ;
- * année en cours → 1 bâton par mois (janvier → mois actuel) ; années futures → 1 bâton / an.
- */
-function buildSyntheseBarSeries(
-  rows: { month: string; benefices: number }[],
-  now: Date = new Date()
-): { key: string; label: string; value: number }[] {
-  const curY = now.getFullYear();
-  const curM = now.getMonth() + 1;
-  if (rows.length === 0) {
-    return [{ key: "empty", label: curY.toString(), value: 0 }];
-  }
-  const byMonth = new Map<string, number>();
-  for (const r of rows) {
-    byMonth.set(r.month, r.benefices);
-  }
-  const years = new Set<number>();
-  for (const r of rows) {
-    const y = parseInt(r.month.slice(0, 4), 10);
-    if (!Number.isNaN(y)) years.add(y);
-  }
-  const sortedY = [...years].sort((a, b) => a - b);
-  const out: { key: string; label: string; value: number }[] = [];
-  for (const y of sortedY) {
-    if (y < curY) {
-      let sum = 0;
-      for (const r of rows) {
-        if (parseInt(r.month.slice(0, 4), 10) === y) sum += r.benefices;
-      }
-      out.push({ key: `year-${y}`, label: String(y), value: sum });
-    } else if (y === curY) {
-      for (let m = 1; m <= curM; m++) {
-        const mk = `${y}-${String(m).padStart(2, "0")}`;
-        const v = byMonth.get(mk) ?? 0;
-        const label = new Date(y, m - 1, 15).toLocaleDateString("fr-FR", {
-          month: "short",
-          year: "2-digit",
-        });
-        out.push({ key: mk, label, value: v });
-      }
-    } else {
-      let sum = 0;
-      for (const r of rows) {
-        if (parseInt(r.month.slice(0, 4), 10) === y) sum += r.benefices;
-      }
-      out.push({ key: `year-${y}`, label: String(y), value: sum });
-    }
-  }
-  return out;
-}
-
 type SyntheseChartMode = "total" | "parAnnonce";
 
 const SYNTHESE_SEGMENT_COLORS: Record<string, string> = {
@@ -146,22 +109,13 @@ function syntheseSegmentLegendLabel(id: string): string {
 /** Diagramme en bâtons : ordonnées (€) à gauche, abscisse (années / mois) en bas. */
 function SyntheseChart({
   mode,
-  rows,
-  store,
+  barsTotal,
+  groupedBuckets,
 }: {
   mode: SyntheseChartMode;
-  rows: { month: string; benefices: number }[];
-  store: AirbnbState;
+  barsTotal: SyntheseBar[] | null;
+  groupedBuckets: SyntheseGroupedBucket[] | null;
 }) {
-  const groupedBuckets = useMemo(
-    () => (mode === "parAnnonce" ? buildSyntheseBarGroupedSeries(store) : null),
-    [mode, store]
-  );
-
-  const barsTotal = useMemo(
-    () => (mode === "total" ? buildSyntheseBarSeries(rows) : null),
-    [mode, rows]
-  );
 
   const n =
     mode === "total"
@@ -173,7 +127,7 @@ function SyntheseChart({
       ? barsTotal!.map((b) => b.value)
       : groupedBuckets!.flatMap((b) => b.segments.map((s) => s.value));
 
-  const w = 920;
+  const w = Math.max(920, n * (mode === "parAnnonce" ? 92 : 56));
   const h = 340;
   const margin = { top: 28, right: 20, bottom: 92, left: 58 };
   const cw = w - margin.left - margin.right;
@@ -318,6 +272,7 @@ function SyntheseChart({
   }
 
   return (
+    <div className={styles.chartSvgWrap}>
     <svg
       className={styles.chartSvg}
       viewBox={`0 0 ${w} ${h}`}
@@ -326,7 +281,7 @@ function SyntheseChart({
       aria-label={
         mode === "total"
           ? "Diagramme en bâtons des bénéfices consolidés"
-          : "Diagramme en bâtons des bénéfices par annonce et fichier"
+          : "Diagramme en bâtons des bénéfices par logement"
       }
     >
       <rect
@@ -385,6 +340,7 @@ function SyntheseChart({
       })}
       {barsBody}
     </svg>
+    </div>
   );
 }
 
@@ -408,6 +364,11 @@ export function Airbnb() {
   const [fichierEditRevenus, setFichierEditRevenus] = useState("");
   const [syntheseChartMode, setSyntheseChartMode] =
     useState<SyntheseChartMode>("total");
+  const [syntheseView, setSyntheseView] = useState<SyntheseViewQuery>(() =>
+    defaultSyntheseViewQuery(
+      listSyntheseDataMonths(initialStoreRef.current ?? loadAirbnbState()),
+    ),
+  );
 
   const storeRef = useRef(store);
   storeRef.current = store;
@@ -448,17 +409,54 @@ export function Airbnb() {
 
   const merged = useMemo(() => buildMergedSynthese(store), [store]);
 
-  /** Plus récent en premier (synthèse : tableau + graphique). */
+  /** Plus récent en premier (synthèse : tableau). */
   const syntheseNewestFirst = useMemo(
     () => [...merged].sort((a, b) => b.month.localeCompare(a.month)),
     [merged]
   );
 
-  const totalsKpi = useMemo(() => {
-    const benefices = merged.reduce((s, r) => s + r.benefices, 0);
-    const revenus = merged.reduce((s, r) => s + r.revenus, 0);
-    return { benefices, revenus };
-  }, [merged]);
+  const syntheseDataMonths = useMemo(
+    () => listSyntheseDataMonths(store),
+    [store],
+  );
+
+  const syntheseSelectYears = useMemo(
+    () => listSyntheseSelectYears(syntheseDataMonths),
+    [syntheseDataMonths],
+  );
+
+  const syntheseMonthOptions = useMemo(() => {
+    const years = syntheseSelectYears;
+    if (years.length === 0) return [currentYearMonth()];
+    const from = `${years[0]}-01`;
+    const lastY = years[years.length - 1];
+    const to = currentYearMonth();
+    const end = `${lastY}-12` > to ? `${lastY}-12` : to;
+    return monthsInclusive(from, end);
+  }, [syntheseSelectYears]);
+
+  const syntheseBarsTotal = useMemo(
+    () =>
+      syntheseChartMode === "total"
+        ? buildSyntheseTotalBars(store, syntheseView)
+        : null,
+    [syntheseChartMode, store, syntheseView],
+  );
+
+  const syntheseGroupedBars = useMemo(
+    () =>
+      syntheseChartMode === "parAnnonce"
+        ? buildSyntheseGroupedBars(store, syntheseView)
+        : null,
+    [syntheseChartMode, store, syntheseView],
+  );
+
+  const chartKpi = useMemo(
+    () => computeSyntheseViewTotals(store, syntheseView),
+    [store, syntheseView],
+  );
+
+  const listingFilterActive = !isAllListingsSelected(syntheseView.listingIds);
 
   const monthVentilationTotals = useMemo(
     () => computeVentilationMonthTotals(draft),
@@ -588,6 +586,71 @@ export function Airbnb() {
   const fichierDraftRevenus = parseEuroInputDisplay(fichierEditRevenus);
   const fichierHasOverride =
     detailMonth != null && !!store.syntheseFichierOverrides[detailMonth];
+
+  function setSyntheseGranularity(granularity: SyntheseGranularity) {
+    setSyntheseView((q) => ({ ...q, granularity }));
+  }
+
+  function setSyntheseFromYear(year: number) {
+    setSyntheseView((q) => {
+      const fromMonth = `${year}-01`;
+      const toMonth = fromMonth > q.toMonth ? `${year}-12` : q.toMonth;
+      return { ...q, fromMonth, toMonth };
+    });
+  }
+
+  function setSyntheseToYear(year: number) {
+    const nowYm = currentYearMonth();
+    const toMonth =
+      year === yearOfMonth(nowYm) ? nowYm : `${year}-12`;
+    setSyntheseView((q) => {
+      const fromMonth = q.fromMonth > toMonth ? `${year}-01` : q.fromMonth;
+      return { ...q, fromMonth, toMonth };
+    });
+  }
+
+  function setSyntheseFromMonth(fromMonth: string) {
+    setSyntheseView((q) => ({
+      ...q,
+      fromMonth,
+      toMonth: fromMonth > q.toMonth ? fromMonth : q.toMonth,
+    }));
+  }
+
+  function setSyntheseToMonth(toMonth: string) {
+    setSyntheseView((q) => ({
+      ...q,
+      toMonth,
+      fromMonth: q.fromMonth > toMonth ? toMonth : q.fromMonth,
+    }));
+  }
+
+  function toggleSyntheseListing(id: AirbnbListingId) {
+    setSyntheseView((q) => {
+      if (isAllListingsSelected(q.listingIds)) {
+        return { ...q, listingIds: [id] };
+      }
+      const has = q.listingIds.includes(id);
+      const next = has
+        ? q.listingIds.filter((x) => x !== id)
+        : [...q.listingIds, id];
+      if (next.length === 0 || next.length === AIRBNB_LISTINGS.length) {
+        return { ...q, listingIds: [] };
+      }
+      return { ...q, listingIds: next };
+    });
+  }
+
+  function resetSyntheseView() {
+    setSyntheseView(defaultSyntheseViewQuery(syntheseDataMonths));
+  }
+
+  const syntheseLegendListingIds: Array<AirbnbListingId | "_fichier"> =
+    listingFilterActive
+      ? [...AIRBNB_LISTINGS.map((l) => l.id).filter((id) =>
+          syntheseView.listingIds.includes(id),
+        )]
+      : [...AIRBNB_LISTINGS.map((l) => l.id), "_fichier"];
 
   return (
     <PageFrame title="Airbnb">
@@ -945,20 +1008,20 @@ export function Airbnb() {
                   Bénéfices (fichier brut, saisie après charges)
                 </p>
                 <p
-                  className={`${styles.kpiValue} ${benefClass(totalsKpi.benefices)}`}
+                  className={`${styles.kpiValue} ${benefClass(chartKpi.benefices)}`}
                 >
-                  {eur(totalsKpi.benefices)}
+                  {eur(chartKpi.benefices)}
                 </p>
               </div>
               <div className={styles.kpi}>
                 <p className={styles.kpiLabel}>Total facturé (période affichée)</p>
-                <p className={styles.kpiValue}>{eur(totalsKpi.revenus)}</p>
+                <p className={styles.kpiValue}>{eur(chartKpi.revenus)}</p>
               </div>
             </div>
 
             <div className={styles.chartCard}>
               <h3 className={styles.chartTitle}>
-                Bénéfices (bâtons : années agrégées, mois pour l’année en cours)
+                Bénéfices — synthèse par période et par logement
               </h3>
               <div
                 className={styles.chartFilterRow}
@@ -979,21 +1042,155 @@ export function Airbnb() {
                   aria-pressed={syntheseChartMode === "parAnnonce"}
                   onClick={() => setSyntheseChartMode("parAnnonce")}
                 >
-                  Par annonce
+                  Par logement
                 </button>
               </div>
+
+              <div className={styles.chartControls}>
+                <div
+                  className={styles.chartFilterRow}
+                  role="group"
+                  aria-label="Découpage de la période"
+                >
+                  <span className={styles.chartControlLabel}>Affichage</span>
+                  <button
+                    type="button"
+                    className={`${styles.chartFilterBtn} ${syntheseView.granularity === "year" ? styles.chartFilterBtnActive : ""}`}
+                    aria-pressed={syntheseView.granularity === "year"}
+                    onClick={() => setSyntheseGranularity("year")}
+                  >
+                    Par an
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.chartFilterBtn} ${syntheseView.granularity === "month" ? styles.chartFilterBtnActive : ""}`}
+                    aria-pressed={syntheseView.granularity === "month"}
+                    onClick={() => setSyntheseGranularity("month")}
+                  >
+                    Par mois
+                  </button>
+                </div>
+
+                <div className={styles.chartRangeRow}>
+                  <label className={styles.chartSelectField}>
+                    De
+                    {syntheseView.granularity === "year" ? (
+                      <select
+                        className={styles.chartSelect}
+                        value={yearOfMonth(syntheseView.fromMonth)}
+                        onChange={(e) =>
+                          setSyntheseFromYear(Number(e.target.value))
+                        }
+                      >
+                        {syntheseSelectYears.map((y) => (
+                          <option key={`from-y-${y}`} value={y}>
+                            {y}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <select
+                        className={styles.chartSelect}
+                        value={syntheseView.fromMonth}
+                        onChange={(e) => setSyntheseFromMonth(e.target.value)}
+                      >
+                        {syntheseMonthOptions.map((m) => (
+                          <option key={`from-m-${m}`} value={m}>
+                            {formatMonthFr(m)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </label>
+                  <label className={styles.chartSelectField}>
+                    À
+                    {syntheseView.granularity === "year" ? (
+                      <select
+                        className={styles.chartSelect}
+                        value={yearOfMonth(syntheseView.toMonth)}
+                        onChange={(e) =>
+                          setSyntheseToYear(Number(e.target.value))
+                        }
+                      >
+                        {syntheseSelectYears.map((y) => (
+                          <option key={`to-y-${y}`} value={y}>
+                            {y}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <select
+                        className={styles.chartSelect}
+                        value={syntheseView.toMonth}
+                        onChange={(e) => setSyntheseToMonth(e.target.value)}
+                      >
+                        {syntheseMonthOptions.map((m) => (
+                          <option key={`to-m-${m}`} value={m}>
+                            {formatMonthFr(m)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </label>
+                  <button
+                    type="button"
+                    className={styles.chartResetBtn}
+                    onClick={resetSyntheseView}
+                  >
+                    Réinitialiser
+                  </button>
+                </div>
+
+                <div
+                  className={styles.chartFilterRow}
+                  role="group"
+                  aria-label="Filtrer par logement"
+                >
+                  <span className={styles.chartControlLabel}>Logement</span>
+                  <button
+                    type="button"
+                    className={`${styles.chartFilterBtn} ${!listingFilterActive ? styles.chartFilterBtnActive : ""}`}
+                    aria-pressed={!listingFilterActive}
+                    onClick={() =>
+                      setSyntheseView((q) => ({ ...q, listingIds: [] }))
+                    }
+                  >
+                    Tous
+                  </button>
+                  {AIRBNB_LISTINGS.map(({ id, label }) => {
+                    const active =
+                      listingFilterActive &&
+                      syntheseView.listingIds.includes(id);
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        className={`${styles.chartFilterBtn} ${active ? styles.chartFilterBtnActive : ""}`}
+                        aria-pressed={active}
+                        onClick={() => toggleSyntheseListing(id)}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <p className={styles.chartSubtitle}>
                 {syntheseChartMode === "total"
-                  ? "Un bâton par période (même montants que le tableau : fichier brut, saisie après charges). Abscisse en bas, ordonnées en euros à gauche."
-                  : "Pour chaque période, un groupe de bâtons : les quatre annonces (saisie : net après charges par annonce) + gris pour la part fichier non ventilée sur la période."}
+                  ? "Un bâton par période choisie (mêmes montants que les indicateurs ci-dessus : fichier brut, saisie après charges). Les filtres ne modifient pas les données enregistrées."
+                  : "Pour chaque période, un groupe de bâtons par logement sélectionné (saisie : net après charges). La part grise « fichier » n’apparaît que si tous les logements sont affichés."}
               </p>
+              {chartKpi.fichierExcluDuFiltreLogement ? (
+                <p className={styles.chartFilterNote}>
+                  Mois issus du fichier Excel (non ventilés par logement) exclus
+                  du cumul tant qu’un filtre logement est actif.
+                </p>
+              ) : null}
               <SyntheseChart
                 mode={syntheseChartMode}
-                rows={merged.map((r) => ({
-                  month: r.month,
-                  benefices: r.benefices,
-                }))}
-                store={store}
+                barsTotal={syntheseBarsTotal}
+                groupedBuckets={syntheseGroupedBars}
               />
               {syntheseChartMode === "total" ? (
                 <div className={styles.chartLegend}>
@@ -1020,12 +1217,7 @@ export function Airbnb() {
                 </div>
               ) : (
                 <div className={styles.chartLegend}>
-                  {(
-                    [
-                      ...AIRBNB_LISTINGS.map((l) => l.id),
-                      "_fichier",
-                    ] as const
-                  ).map((id) => (
+                  {syntheseLegendListingIds.map((id) => (
                     <span key={id}>
                       <span
                         className={styles.legendSwatch}
@@ -1041,7 +1233,8 @@ export function Airbnb() {
             <div className={styles.listingCard}>
               <h3 className={styles.listingTitle}>Tableau récapitulatif</h3>
               <p className={styles.recapHint}>
-                Du plus récent au plus ancien. Colonne Bénéfices : valeur fichier
+                Du plus récent au plus ancien (toutes les données, indépendant
+                des filtres du graphique). Colonne Bénéfices : valeur fichier
                 si source Excel, net après charges si source Saisie app. Cliquez
                 une ligne pour le détail ; pour un mois « Fichier Excel », vous
                 pouvez y ajuster bénéfice et total facturé (enregistré localement).
