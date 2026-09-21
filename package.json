@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "npx vercel dev",
+    "dev:api:local": "tsx scripts/dev-api-server.ts",
     "dev:full": "concurrently -n api,web -c blue,magenta \"npm run dev:api\" \"npm run dev\"",
+    "dev:full:local": "concurrently -n api,web -c blue,magenta \"npm run dev:api:local\" \"npm run dev\"",
     "build": "prisma generate && tsc --noEmit && vite build",
     "preview": "vite preview",
     "update-irl": "node scripts/update-irl.mjs",
@@ -36,6 +38,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.2.1",
     "prisma": "6.19.3",
+    "tsx": "^4.23.15",
     "typescript": "~5.7.2",
     "vite": "^6.2.1"
   }
