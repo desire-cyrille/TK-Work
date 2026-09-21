@@ -59,6 +59,24 @@ function clone<T>(x: T): T {
   return JSON.parse(JSON.stringify(x)) as T;
 }
 
+function clonerPayloadPourDuplication(
+  payload: RapportBrouillonState,
+): RapportBrouillonState {
+  const n = clone(payload);
+  const today = new Date().toISOString().slice(0, 10);
+  n.dateRapport = today;
+  if (n.typeRapport === "mensuel") {
+    n.moisCle = today.slice(0, 7);
+  }
+  for (const site of Object.values(n.parSite ?? {})) {
+    site.tableauLignes = (site.tableauLignes ?? []).map((l) => ({
+      ...l,
+      id: crypto.randomUUID(),
+    }));
+  }
+  return n;
+}
+
 function brouillonDepuisProjet(p: RapportActiviteProjet): RapportBrouillonState {
   return alignerParSite(clone(p.brouillon), p);
 }
@@ -497,6 +515,25 @@ export function RapportActiviteRedaction() {
     sauvegarderBrouillonProjet(projet.id, next);
     setTabMain("redaction");
     setSubRedac("domaines");
+    refresh();
+  }
+
+  function dupliquerRapport(fiche: RapportActiviteFiche) {
+    if (!projet) return;
+    if (
+      editingFicheId &&
+      !window.confirm(
+        "Un rapport est en cours d’édition. Dupliquer celui-ci et abandonner l’édition en cours ?",
+      )
+    ) {
+      return;
+    }
+    const next = alignerParSite(clonerPayloadPourDuplication(fiche.payload), projet);
+    setDraft(next);
+    setEditingFicheId(null);
+    sauvegarderBrouillonProjet(projet.id, next);
+    setTabMain("redaction");
+    setSubRedac("meta");
     refresh();
   }
 
@@ -1343,8 +1380,9 @@ export function RapportActiviteRedaction() {
           <div className={styles.panel}>
             <p className={styles.hint}>
               Rapports validés (enregistrés). Modifier charge le rapport dans l’onglet Rédaction ;
-              Valider le PDF met à jour la fiche existante. Vous pouvez aussi supprimer une fiche ou
-              régénérer le PDF.
+              Valider le PDF met à jour la fiche existante. Dupliquer ouvre une copie en rédaction
+              (nouvelle date du jour) : validez ensuite pour créer une nouvelle fiche, sans
+              modifier l’original. Vous pouvez aussi supprimer une fiche ou régénérer le PDF.
             </p>
             <ul className={styles.listRapports}>
               {rapportsListe.length === 0 ? (
@@ -1371,6 +1409,13 @@ export function RapportActiviteRedaction() {
                       onClick={() => ouvrirRapportPourEdition(r)}
                     >
                       Modifier
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.btn}
+                      onClick={() => dupliquerRapport(r)}
+                    >
+                      Dupliquer
                     </button>
                     <button
                       type="button"

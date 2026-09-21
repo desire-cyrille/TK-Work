@@ -528,6 +528,15 @@ export function DevisEditeur() {
                 />
               </label>
               <label className={styles.label}>
+                Date du devis
+                <input
+                  className={styles.input}
+                  type="date"
+                  value={(devis.dateDevis ?? devis.createdAt).slice(0, 10)}
+                  onChange={(e) => patchDevis({ dateDevis: e.target.value })}
+                />
+              </label>
+              <label className={styles.label}>
                 Zone
                 <select
                   className={styles.select}

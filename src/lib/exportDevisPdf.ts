@@ -218,7 +218,20 @@ function pageGarde(doc: jsPDF, d: Devis) {
     }
   }
   doc.text(d.titre.trim() || "Devis", W / 2, y, { align: "center" });
-  y += 14;
+  y += 8;
+  const dateOff =
+    typeof d.dateDevis === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.dateDevis)
+      ? d.dateDevis
+      : d.createdAt.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOff)) {
+    const [yy, mm, dd] = dateOff.split("-");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.text(`Date : ${dd}/${mm}/${yy}`, W / 2, y, { align: "center" });
+    y += 10;
+  } else {
+    y += 6;
+  }
   doc.setFontSize(9);
   const gen = `Généré le ${new Date().toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}`;
   doc.text(gen, W / 2, H - 42, { align: "center" });
