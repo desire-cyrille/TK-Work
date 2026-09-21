@@ -7,6 +7,13 @@ import {
   normaliserContenuDevis,
   themeDefaut,
 } from "./devisTypes";
+import {
+  clonerContenuDevisAvecNouveauxIds,
+  dateDevisEffective,
+  decalerDatesContenu,
+  decalerDatesDansTexte,
+  deltaJoursIso,
+} from "./devisDuplicate";
 
 export const DEVIS_STORAGE_KEY = "tk-gestion-devis-v1";
 
@@ -38,6 +45,8 @@ export type Devis = {
   createdByEmail?: string;
   contenu: DevisContenu;
   theme: DevisTheme;
+  /** Date officielle du devis (AAAA-MM-JJ). Si absente : jour de createdAt. */
+  dateDevis?: string;
   /** PDF exporté depuis le logiciel de comptabilité (optionnel). */
   pdfComptabiliteNom?: string;
   pdfComptabiliteBase64?: string;
@@ -97,6 +106,10 @@ function migrateLegacyDevis(raw: Record<string, unknown>): Devis | null {
       typeof raw.createdByEmail === "string" ? raw.createdByEmail : undefined,
     contenu,
     theme,
+    dateDevis:
+      typeof raw.dateDevis === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.dateDevis.trim())
+        ? raw.dateDevis.trim().slice(0, 10)
+        : undefined,
     pdfComptabiliteNom:
       typeof raw.pdfComptabiliteNom === "string"
         ? raw.pdfComptabiliteNom
@@ -160,6 +173,11 @@ export function ajouterDevis(
   const now = new Date().toISOString();
   const d: Devis = {
     ...data,
+    dateDevis:
+      typeof data.dateDevis === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(data.dateDevis.trim())
+        ? data.dateDevis.trim().slice(0, 10)
+        : now.slice(0, 10),
     modeleDevis: normalizeModeleDevis(data.modeleDevis),
     contenu: normaliserContenuDevis(data.contenu ?? contenuDevisVide()),
     theme: data.theme ?? themeDefaut(),
@@ -208,4 +226,52 @@ export function supprimerDevis(id: string) {
   const f = loadRaw();
   f.devis = f.devis.filter((x) => x.id !== id);
   saveRaw(f);
+}
+
+export type OptionsDuplicationDevis = {
+  /** Nouvelle date officielle (AAAA-MM-JJ). Défaut : aujourd’hui. */
+  dateDevis?: string;
+  createdByEmail?: string;
+};
+
+/**
+ * Copie un devis existant (même titre, même contenu).
+ * N’écrit pas sur la source. L’annexe PDF comptable n’est pas recopiée.
+ * Les dates dans les textes sont décalées selon `dateDevis`.
+ */
+export function dupliquerDevis(
+  id: string,
+  options?: OptionsDuplicationDevis,
+): Devis | undefined {
+  const src = getDevis(id);
+  if (!src) return undefined;
+  const today = new Date().toISOString().slice(0, 10);
+  const dateCible =
+    typeof options?.dateDevis === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(options.dateDevis.trim())
+      ? options.dateDevis.trim().slice(0, 10)
+      : today;
+  const dateSrc = dateDevisEffective(src);
+  const delta = deltaJoursIso(dateSrc, dateCible);
+  let contenu = clonerContenuDevisAvecNouveauxIds(src.contenu);
+  contenu = decalerDatesContenu(contenu, delta);
+  const notes = decalerDatesDansTexte(src.notes ?? "", delta);
+  return ajouterDevis({
+    titre: src.titre,
+    client: src.client,
+    clientSociete: src.clientSociete,
+    clientEstSociete: src.clientEstSociete,
+    clientAdresse: src.clientAdresse,
+    clientSiren: src.clientSiren,
+    clientTva: src.clientTva,
+    zone: src.zone,
+    montantHt: src.montantHt,
+    notes,
+    statut: "brouillon",
+    createdByEmail: options?.createdByEmail ?? src.createdByEmail,
+    modeleDevis: src.modeleDevis,
+    contenu,
+    theme: src.theme,
+    dateDevis: dateCible,
+  });
 }

@@ -14,11 +14,17 @@ import {
   ajouterDevis,
   archiverDevis,
   desarchiverDevis,
+  dupliquerDevis,
   listerDevis,
   supprimerDevis,
   type Devis,
   type DevisStatut,
 } from "../lib/devisStorage";
+import {
+  dateDevisEffective,
+  deltaJoursIso,
+  regrouperDevisParTitre,
+} from "../lib/devisDuplicate";
 import {
   genererDevisPdfBlob,
   nomFichierPdfDevis,
@@ -39,6 +45,12 @@ function fmtDate(iso: string) {
     dateStyle: "short",
     timeStyle: "short",
   });
+}
+
+function fmtJour(iso: string) {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("fr-FR", { dateStyle: "long" });
 }
 
 const STATUT_LABEL: Record<DevisStatut, string> = {
@@ -90,6 +102,13 @@ export function DevisListe() {
   }, [liste, version]);
 
   const [modalCreer, setModalCreer] = useState(false);
+  const [dupSource, setDupSource] = useState<Devis | null>(null);
+  const [dupDate, setDupDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const [dossiersOuverts, setDossiersOuverts] = useState<Record<string, boolean>>(
+    {},
+  );
   const [draftTitre, setDraftTitre] = useState("");
   const [draftClient, setDraftClient] = useState("");
   const [draftSociete, setDraftSociete] = useState("");
@@ -99,6 +118,7 @@ export function DevisListe() {
   const [draftModele, setDraftModele] = useState<DevisModele>("detaille");
   const [clientSuggestOuvert, setClientSuggestOuvert] = useState(false);
 
+  const groupes = useMemo(() => regrouperDevisParTitre(visible), [visible]);
   const [pdfApercu, setPdfApercu] = useState<PdfApercu | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -199,6 +219,27 @@ export function DevisListe() {
     navigate(`/devis/edition/${d.id}`);
   }
 
+  function openDupliquer(d: Devis) {
+    setDupSource(d);
+    setDupDate(new Date().toISOString().slice(0, 10));
+  }
+
+  function onConfirmerDuplication(e: FormEvent) {
+    e.preventDefault();
+    if (!dupSource) return;
+    const copy = dupliquerDevis(dupSource.id, {
+      dateDevis: dupDate,
+      createdByEmail: profileEmail || undefined,
+    });
+    setDupSource(null);
+    if (!copy) {
+      window.alert("Impossible de dupliquer ce devis.");
+      return;
+    }
+    refresh();
+    navigate(`/devis/edition/${copy.id}`);
+  }
+
   async function ouvrirApercu(d: Devis) {
     setBusyId(d.id);
     try {
@@ -252,6 +293,174 @@ export function DevisListe() {
     }
   }
 
+  function renderCarte(d: Devis) {
+    const g = lireParametresDevisDefaut();
+    const tarifs = tarifsPourZone(d.zone, g);
+    const tot = totauxBudget(d.contenu, tarifs);
+    return (
+      <article key={d.id} className={styles.card}>
+        <div className={styles.cardHead}>
+          <h2 className={styles.cardTitle}>{d.titre}</h2>
+          <span
+            className={
+              d.statut === "archive" ? styles.badgeArchive : styles.badge
+            }
+          >
+            {STATUT_LABEL[d.statut]}
+          </span>
+        </div>
+        <dl className={styles.dl}>
+          <div>
+            <dt>Date du devis</dt>
+            <dd>{fmtJour(dateDevisEffective(d))}</dd>
+          </div>
+          <div>
+            <dt>Client</dt>
+            <dd>
+              {d.clientEstSociete
+                ? d.clientSociete || d.client || "—"
+                : d.client || "—"}
+            </dd>
+          </div>
+          <div>
+            <dt>Modèle</dt>
+            <dd>
+              {d.modeleDevis === "forfaitaire" ? "Forfaitaire" : "Détaillé"}
+            </dd>
+          </div>
+          <div>
+            <dt>Zone</dt>
+            <dd>
+              {d.zone === "idf" ? "Île-de-France" : "Hors Île-de-France"}
+            </dd>
+          </div>
+          <div>
+            <dt>Total HT (calculé)</dt>
+            <dd>{formatEuro(tot.totalHt)}</dd>
+          </div>
+          <div>
+            <dt>Mis à jour</dt>
+            <dd>{fmtDate(d.updatedAt)}</dd>
+          </div>
+          <div>
+            <dt>Annexe comptable</dt>
+            <dd>{d.pdfComptabiliteNom?.trim() ? d.pdfComptabiliteNom : "—"}</dd>
+          </div>
+          <div>
+            <dt>Auteur</dt>
+            <dd>{d.createdByEmail || "—"}</dd>
+          </div>
+        </dl>
+        <div className={styles.actions}>
+          <Link
+            className={styles.btnEdit}
+            to={`/devis/edition/${d.id}`}
+            style={{ textDecoration: "none", display: "inline-block" }}
+          >
+            Rédiger
+          </Link>
+          <button
+            type="button"
+            className={styles.btnEdit}
+            onClick={() => openDupliquer(d)}
+          >
+            Dupliquer
+          </button>
+          <button
+            type="button"
+            className={styles.btnEdit}
+            disabled={busyId === d.id}
+            onClick={() => void ouvrirApercu(d)}
+          >
+            Aperçu PDF
+          </button>
+          <button
+            type="button"
+            className={styles.btnEdit}
+            disabled={busyId === d.id}
+            onClick={() => void telechargerPdf(d)}
+          >
+            Télécharger
+          </button>
+          <button
+            type="button"
+            className={styles.btnEdit}
+            disabled={busyId === d.id}
+            onClick={() => void partagerPdf(d)}
+          >
+            Partager
+          </button>
+          {d.statut !== "archive" ? (
+            <button
+              type="button"
+              className={styles.btnArchive}
+              onClick={() => {
+                void (async () => {
+                  if (!isAuthenticated) {
+                    archiverDevis(d.id);
+                    refresh();
+                    return;
+                  }
+                  const r = await withResourceLock(`devis:${d.id}`, () => {
+                    archiverDevis(d.id);
+                  });
+                  if (!r.ok) window.alert(r.error);
+                  else refresh();
+                })();
+              }}
+            >
+              Archiver
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={styles.btnRestore}
+              onClick={() => {
+                void (async () => {
+                  if (!isAuthenticated) {
+                    desarchiverDevis(d.id);
+                    refresh();
+                    return;
+                  }
+                  const r = await withResourceLock(`devis:${d.id}`, () => {
+                    desarchiverDevis(d.id);
+                  });
+                  if (!r.ok) window.alert(r.error);
+                  else refresh();
+                })();
+              }}
+            >
+              Réactiver
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.btnDelete}
+            onClick={() => {
+              if (!confirm(`Supprimer définitivement « ${d.titre} » ?`)) {
+                return;
+              }
+              void (async () => {
+                if (!isAuthenticated) {
+                  supprimerDevis(d.id);
+                  refresh();
+                  return;
+                }
+                const r = await withResourceLock(`devis:${d.id}`, () => {
+                  supprimerDevis(d.id);
+                });
+                if (!r.ok) window.alert(r.error);
+                else refresh();
+              })();
+            }}
+          >
+            Supprimer
+          </button>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <>
       <PageFrame
@@ -280,6 +489,9 @@ export function DevisListe() {
             Données enregistrées dans ce navigateur et synchronisées avec le{" "}
             <strong>nuage partagé</strong> (page Fonctions). Les devis{" "}
             <strong>archivés</strong> ne comptent pas dans les totaux ci-dessous.
+            Même titre = même dossier (ex. « entretien saint denis »). Dupliquer
+            recopie le contenu, décale les dates, et laisse l’annexe PDF
+            comptable à remplacer.
           </p>
 
           <div className={styles.statsCard}>
@@ -538,178 +750,101 @@ export function DevisListe() {
             </div>
           ) : null}
 
+          {dupSource ? (
+            <div
+              className={styles.modalBackdrop}
+              role="presentation"
+              onClick={() => setDupSource(null)}
+            >
+              <div
+                className={styles.modal}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="devis-dup-titre"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 id="devis-dup-titre" className={styles.modalTitle}>
+                  Dupliquer le devis
+                </h2>
+                <p className={styles.modalHint}>
+                  Copie de « {dupSource.titre} ». Date actuelle :{" "}
+                  {fmtJour(dateDevisEffective(dupSource))}. Le titre reste le
+                  même (dossier commun). L’annexe PDF du logiciel de comptabilité
+                  n’est pas recopiée. Les dates (AAAA-MM-JJ ou JJ/MM/AAAA) dans
+                  les textes sont décalées du même nombre de jours que cette
+                  nouvelle date
+                  {dupDate && dateDevisEffective(dupSource)
+                    ? ` (${deltaJoursIso(dateDevisEffective(dupSource), dupDate) >= 0 ? "+" : ""}${deltaJoursIso(dateDevisEffective(dupSource), dupDate)} j)`
+                    : ""}
+                  .
+                </p>
+                <form onSubmit={onConfirmerDuplication}>
+                  <label className={styles.label}>
+                    Date du nouveau devis
+                    <input
+                      className={styles.input}
+                      type="date"
+                      required
+                      value={dupDate}
+                      onChange={(e) => setDupDate(e.target.value)}
+                    />
+                  </label>
+                  <div className={styles.modalActions}>
+                    <button
+                      type="button"
+                      className={styles.btnSecondary}
+                      onClick={() => setDupSource(null)}
+                    >
+                      Annuler
+                    </button>
+                    <button type="submit" className={styles.btnPrimary}>
+                      Dupliquer et ouvrir
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          ) : null}
+
           {visible.length === 0 ? (
             <p className={styles.empty}>Aucun devis pour ce filtre.</p>
           ) : (
             <ul className={styles.list}>
-              {visible.map((d) => {
-                const g = lireParametresDevisDefaut();
-                const tarifs = tarifsPourZone(d.zone, g);
-                const tot = totauxBudget(d.contenu, tarifs);
+              {groupes.map((groupe) => {
+                if (groupe.devis.length === 1) {
+                  return (
+                    <li key={groupe.devis[0]!.id}>{renderCarte(groupe.devis[0]!)}</li>
+                  );
+                }
+                const ouvert = dossiersOuverts[groupe.cle] !== false;
                 return (
-                  <li key={d.id} className={styles.card}>
-                    <div className={styles.cardHead}>
-                      <h2 className={styles.cardTitle}>{d.titre}</h2>
-                      <span
-                        className={
-                          d.statut === "archive"
-                            ? styles.badgeArchive
-                            : styles.badge
-                        }
-                      >
-                        {STATUT_LABEL[d.statut]}
+                  <li key={groupe.cle} className={styles.folder}>
+                    <button
+                      type="button"
+                      className={styles.folderHead}
+                      aria-expanded={ouvert}
+                      onClick={() =>
+                        setDossiersOuverts((prev) => ({
+                          ...prev,
+                          [groupe.cle]: !ouvert,
+                        }))
+                      }
+                    >
+                      <span className={styles.folderChevron} aria-hidden>
+                        {ouvert ? "▾" : "▸"}
                       </span>
-                    </div>
-                    <dl className={styles.dl}>
-                      <div>
-                        <dt>Client</dt>
-                        <dd>
-                          {d.clientEstSociete
-                            ? d.clientSociete || d.client || "—"
-                            : d.client || "—"}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Modèle</dt>
-                        <dd>
-                          {d.modeleDevis === "forfaitaire"
-                            ? "Forfaitaire"
-                            : "Détaillé"}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Zone</dt>
-                        <dd>
-                          {d.zone === "idf"
-                            ? "Île-de-France"
-                            : "Hors Île-de-France"}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Total HT (calculé)</dt>
-                        <dd>{formatEuro(tot.totalHt)}</dd>
-                      </div>
-                      <div>
-                        <dt>Mis à jour</dt>
-                        <dd>{fmtDate(d.updatedAt)}</dd>
-                      </div>
-                      <div>
-                        <dt>Auteur</dt>
-                        <dd>{d.createdByEmail || "—"}</dd>
-                      </div>
-                    </dl>
-                    <div className={styles.actions}>
-                      <Link
-                        className={styles.btnEdit}
-                        to={`/devis/edition/${d.id}`}
-                        style={{ textDecoration: "none", display: "inline-block" }}
-                      >
-                        Rédiger
-                      </Link>
-                      <button
-                        type="button"
-                        className={styles.btnEdit}
-                        disabled={busyId === d.id}
-                        onClick={() => void ouvrirApercu(d)}
-                      >
-                        Aperçu PDF
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.btnEdit}
-                        disabled={busyId === d.id}
-                        onClick={() => void telechargerPdf(d)}
-                      >
-                        Télécharger
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.btnEdit}
-                        disabled={busyId === d.id}
-                        onClick={() => void partagerPdf(d)}
-                      >
-                        Partager
-                      </button>
-                      {d.statut !== "archive" ? (
-                        <button
-                          type="button"
-                          className={styles.btnArchive}
-                          onClick={() => {
-                            void (async () => {
-                              if (!isAuthenticated) {
-                                archiverDevis(d.id);
-                                refresh();
-                                return;
-                              }
-                              const r = await withResourceLock(
-                                `devis:${d.id}`,
-                                () => {
-                                  archiverDevis(d.id);
-                                },
-                              );
-                              if (!r.ok) window.alert(r.error);
-                              else refresh();
-                            })();
-                          }}
-                        >
-                          Archiver
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className={styles.btnRestore}
-                          onClick={() => {
-                            void (async () => {
-                              if (!isAuthenticated) {
-                                desarchiverDevis(d.id);
-                                refresh();
-                                return;
-                              }
-                              const r = await withResourceLock(
-                                `devis:${d.id}`,
-                                () => {
-                                  desarchiverDevis(d.id);
-                                },
-                              );
-                              if (!r.ok) window.alert(r.error);
-                              else refresh();
-                            })();
-                          }}
-                        >
-                          Réactiver
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className={styles.btnDelete}
-                        onClick={() => {
-                          if (
-                            !confirm(
-                              `Supprimer définitivement « ${d.titre} » ?`,
-                            )
-                          ) {
-                            return;
-                          }
-                          void (async () => {
-                            if (!isAuthenticated) {
-                              supprimerDevis(d.id);
-                              refresh();
-                              return;
-                            }
-                            const r = await withResourceLock(
-                              `devis:${d.id}`,
-                              () => {
-                                supprimerDevis(d.id);
-                              },
-                            );
-                            if (!r.ok) window.alert(r.error);
-                            else refresh();
-                          })();
-                        }}
-                      >
-                        Supprimer
-                      </button>
-                    </div>
+                      <span className={styles.folderTitle}>{groupe.titre}</span>
+                      <span className={styles.folderCount}>
+                        {groupe.devis.length} devis
+                      </span>
+                    </button>
+                    {ouvert ? (
+                      <ul className={styles.folderList}>
+                        {groupe.devis.map((d) => (
+                          <li key={d.id}>{renderCarte(d)}</li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </li>
                 );
               })}
