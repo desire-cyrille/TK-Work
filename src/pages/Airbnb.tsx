@@ -642,6 +642,7 @@ export function Airbnb() {
   }
 
   function resetSyntheseView() {
+    setSyntheseChartMode("total");
     setSyntheseView(defaultSyntheseViewQuery(syntheseDataMonths));
   }
 
