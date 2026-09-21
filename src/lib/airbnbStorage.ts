@@ -472,9 +472,8 @@ function netBeneficeVentListing(
 }
 
 /**
- * Même découpage temporel que la vue « total » (années agrégées + mois de l’année en cours) ;
- * chaque période contient un montant par annonce (saisie ventilation net après charges annonce)
- * et éventuellement une part « Fichier » pour les mois sans ventilation (somme des bénéfices seed).
+ * @deprecated Préférer `buildSyntheseGroupedBars` (filtres période / logement, lecture seule).
+ * Conservé pour le découpage historique : années agrégées + mois de l’année en cours.
  */
 export function buildSyntheseBarGroupedSeries(
   state: AirbnbState,

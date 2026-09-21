@@ -431,6 +431,78 @@
   flex-wrap: wrap;
   gap: 0.45rem;
   margin: 0 0 0.65rem;
+  align-items: center;
+}
+
+.chartControls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0 0 0.75rem;
+  padding: 0.75rem 0.85rem 0.65rem;
+  border: 1px solid var(--border-on-light);
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.chartControlLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--workspace-muted);
+  margin-right: 0.15rem;
+}
+
+.chartRangeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 0.85rem;
+}
+
+.chartSelectField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--workspace-muted);
+}
+
+.chartSelect {
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--workspace-text);
+  padding: 0.42rem 0.7rem;
+  min-width: 10.5rem;
+  border: 1px solid var(--border-on-light);
+  border-radius: 10px;
+  background: var(--surface-elevated);
+}
+
+.chartResetBtn {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.42rem 0.8rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-on-light);
+  background: var(--surface-elevated);
+  color: var(--workspace-muted);
+  cursor: pointer;
+}
+
+.chartResetBtn:hover {
+  color: var(--workspace-text);
+  border-color: rgba(255, 75, 43, 0.3);
+}
+
+.chartFilterNote {
+  margin: -0.35rem 0 0.85rem;
+  font-size: 0.78rem;
+  color: var(--workspace-muted);
+  line-height: 1.4;
+  max-width: 42rem;
 }
 
 .chartFilterBtn {
@@ -461,6 +533,13 @@
   width: 100%;
   height: auto;
   display: block;
+  min-width: 36rem;
+}
+
+.chartSvgWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .chartLegend {
