@@ -21,6 +21,11 @@ import {
 } from "../lib/rapportActiviteImageDb";
 import { ensureImageRefDataUrl } from "../lib/rapportActiviteImageDbCloud";
 import {
+  MAX_PHOTOS_DOMAINE,
+  MAX_PHOTOS_VISUELS_PAR_SITE,
+  messagePlafondPhotos,
+} from "../lib/rapportActivitePhotos";
+import {
   appliquerPrefillType,
   enregistrerRapportValide,
   getProjetRapportActivite,
@@ -50,10 +55,6 @@ import styles from "./RapportActiviteRedaction.module.css";
 
 type TabMain = "redaction" | "rapports" | "reglages";
 type SubRedac = "meta" | "visuels" | "domaines" | "tableau" | "synthese";
-
-const MAX_PHOTOS = 4;
-/** Photos d’aperçu par site (onglet Visuels) — augmenté pour limiter moins les imports. */
-const MAX_PHOTOS_VISUELS_PAR_SITE = 12;
 
 function clone<T>(x: T): T {
   return JSON.parse(JSON.stringify(x)) as T;
@@ -218,6 +219,32 @@ function RapportVisuelPreview({ refOrDataUrl }: { refOrDataUrl?: string }) {
   }, [refOrDataUrl]);
   if (!src) return null;
   return <img src={src} alt="" className={styles.visuelPreview} />;
+}
+
+function PhotoStrip({
+  refs,
+  onRemove,
+}: {
+  refs: string[];
+  onRemove: (index: number) => void;
+}) {
+  if (!refs.length) return null;
+  return (
+    <ul className={styles.photoStrip}>
+      {refs.map((ref, i) => (
+        <li key={`${i}-${ref.slice(0, 24)}`} className={styles.photoStripItem}>
+          <RapportVisuelPreview refOrDataUrl={ref} />
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={() => onRemove(i)}
+          >
+            Retirer
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function RapportActiviteRedaction() {
@@ -835,8 +862,10 @@ export function RapportActiviteRedaction() {
                 <div className={styles.panel} style={{ marginBottom: 0 }}>
                   <p className={styles.hint}>
                     Logos et couverture apparaissent sur le PDF (page de garde et dernière
-                    page). Les images sont redimensionnées automatiquement (max. 2400 px de côté)
-                    pour éviter les échecs d’enregistrement et de génération PDF.
+                    page). Les photos de site et de domaine sont stockées à part (IndexedDB)
+                    : jusqu’à {MAX_PHOTOS_VISUELS_PAR_SITE} visuels par site et{" "}
+                    {MAX_PHOTOS_DOMAINE} photos par domaine. Elles sont redimensionnées
+                    automatiquement pour le PDF.
                   </p>
                   <div className={styles.btnRow} style={{ marginBottom: "0.75rem" }}>
                     <button
@@ -910,7 +939,8 @@ export function RapportActiviteRedaction() {
                   </div>
                   <p className={styles.hint}>
                     Photos du site « {projet.sites.find((s) => s.id === draft.siteActifId)?.nom} »
-                    (jusqu’à {MAX_PHOTOS_VISUELS_PAR_SITE} images)
+                    ({(draft.visuels.photosParSite[draft.siteActifId] ?? []).length} /{" "}
+                    {MAX_PHOTOS_VISUELS_PAR_SITE})
                   </p>
                   <input
                     type="file"
@@ -922,8 +952,12 @@ export function RapportActiviteRedaction() {
                       e.target.value = "";
                       const sid = draft.siteActifId;
                       const cur = [...(draft.visuels.photosParSite[sid] ?? [])];
+                      let ignorees = 0;
                       for (const f of files) {
-                        if (cur.length >= MAX_PHOTOS_VISUELS_PAR_SITE) break;
+                        if (cur.length >= MAX_PHOTOS_VISUELS_PAR_SITE) {
+                          ignorees += 1;
+                          continue;
+                        }
                         const r = await importerImageEnDataUrl(f, {
                           maxEdge: 1400,
                           jpegQuality: 0.78,
@@ -942,6 +976,12 @@ export function RapportActiviteRedaction() {
                             );
                         }
                       }
+                      const msg = messagePlafondPhotos(
+                        "Visuels du site",
+                        MAX_PHOTOS_VISUELS_PAR_SITE,
+                        ignorees,
+                      );
+                      if (msg) window.alert(msg);
                       majDraft((d) => ({
                         ...d,
                         visuels: {
@@ -951,6 +991,23 @@ export function RapportActiviteRedaction() {
                       }));
                     }}
                   />
+                  <PhotoStrip
+                    refs={draft.visuels.photosParSite[draft.siteActifId] ?? []}
+                    onRemove={(index) => {
+                      const sid = draft.siteActifId;
+                      majDraft((d) => {
+                        const cur = [...(d.visuels.photosParSite[sid] ?? [])];
+                        cur.splice(index, 1);
+                        return {
+                          ...d,
+                          visuels: {
+                            ...d.visuels,
+                            photosParSite: { ...d.visuels.photosParSite, [sid]: cur },
+                          },
+                        };
+                      });
+                    }}
+                  />
                 </div>
               ) : null}
 
@@ -958,7 +1015,8 @@ export function RapportActiviteRedaction() {
                 <div className={styles.panel} style={{ marginBottom: 0 }}>
                   <p className={styles.hint}>
                     Utilisez « Enregistrer » sous chaque domaine (ou sous le tableau) pour
-                    forcer l’écriture immédiate sur cet appareil.
+                    forcer l’écriture immédiate sur cet appareil. Chaque domaine accepte
+                    jusqu’à {MAX_PHOTOS_DOMAINE} photos.
                   </p>
                   {projet.domaines.map((dom) => {
                     const bloc = siteBloc.domainesTexte[dom.id] ?? {
@@ -1075,13 +1133,32 @@ export function RapportActiviteRedaction() {
                               let photos = [
                                 ...(siteBloc.domainesTexte[domId]?.photos ?? []),
                               ];
+                              let ignorees = 0;
                               for (const f of files) {
-                                if (photos.length >= MAX_PHOTOS) break;
+                                if (photos.length >= MAX_PHOTOS_DOMAINE) {
+                                  ignorees += 1;
+                                  continue;
+                                }
                                 const r = await importerImageEnDataUrl(f);
-                                if (r.ok) photos.push(await putImageDataUrl(r.dataUrl));
-                                else window.alert(r.message);
+                                if (r.ok) {
+                                  try {
+                                    photos.push(await putImageDataUrl(r.dataUrl));
+                                  } catch {
+                                    if (r.dataUrl.length <= 450_000) photos.push(r.dataUrl);
+                                    else
+                                      window.alert(
+                                        "Photo trop lourde pour l’espace local. Choisissez une image plus petite.",
+                                      );
+                                  }
+                                } else window.alert(r.message);
                               }
-                              photos = photos.slice(0, MAX_PHOTOS);
+                              photos = photos.slice(0, MAX_PHOTOS_DOMAINE);
+                              const msg = messagePlafondPhotos(
+                                `Domaine « ${dom.label} »`,
+                                MAX_PHOTOS_DOMAINE,
+                                ignorees,
+                              );
+                              if (msg) window.alert(msg);
                               majDraft((d) => {
                                 const ps = { ...d.parSite };
                                 const sc = { ...ps[sid]! };
@@ -1099,6 +1176,35 @@ export function RapportActiviteRedaction() {
                             }}
                           />
                         </div>
+                        <p className={styles.hint} style={{ marginTop: "0.35rem" }}>
+                          Photos de ce domaine :{" "}
+                          {(siteBloc.domainesTexte[dom.id]?.photos ?? []).length} /{" "}
+                          {MAX_PHOTOS_DOMAINE}
+                        </p>
+                        <PhotoStrip
+                          refs={siteBloc.domainesTexte[dom.id]?.photos ?? []}
+                          onRemove={(index) => {
+                            const sid = draft.siteActifId;
+                            const domId = dom.id;
+                            majDraft((d) => {
+                              const ps = { ...d.parSite };
+                              const sc = { ...ps[sid]! };
+                              const prev = sc.domainesTexte[domId];
+                              const photos = [...(prev?.photos ?? [])];
+                              photos.splice(index, 1);
+                              sc.domainesTexte = {
+                                ...sc.domainesTexte,
+                                [domId]: {
+                                  infos: prev?.infos ?? [],
+                                  texte: prev?.texte ?? "",
+                                  photos,
+                                },
+                              };
+                              ps[sid] = sc;
+                              return { ...d, parSite: ps };
+                            });
+                          }}
+                        />
                         <div className={styles.btnRow}>
                           <button
                             type="button"
