@@ -265,21 +265,30 @@ export async function genererRapportActivitePdfBlobAsync(
     let y = M + 16;
     const contenu = b.parSite[site.id];
     const photosSite = b.visuels.photosParSite[site.id] ?? [];
-    for (let i = 0; i < Math.min(photosSite.length, 3); i += 1) {
-      if (
-        await addImageContainResolved(
-          doc,
-          photosSite[i],
-          M + i * 58,
-          y,
-          52,
-          34,
-        )
-      ) {
-        /* ok */
+    const VISUEL_COLS = 3;
+    const visuelW = 52;
+    const visuelH = 34;
+    const visuelStepX = 58;
+    const visuelStepY = 40;
+    for (let i = 0; i < photosSite.length; i += 1) {
+      const col = i % VISUEL_COLS;
+      if (i > 0 && col === 0) y += visuelStepY;
+      if (y + visuelH > pageH - 28) {
+        doc.addPage();
+        doc.setFillColor(255, 255, 255);
+        doc.rect(0, 0, W, pageH, "F");
+        y = M + 6;
       }
+      await addImageContainResolved(
+        doc,
+        photosSite[i],
+        M + col * visuelStepX,
+        y,
+        visuelW,
+        visuelH,
+      );
     }
-    if (photosSite.length) y += 40;
+    if (photosSite.length) y += visuelStepY;
     for (const d of projet.domaines) {
       if (!domaineSiteNonVide(contenu, d.id)) continue;
       const bloc = contenu?.domainesTexte[d.id];
