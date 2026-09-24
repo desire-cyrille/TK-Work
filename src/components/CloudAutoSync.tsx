@@ -10,6 +10,7 @@ import {
 import { getValidAuthToken } from "../lib/authToken";
 
 const PUSH_DEBOUNCE_MS = 1_500;
+const PULL_WHILE_VISIBLE_MS = 45_000;
 const LAST_PUSHED_HASH_KEY = "tk-gestion-cloud-autosync-last-pushed-hash-v1";
 const LAST_CLOUD_SYNC_ERROR_KEY = "tk-gestion-cloud-last-sync-error-v1";
 
@@ -116,7 +117,10 @@ export function CloudAutoSync() {
   }
 
   useEffect(() => {
-    if (!authReady || !isAuthenticated) return;
+    if (!authReady || !isAuthenticated) {
+      bootstrapStarted.current = false;
+      return;
+    }
 
     lastPushedHash.current = readStringSession(LAST_PUSHED_HASH_KEY);
     lastBootError.current = readStringSession(LAST_CLOUD_SYNC_ERROR_KEY);
@@ -129,6 +133,9 @@ export function CloudAutoSync() {
 
     // Laisser la navigation post-connexion se terminer avant le sync nuage.
     const bootTimer = window.setTimeout(startBootstrap, 800);
+    const pullTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") runBootstrap();
+    }, PULL_WHILE_VISIBLE_MS);
 
     const onOnline = () => {
       schedulePush();
@@ -147,7 +154,7 @@ export function CloudAutoSync() {
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        schedulePush();
+        runBootstrap();
       } else {
         void doPush();
       }
@@ -165,6 +172,7 @@ export function CloudAutoSync() {
 
     return () => {
       window.clearTimeout(bootTimer);
+      window.clearInterval(pullTimer);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("pagehide", onPageHide);
       document.removeEventListener("visibilitychange", onVisibility);

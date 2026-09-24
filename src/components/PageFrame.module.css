@@ -181,6 +181,11 @@
   transform: scale(0.98);
 }
 
+.headerCtaSecondary:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 /* Même forme que le secondaire du bandeau, mais pour fond clair (cartes, formulaires) */
 .workspaceCtaSecondary {
   display: inline-flex;
