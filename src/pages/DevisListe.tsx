@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
 import { PdfPreviewDialog, type PdfApercu } from "../components/PdfPreviewDialog";
@@ -35,6 +35,11 @@ import {
   type DevisClientFiche,
   type DevisModele,
 } from "../lib/devisTypes";
+import {
+  refreshAppAfterCloudPull,
+  syncCloudSessionBootstrap,
+} from "../lib/cloudSync";
+import { TK_GESTION_RELOAD_LOCAL_DATA_EVENT } from "../lib/reloadLocalAppData";
 import { withResourceLock } from "../lib/workspaceLockApi";
 import styles from "./DevisListe.module.css";
 
@@ -121,6 +126,30 @@ export function DevisListe() {
   const groupes = useMemo(() => regrouperDevisParTitre(visible), [visible]);
   const [pdfApercu, setPdfApercu] = useState<PdfApercu | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    const onReload = () => refresh();
+    window.addEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+    return () =>
+      window.removeEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+  }, []);
+
+  async function actualiserDepuisNuage() {
+    refresh();
+    if (!isAuthenticated) return;
+    setSyncing(true);
+    try {
+      const r = await syncCloudSessionBootstrap();
+      if (r.shouldReloadLocalData) refreshAppAfterCloudPull();
+      refresh();
+      if (r.pullError || r.applyError) {
+        window.alert(r.pullError ?? r.applyError);
+      }
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const clientsCatalog = useMemo(() => {
     if (!modalCreer) return [];
@@ -467,6 +496,14 @@ export function DevisListe() {
         title="Gestion des devis"
         actions={
           <>
+            <button
+              type="button"
+              className={frameStyles.headerCtaSecondary}
+              disabled={syncing}
+              onClick={() => void actualiserDepuisNuage()}
+            >
+              {syncing ? "Actualisation…" : "Actualiser"}
+            </button>
             <Link
               to="/devis/parametres"
               className={frameStyles.headerCtaSecondary}
@@ -486,12 +523,13 @@ export function DevisListe() {
       >
         <div className={styles.page}>
           <p className={styles.intro}>
-            Données enregistrées dans ce navigateur et synchronisées avec le{" "}
-            <strong>nuage partagé</strong> (page Fonctions). Les devis{" "}
-            <strong>archivés</strong> ne comptent pas dans les totaux ci-dessous.
-            Même titre = même dossier (ex. « entretien saint denis »). Dupliquer
-            recopie le contenu, décale les dates, et laisse l’annexe PDF
-            comptable à remplacer.
+            Tous les comptes voient les <strong>mêmes devis</strong>, via le{" "}
+            <strong>nuage partagé</strong> (page Fonctions). Un devis créé par
+            un collègue apparaît ici après « Actualiser » ou au retour sur
+            l’application. Les devis <strong>archivés</strong> ne comptent pas
+            dans les totaux ci-dessous. Même titre = même dossier (ex. «
+            entretien saint denis »). Dupliquer recopie le contenu, décale les
+            dates, et laisse l’annexe PDF comptable à remplacer.
           </p>
 
           <div className={styles.statsCard}>

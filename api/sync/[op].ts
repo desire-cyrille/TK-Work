@@ -4,6 +4,7 @@ import { jsonbValueToLocalStorageString } from "../_lib/jsonbStorageValue.js";
 import { readJsonBody, cors } from "../_lib/http.js";
 import { requireUser } from "../_lib/requireUser.js";
 import { validateAndNormalizeEntries } from "../_lib/syncPayload.js";
+import { mergeWorkspacePayload } from "../_lib/mergeWorkspaceEntries.js";
 import {
   ensureWorkspaceSnapshotRow,
   WORKSPACE_SNAPSHOT_ID,
@@ -134,24 +135,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      const json = JSON.stringify(normalized.entries);
-      const sql = merge
-        ? `UPDATE workspace_snapshots
-           SET payload = COALESCE(payload, '{}'::jsonb) || $2::jsonb,
-               version = version + 1,
-               "updatedAt" = NOW()
-           WHERE id = $1
-           RETURNING version, "updatedAt"`
-        : `UPDATE workspace_snapshots
+      const client = await pool.connect();
+      let updRow: { version: number; updatedAt: Date } | undefined;
+      try {
+        await client.query("BEGIN");
+        const current = await client.query<{ payload: Record<string, unknown> }>(
+          `SELECT payload FROM workspace_snapshots WHERE id = $1 FOR UPDATE`,
+          [WORKSPACE_SNAPSHOT_ID],
+        );
+        const currentPayload = current.rows[0]?.payload;
+        const nextEntries = merge
+          ? mergeWorkspacePayload(currentPayload, normalized.entries)
+          : normalized.entries;
+        const json = JSON.stringify(nextEntries);
+        const upd = await client.query<{ version: number; updatedAt: Date }>(
+          `UPDATE workspace_snapshots
            SET payload = $2::jsonb, version = version + 1, "updatedAt" = NOW()
            WHERE id = $1
-           RETURNING version, "updatedAt"`;
-
-      const upd = await pool.query<{ version: number; updatedAt: Date }>(sql, [
-        WORKSPACE_SNAPSHOT_ID,
-        json,
-      ]);
-      const updRow = upd.rows[0];
+           RETURNING version, "updatedAt"`,
+          [WORKSPACE_SNAPSHOT_ID, json],
+        );
+        updRow = upd.rows[0];
+        await client.query("COMMIT");
+      } catch (err) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          /* ignore */
+        }
+        throw err;
+      } finally {
+        client.release();
+      }
       if (!updRow) {
         res.status(404).json({ error: "Espace nuage introuvable." });
         return;

@@ -136,6 +136,8 @@ export function CloudSyncPanel() {
         <p className={styles.hint}>
           Le navigateur garde une copie locale pour travailler hors ligne, mais
           vous n’avez plus besoin d’exporter ou de « Récupérer » au quotidien.
+          Les devis de tous les comptes sont <strong>réunis</strong> sur le
+          nuage (un envoi n’efface plus le devis créé par un collègue).
           Les boutons ci-dessous servent en secours (autre appareil, dépannage).
         </p>
         {!isAuthenticated ? (

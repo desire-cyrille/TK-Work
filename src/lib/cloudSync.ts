@@ -9,7 +9,9 @@ import {
   AUTH_TOKEN_KEY,
   getValidAuthToken,
 } from "./authToken";
+import { DEVIS_FILE_STORAGE_KEY } from "./devisFileMerge";
 import { notifyLocalAppDataReload } from "./reloadLocalAppData";
+import { mergeDevisEntryWithLocals } from "./workspaceCollectionMerge";
 
 const LEGACY_CLOUD_TOKEN = "tk_gestion_cloud_token";
 const LEGACY_CLOUD_EMAIL = "tk_gestion_cloud_email";
@@ -284,8 +286,23 @@ function saveAutoBackupBeforePull(): void {
   }
 }
 
+function devisJsonFromAutoBackup(): string | undefined {
+  try {
+    const raw = localStorage.getItem(AUTOBACKUP_BEFORE_PULL_KEY);
+    if (!raw) return undefined;
+    const p = JSON.parse(raw) as { entries?: Record<string, unknown> };
+    const v = p?.entries?.[DEVIS_FILE_STORAGE_KEY];
+    return typeof v === "string" ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Applique une copie serveur en conservant connexion et jeton sur cet appareil. */
 export async function applyCloudPullEntries(entries: Record<string, string>) {
+  const localBefore = collectTkGestionEntriesWithoutAuth();
+  const extraDevis = devisJsonFromAutoBackup();
+
   // Sauvegarde locale automatique (dernier recours) avant tout écrasement.
   saveAutoBackupBeforePull();
 
@@ -294,7 +311,11 @@ export async function applyCloudPullEntries(entries: Record<string, string>) {
   const emailKeep = localStorage.getItem(AUTH_EMAIL_KEY);
   const legacyTok = localStorage.getItem(LEGACY_CLOUD_TOKEN);
   const legacyEm = localStorage.getItem(LEGACY_CLOUD_EMAIL);
-  const safe: Record<string, string> = { ...entries };
+  const safe: Record<string, string> = mergeDevisEntryWithLocals(
+    entries,
+    localBefore,
+    extraDevis,
+  );
   delete safe["tk_gestion_session"];
   delete safe[AUTH_TOKEN_KEY];
   delete safe[AUTH_EMAIL_KEY];
@@ -519,6 +540,26 @@ export async function cloudPush(): Promise<
     keys: Object.keys(entries).length,
   });
   return { ok: true, version: lastVersion };
+}
+
+export type CloudPushConfirm =
+  | { savedOnServer: true }
+  | { savedOnServer: false; error: string };
+
+/** Envoi explicite après « Enregistrer » : indique si le nuage a bien reçu. */
+export async function confirmCloudPush(): Promise<CloudPushConfirm> {
+  if (!getValidAuthToken()) {
+    return {
+      savedOnServer: false,
+      error:
+        "Vous n’êtes pas connecté — le document n’a pas été envoyé au serveur.",
+    };
+  }
+  const r = await cloudPush();
+  if (!r.ok) {
+    return { savedOnServer: false, error: r.error };
+  }
+  return { savedOnServer: true };
 }
 
 /**

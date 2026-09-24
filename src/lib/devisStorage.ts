@@ -14,8 +14,14 @@ import {
   decalerDatesDansTexte,
   deltaJoursIso,
 } from "./devisDuplicate";
+import {
+  DEVIS_FILE_STORAGE_KEY,
+  type DevisTombstone,
+  parseDevisFileJson,
+  serializeDevisFileJson,
+} from "./devisFileMerge";
 
-export const DEVIS_STORAGE_KEY = "tk-gestion-devis-v1";
+export const DEVIS_STORAGE_KEY = DEVIS_FILE_STORAGE_KEY;
 
 export type DevisStatut = "brouillon" | "enregistre" | "archive";
 
@@ -54,6 +60,7 @@ export type Devis = {
 
 type DevisFile = {
   devis: Devis[];
+  deletedIds: DevisTombstone[];
 };
 
 function normalizeZone(z: unknown): DevisZone {
@@ -123,27 +130,25 @@ function migrateLegacyDevis(raw: Record<string, unknown>): Devis | null {
 }
 
 function loadRaw(): DevisFile {
-  try {
-    const s = localStorage.getItem(DEVIS_STORAGE_KEY);
-    if (!s) return { devis: [] };
-    const p = JSON.parse(s) as unknown;
-    if (!p || typeof p !== "object" || !Array.isArray((p as DevisFile).devis)) {
-      return { devis: [] };
-    }
-    const out: Devis[] = [];
-    for (const x of (p as DevisFile).devis) {
-      if (!x || typeof x !== "object") continue;
-      const d = migrateLegacyDevis(x as Record<string, unknown>);
-      if (d) out.push(d);
-    }
-    return { devis: out };
-  } catch {
-    return { devis: [] };
+  const parsed = parseDevisFileJson(localStorage.getItem(DEVIS_STORAGE_KEY));
+  const tombs = new Map(parsed.deletedIds.map((t) => [t.id, t.deletedAt]));
+  const out: Devis[] = [];
+  for (const x of parsed.devis) {
+    if (!x || typeof x !== "object") continue;
+    const d = migrateLegacyDevis(x as Record<string, unknown>);
+    if (!d) continue;
+    const deletedAt = tombs.get(d.id);
+    if (deletedAt && !(d.updatedAt > deletedAt)) continue;
+    out.push(d);
   }
+  return { devis: out, deletedIds: parsed.deletedIds };
 }
 
 function saveRaw(f: DevisFile) {
-  localStorage.setItem(DEVIS_STORAGE_KEY, JSON.stringify(f));
+  localStorage.setItem(
+    DEVIS_STORAGE_KEY,
+    serializeDevisFileJson({ devis: f.devis, deletedIds: f.deletedIds }),
+  );
 }
 
 export function listerDevis(): Devis[] {
@@ -225,6 +230,10 @@ export function desarchiverDevis(id: string) {
 export function supprimerDevis(id: string) {
   const f = loadRaw();
   f.devis = f.devis.filter((x) => x.id !== id);
+  const now = new Date().toISOString();
+  const i = f.deletedIds.findIndex((t) => t.id === id);
+  if (i === -1) f.deletedIds.push({ id, deletedAt: now });
+  else f.deletedIds[i] = { id, deletedAt: now };
   saveRaw(f);
 }
 
