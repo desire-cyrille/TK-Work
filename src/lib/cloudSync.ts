@@ -542,6 +542,26 @@ export async function cloudPush(): Promise<
   return { ok: true, version: lastVersion };
 }
 
+export type CloudPushConfirm =
+  | { savedOnServer: true }
+  | { savedOnServer: false; error: string };
+
+/** Envoi explicite après « Enregistrer » : indique si le nuage a bien reçu. */
+export async function confirmCloudPush(): Promise<CloudPushConfirm> {
+  if (!getValidAuthToken()) {
+    return {
+      savedOnServer: false,
+      error:
+        "Vous n’êtes pas connecté — le document n’a pas été envoyé au serveur.",
+    };
+  }
+  const r = await cloudPush();
+  if (!r.ok) {
+    return { savedOnServer: false, error: r.error };
+  }
+  return { savedOnServer: true };
+}
+
 /**
  * Aligne cet appareil sur le nuage (source de vérité) :
  * - serveur avec données → télécharge si plus récent ou si le local est vide ;

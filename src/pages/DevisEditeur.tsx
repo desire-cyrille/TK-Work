@@ -49,6 +49,7 @@ import {
   nomFichierPdfDevis,
 } from "../lib/exportDevisPdf";
 import { formatEuro } from "../lib/money";
+import { confirmCloudPush } from "../lib/cloudSync";
 import { withResourceLock } from "../lib/workspaceLockApi";
 import styles from "./DevisEditeur.module.css";
 
@@ -149,6 +150,11 @@ export function DevisEditeur() {
   const [devis, setDevis] = useState<Devis | null>(null);
   const [pdfApercu, setPdfApercu] = useState<PdfApercu | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [saveMsg, setSaveMsg] = useState<{
+    type: "ok" | "err";
+    text: string;
+  } | null>(null);
+  const [saveBusy, setSaveBusy] = useState(false);
   const [onglet, setOnglet] = useState<OngletDevis>("infos");
   const [distanceLoadingId, setDistanceLoadingId] = useState<string | null>(
     null,
@@ -311,7 +317,7 @@ export function DevisEditeur() {
 
   function enregistrer(e?: FormEvent) {
     e?.preventDefault();
-    if (!devis || !totaux) return;
+    if (!devis || !totaux || saveBusy) return;
     memoriserClientDevis(
       devis.clientEstSociete
         ? devis.clientSociete || devis.client
@@ -319,11 +325,34 @@ export function DevisEditeur() {
       Boolean(devis.clientEstSociete),
     );
     clearAutosaveTimer();
+    setSaveMsg(null);
+    setSaveBusy(true);
     void (async () => {
-      const ok = await persisterDevisVersStockage(devis);
-      if (ok) {
+      try {
+        const ok = await persisterDevisVersStockage(devis);
+        if (!ok) {
+          setSaveMsg({
+            type: "err",
+            text: "Le devis n’a pas pu être enregistré sur cet appareil.",
+          });
+          return;
+        }
         skipAutosaveCyclesRef.current = 1;
         setDevis(getDevis(devis.id) ?? devis);
+        const cloud = await confirmCloudPush();
+        if (cloud.savedOnServer) {
+          setSaveMsg({
+            type: "ok",
+            text: "Devis enregistré sur le serveur.",
+          });
+        } else {
+          setSaveMsg({
+            type: "err",
+            text: `Devis enregistré sur cet appareil, mais pas sur le serveur. ${cloud.error}`,
+          });
+        }
+      } finally {
+        setSaveBusy(false);
       }
     })();
   }
@@ -458,8 +487,12 @@ export function DevisEditeur() {
       >
         <form className={styles.editorWrap} onSubmit={enregistrer}>
           <div className={styles.topActions}>
-            <button type="submit" className={styles.btnPrimary}>
-              Enregistrer
+            <button
+              type="submit"
+              className={styles.btnPrimary}
+              disabled={saveBusy}
+            >
+              {saveBusy ? "Enregistrement…" : "Enregistrer"}
             </button>
             <button
               type="button"
@@ -479,9 +512,17 @@ export function DevisEditeur() {
           <p className={styles.hint} style={{ marginTop: "-0.35rem" }}>
             Les modifications sont enregistrées automatiquement (quelques
             secondes après la saisie) et à chaque changement d’onglet. Le bouton
-            « Enregistrer » force la sauvegarde et mémorise le client pour les
-            prochains devis.
+            « Enregistrer » force la sauvegarde, l’envoie sur le serveur, et
+            mémorise le client pour les prochains devis.
           </p>
+          {saveMsg ? (
+            <p
+              className={saveMsg.type === "ok" ? styles.okMsg : styles.errMsg}
+              role="status"
+            >
+              {saveMsg.text}
+            </p>
+          ) : null}
           {err ? <p className={styles.errMsg}>{err}</p> : null}
 
           <div className={styles.tabs} role="tablist">

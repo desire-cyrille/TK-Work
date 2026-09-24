@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
 import frameStyles from "../components/PageFrame.module.css";
+import { confirmCloudPush } from "../lib/cloudSync";
 import {
   enregistrerParametresDevisDefaut,
   lireParametresDevisDefaut,
@@ -86,7 +87,10 @@ export function DevisParametresGlobaux() {
   const [clientsFiches, setClientsFiches] = useState<DevisClientFiche[]>(
     () => initial.clientsFiches ?? [],
   );
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(
+    null,
+  );
+  const [saveBusy, setSaveBusy] = useState(false);
   const [errLogo, setErrLogo] = useState<string | null>(null);
 
   function majFiche(id: string, patch: Partial<DevisClientFiche>) {
@@ -101,6 +105,7 @@ export function DevisParametresGlobaux() {
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (saveBusy) return;
     const data: DevisParametresGlobaux = {
       idf,
       horsIdf: hors,
@@ -109,8 +114,26 @@ export function DevisParametresGlobaux() {
       clientsFiches: clientsFiches.filter((c) => c.raisonOuNom.trim().length > 0),
     };
     enregistrerParametresDevisDefaut(data);
-    setMsg("Paramètres enregistrés.");
-    window.setTimeout(() => setMsg(null), 2500);
+    setMsg(null);
+    setSaveBusy(true);
+    void (async () => {
+      try {
+        const cloud = await confirmCloudPush();
+        if (cloud.savedOnServer) {
+          setMsg({
+            type: "ok",
+            text: "Paramètres enregistrés sur le serveur.",
+          });
+        } else {
+          setMsg({
+            type: "err",
+            text: `Paramètres enregistrés sur cet appareil, mais pas sur le serveur. ${cloud.error}`,
+          });
+        }
+      } finally {
+        setSaveBusy(false);
+      }
+    })();
   }
 
   function onLogoFile(f: File | null) {
@@ -318,9 +341,16 @@ export function DevisParametresGlobaux() {
           </button>
         </fieldset>
 
-        {msg ? <p className={styles.okMsg}>{msg}</p> : null}
-        <button type="submit" className={styles.btnPrimary}>
-          Enregistrer les paramètres
+        {msg ? (
+          <p
+            className={msg.type === "ok" ? styles.okMsg : styles.errMsg}
+            role="status"
+          >
+            {msg.text}
+          </p>
+        ) : null}
+        <button type="submit" className={styles.btnPrimary} disabled={saveBusy}>
+          {saveBusy ? "Enregistrement…" : "Enregistrer les paramètres"}
         </button>
       </form>
     </PageFrame>
