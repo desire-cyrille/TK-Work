@@ -46,6 +46,13 @@ import {
   type AirbnbVentilationLine,
 } from "../types/airbnb";
 import { confirmCloudPush } from "../lib/cloudSync";
+import {
+  insererLigneVentilation,
+  ligneDepuisFacture,
+  parseAirbnbFactureTexte,
+  type AirbnbFactureProposee,
+} from "../lib/airbnbFactureParse";
+import { imageFileToDataUrl, ocrFactureImage } from "../lib/airbnbFactureOcr";
 import { TK_GESTION_RELOAD_LOCAL_DATA_EVENT } from "../lib/reloadLocalAppData";
 import styles from "./Airbnb.module.css";
 
@@ -376,6 +383,13 @@ export function Airbnb() {
     text: string;
   } | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
+  const [factureBusy, setFactureBusy] = useState(false);
+  const [factureErr, setFactureErr] = useState<string | null>(null);
+  const [factureApercu, setFactureApercu] = useState<{
+    imageUrl: string;
+    proposition: AirbnbFactureProposee;
+  } | null>(null);
+  const factureFileRef = useRef<HTMLInputElement | null>(null);
 
   const storeRef = useRef(store);
   storeRef.current = store;
@@ -531,6 +545,89 @@ export function Airbnb() {
       },
     }));
   }
+
+  async function lireFactureFichier(file: File) {
+    setFactureErr(null);
+    setFactureBusy(true);
+    if (factureApercu?.imageUrl) URL.revokeObjectURL(factureApercu.imageUrl);
+    setFactureApercu(null);
+    try {
+      const imageUrl = await imageFileToDataUrl(file);
+      const texte = await ocrFactureImage(file);
+      const parsed = parseAirbnbFactureTexte(texte);
+      if (!parsed.ok) {
+        setFactureErr(parsed.error);
+        return;
+      }
+      setFactureApercu({ imageUrl, proposition: parsed.value });
+    } catch (e) {
+      setFactureErr(
+        e instanceof Error
+          ? e.message
+          : "Impossible de lire cette image.",
+      );
+    } finally {
+      setFactureBusy(false);
+    }
+  }
+
+  function appliquerPropositionFacture() {
+    if (!factureApercu) return;
+    const p = factureApercu.proposition;
+    const line = ligneDepuisFacture(p, () => crypto.randomUUID());
+    const month = /^\d{4}-\d{2}$/.test(p.month) ? p.month : selectedMonth;
+
+    setStore((s) => {
+      const current = cloneMonthVentilation(draft);
+      const vent = [...s.ventilations];
+      const iCur = vent.findIndex((v) => v.month === current.month);
+      if (iCur === -1) vent.push(current);
+      else vent[iCur] = current;
+
+      const i = vent.findIndex((v) => v.month === month);
+      const base =
+        i === -1
+          ? defaultMonthVentilation(month)
+          : cloneMonthVentilation(vent[i]!);
+      const nextMonth: AirbnbMonthVentilation = {
+        ...base,
+        listings: insererLigneVentilation(base.listings, p.listingId, line),
+      };
+      if (i === -1) vent.push(nextMonth);
+      else vent[i] = nextMonth;
+      const next = { ...s, ventilations: vent };
+      saveAirbnbState(next);
+      return next;
+    });
+
+    if (month !== selectedMonth) {
+      setSelectedMonth(month);
+    } else {
+      setDraft((d) => ({
+        ...d,
+        listings: insererLigneVentilation(d.listings, p.listingId, line),
+      }));
+    }
+    URL.revokeObjectURL(factureApercu.imageUrl);
+    setFactureApercu(null);
+    setFactureErr(null);
+  }
+
+  useEffect(() => {
+    if (tab !== "ventilation") return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const img = Array.from(items).find((it) => it.type.startsWith("image/"));
+      if (!img) return;
+      const file = img.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      void lireFactureFichier(file);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [tab, factureApercu]);
 
   function addLine(listingId: AirbnbListingId) {
     setDraft((d) => ({
@@ -797,8 +894,214 @@ export function Airbnb() {
               (facturé TTC, frais plateforme, déductions). Bénéfice brut = facturé
               + frais − déduction. Les charges de l’annonce (onglet Charges) sont
               réparties sur les lignes au prorata du bénéfice brut ; la colonne{" "}
-              <strong>Bénéfice net</strong> reflète cette déduction.
+              <strong>Bénéfice net</strong> reflète cette déduction. Vous pouvez
+              aussi <strong>coller une capture de facture</strong> (Ctrl+V) : le
+              logement, le séjour et les montants sont proposés, à valider avant
+              d’ajouter la ligne.
             </p>
+
+            <div className={styles.facturePaste}>
+              <input
+                ref={factureFileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void lireFactureFichier(f);
+                }}
+              />
+              <button
+                type="button"
+                className={styles.facturePasteBtn}
+                disabled={factureBusy}
+                onClick={() => factureFileRef.current?.click()}
+              >
+                {factureBusy
+                  ? "Lecture de la facture…"
+                  : "Coller ou choisir une facture"}
+              </button>
+              <span className={styles.facturePasteHint}>
+                Capture type carte de réservation (logement, dates, revenus,
+                frais de ménage, frais de service).
+              </span>
+              {factureErr ? (
+                <p className={styles.errMsg} role="status">
+                  {factureErr}
+                </p>
+              ) : null}
+              {factureApercu ? (
+                <div className={styles.facturePreview}>
+                  <img
+                    src={factureApercu.imageUrl}
+                    alt="Facture collée"
+                    className={styles.facturePreviewImg}
+                  />
+                  <div className={styles.facturePreviewFields}>
+                    <p className={styles.facturePreviewTitle}>
+                      Ligne proposée — vérifiez puis ajoutez
+                    </p>
+                    <label className={styles.factureField}>
+                      Logement
+                      <select
+                        className={styles.select}
+                        value={factureApercu.proposition.listingId}
+                        onChange={(e) => {
+                          const id = e.target.value as AirbnbListingId;
+                          const label =
+                            AIRBNB_LISTINGS.find((l) => l.id === id)?.label ??
+                            id;
+                          setFactureApercu((cur) =>
+                            cur
+                              ? {
+                                  ...cur,
+                                  proposition: {
+                                    ...cur.proposition,
+                                    listingId: id,
+                                    listingLabel: label,
+                                  },
+                                }
+                              : cur,
+                          );
+                        }}
+                      >
+                        {AIRBNB_LISTINGS.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className={styles.factureField}>
+                      Mois
+                      <input
+                        type="month"
+                        className={styles.monthInput}
+                        value={factureApercu.proposition.month}
+                        onChange={(e) =>
+                          setFactureApercu((cur) =>
+                            cur
+                              ? {
+                                  ...cur,
+                                  proposition: {
+                                    ...cur.proposition,
+                                    month: e.target.value,
+                                  },
+                                }
+                              : cur,
+                          )
+                        }
+                      />
+                    </label>
+                    <label className={styles.factureField}>
+                      Séjour / libellé
+                      <input
+                        className={styles.input}
+                        value={factureApercu.proposition.libelle}
+                        onChange={(e) =>
+                          setFactureApercu((cur) =>
+                            cur
+                              ? {
+                                  ...cur,
+                                  proposition: {
+                                    ...cur.proposition,
+                                    libelle: e.target.value,
+                                  },
+                                }
+                              : cur,
+                          )
+                        }
+                      />
+                    </label>
+                    <div className={styles.factureMontants}>
+                      <label className={styles.factureField}>
+                        Facturé
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={factureApercu.proposition.facture}
+                          onChange={(e) =>
+                            setFactureApercu((cur) =>
+                              cur
+                                ? {
+                                    ...cur,
+                                    proposition: {
+                                      ...cur.proposition,
+                                      facture: e.target.value,
+                                    },
+                                  }
+                                : cur,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className={styles.factureField}>
+                        Frais
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={factureApercu.proposition.frais}
+                          onChange={(e) =>
+                            setFactureApercu((cur) =>
+                              cur
+                                ? {
+                                    ...cur,
+                                    proposition: {
+                                      ...cur.proposition,
+                                      frais: e.target.value,
+                                    },
+                                  }
+                                : cur,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className={styles.factureField}>
+                        Déduction
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={factureApercu.proposition.deduction}
+                          onChange={(e) =>
+                            setFactureApercu((cur) =>
+                              cur
+                                ? {
+                                    ...cur,
+                                    proposition: {
+                                      ...cur.proposition,
+                                      deduction: e.target.value,
+                                    },
+                                  }
+                                : cur,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className={styles.facturePreviewActions}>
+                      <button
+                        type="button"
+                        className={styles.btnPrimary}
+                        onClick={appliquerPropositionFacture}
+                      >
+                        Ajouter la ligne
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.btnGhost}
+                        onClick={() => {
+                          URL.revokeObjectURL(factureApercu.imageUrl);
+                          setFactureApercu(null);
+                        }}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
             {AIRBNB_LISTINGS.map(({ id, label }) => {
               const lines = draft.listings[id];

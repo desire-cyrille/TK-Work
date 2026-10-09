@@ -8,6 +8,9 @@ export default defineConfig({
     /** Bundle principal ~1 Mo (jspdf, html2canvas) — évite le warning Vite en CI. */
     chunkSizeWarningLimit: 1100,
   },
+  optimizeDeps: {
+    exclude: ["tesseract.js"],
+  },
   server: {
     proxy: {
       // API en local : `npm run dev:api` ou tout-en-un `npm run dev:full` (port 3000)
