@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 import { PageFrame } from "../components/PageFrame";
 import {
   buildMergedSynthese,
@@ -385,12 +392,64 @@ export function Airbnb() {
   } | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [factureBusy, setFactureBusy] = useState(false);
+  const [factureDragOver, setFactureDragOver] = useState(false);
   const [factureErr, setFactureErr] = useState<string | null>(null);
   const [factureApercu, setFactureApercu] = useState<{
     imageUrl: string;
     proposition: AirbnbFactureProposee;
   } | null>(null);
   const factureFileRef = useRef<HTMLInputElement | null>(null);
+  const factureDragDepthRef = useRef(0);
+
+  function fichierImageDepuisTransfert(
+    dt: DataTransfer | null,
+  ): File | null {
+    if (!dt) return null;
+    const fromFiles = Array.from(dt.files ?? []).find((f) =>
+      f.type.startsWith("image/"),
+    );
+    if (fromFiles) return fromFiles;
+    const item = Array.from(dt.items ?? []).find(
+      (it) => it.kind === "file" && it.type.startsWith("image/"),
+    );
+    return item?.getAsFile() ?? null;
+  }
+
+  function onFactureDragEnter(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    factureDragDepthRef.current += 1;
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    setFactureDragOver(true);
+  }
+
+  function onFactureDragOver(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    setFactureDragOver(true);
+  }
+
+  function onFactureDragLeave(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    factureDragDepthRef.current = Math.max(0, factureDragDepthRef.current - 1);
+    if (factureDragDepthRef.current === 0) setFactureDragOver(false);
+  }
+
+  function onFactureDrop(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    factureDragDepthRef.current = 0;
+    setFactureDragOver(false);
+    if (factureBusy) return;
+    const file = fichierImageDepuisTransfert(e.dataTransfer);
+    if (!file) {
+      setFactureErr("Déposez une image de facture (PNG, JPEG…).");
+      return;
+    }
+    void lireFactureFichier(file);
+  }
 
   const storeRef = useRef(store);
   storeRef.current = store;
@@ -906,7 +965,15 @@ export function Airbnb() {
               de séjour (la plus récente en bas).
             </p>
 
-            <div className={styles.facturePaste}>
+            <div
+              className={`${styles.facturePaste}${
+                factureDragOver ? ` ${styles.facturePasteDragOver}` : ""
+              }`}
+              onDragEnter={onFactureDragEnter}
+              onDragOver={onFactureDragOver}
+              onDragLeave={onFactureDragLeave}
+              onDrop={onFactureDrop}
+            >
               <input
                 ref={factureFileRef}
                 type="file"
@@ -926,11 +993,12 @@ export function Airbnb() {
               >
                 {factureBusy
                   ? "Lecture de la facture…"
-                  : "Coller ou choisir une facture"}
+                  : "Coller, glisser-déposer ou choisir une facture"}
               </button>
               <span className={styles.facturePasteHint}>
-                Capture type carte de réservation (logement, dates, revenus,
-                frais de ménage, frais de service).
+                Glissez une capture ici, ou Ctrl+V / choisir un fichier.
+                Format carte de réservation (logement, dates, revenus, frais
+                de ménage, frais de service).
               </span>
               {factureErr ? (
                 <p className={styles.errMsg} role="status">
