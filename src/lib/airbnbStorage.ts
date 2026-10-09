@@ -11,6 +11,7 @@ import type {
   AirbnbVentilationLine,
 } from "../types/airbnb";
 import { AIRBNB_LISTINGS, airbnbListingIsActiveInMonth } from "../types/airbnb";
+import { normaliserEtTrierLignesVentilation } from "./airbnbVentilationSort";
 
 const STORAGE_KEY = "tk-gestion-airbnb-ventilation-v1";
 
@@ -251,7 +252,8 @@ export function defaultMonthVentilation(month: string): AirbnbMonthVentilation {
 export function cloneMonthVentilation(v: AirbnbMonthVentilation): AirbnbMonthVentilation {
   const listings = emptyListingsRecord();
   for (const { id } of AIRBNB_LISTINGS) {
-    listings[id] = v.listings[id].map((r) => ({ ...r }));
+    const rows = (v.listings[id] ?? []).map((r) => ({ ...r }));
+    listings[id] = normaliserEtTrierLignesVentilation(rows);
   }
   return { month: v.month, listings };
 }
@@ -378,9 +380,12 @@ export function loadAirbnbState(): AirbnbState {
     const chargesGlobal = fromGlobal
       ? fromGlobal
       : migrateFromLegacyChargesArray(normalizeChargesFromStorage(p.charges));
+    const ventilations = (p.ventilations as AirbnbMonthVentilation[]).map(
+      (v) => cloneMonthVentilation(v),
+    );
     return {
       version: 1,
-      ventilations: p.ventilations as AirbnbMonthVentilation[],
+      ventilations,
       chargesGlobal,
       syntheseFichierOverrides: normalizeSyntheseFichierOverrides(
         (p as Partial<AirbnbState>).syntheseFichierOverrides

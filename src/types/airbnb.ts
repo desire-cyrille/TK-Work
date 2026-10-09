@@ -33,6 +33,8 @@ export type AirbnbVentilationLine = {
   facture: string;
   frais: string;
   deduction: string;
+  /** Début de séjour (AAAA-MM-JJ), pour classer les lignes (plus récent en bas). */
+  dateSejour?: string;
 };
 
 export type AirbnbMonthVentilation = {

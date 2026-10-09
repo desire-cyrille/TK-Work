@@ -3,11 +3,14 @@ import {
   type AirbnbListingId,
   type AirbnbVentilationLine,
 } from "../types/airbnb";
+import { normaliserEtTrierLignesVentilation } from "./airbnbVentilationSort";
 
 export type AirbnbFactureProposee = {
   listingId: AirbnbListingId;
   listingLabel: string;
   month: string;
+  /** Début de séjour AAAA-MM-JJ (tri des lignes). */
+  dateSejour: string;
   libelle: string;
   facture: string;
   frais: string;
@@ -100,23 +103,34 @@ export function matchListingLabel(
   return best ? { id: best.id, label: best.label } : null;
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 function extraireMoisEtSejour(text: string): {
   month: string | null;
   sejour: string | null;
+  dateSejour: string | null;
 } {
   const re =
     /(\d{1,2})\s*[–\-àto]+\s*(\d{1,2})\s*(janv|f[eé]vr|mars|avr|mai|juin|juil|ao[uû]t|sept|oct|nov|d[eé]c)[a-zû.]*\s*(\d{4})/i;
   const m = text.replace(/\u00a0/g, " ").match(re);
-  if (!m) return { month: null, sejour: null };
+  if (!m) return { month: null, sejour: null, dateSejour: null };
   const mois = MOIS.find((x) => x.re.test(m[3] ?? ""));
   const year = m[4] ?? "";
   const mm = mois?.mm;
+  const day = Number(m[1]);
   const sejour = `${m[1]}–${m[2]} ${m[3]}.${year ? ` ${year}` : ""}`
     .replace(/\.\./g, ".")
     .trim();
+  const dateSejour =
+    mm && year && day >= 1 && day <= 31
+      ? `${year}-${mm}-${pad2(day)}`
+      : null;
   return {
     month: mm && year ? `${year}-${mm}` : null,
     sejour,
+    dateSejour,
   };
 }
 
@@ -168,7 +182,7 @@ export function parseAirbnbFactureTexte(
         "Logement non reconnu. Vérifiez que le nom (Cosy Chill, familiale…) apparaît sur la capture.",
     };
   }
-  const { month, sejour } = extraireMoisEtSejour(text);
+  const { month, sejour, dateSejour } = extraireMoisEtSejour(text);
   const invite = extraireInvite(text);
 
   let facture = montantApresLibelle(text, /revenus/i);
@@ -200,6 +214,7 @@ export function parseAirbnbFactureTexte(
       listingId: listing.id,
       listingLabel: listing.label,
       month: month ?? "",
+      dateSejour: dateSejour ?? "",
       libelle,
       facture: formatEuroSaisie(facture),
       frais: formatEuroSaisie(fraisMenage ?? 0),
@@ -218,6 +233,9 @@ export function ligneDepuisFacture(
     facture: p.facture,
     frais: p.frais,
     deduction: p.deduction,
+    dateSejour: /^\d{4}-\d{2}-\d{2}$/.test(p.dateSejour)
+      ? p.dateSejour
+      : undefined,
   };
 }
 
@@ -230,7 +248,7 @@ function ligneVide(row: AirbnbVentilationLine): boolean {
   );
 }
 
-/** Remplit la dernière ligne vide, sinon ajoute une ligne. */
+/** Remplit la dernière ligne vide, sinon ajoute une ligne, puis trie par date. */
 export function insererLigneVentilation(
   listings: Record<AirbnbListingId, AirbnbVentilationLine[]>,
   listingId: AirbnbListingId,
@@ -240,5 +258,8 @@ export function insererLigneVentilation(
   const last = rows[rows.length - 1];
   if (last && ligneVide(last)) rows[rows.length - 1] = { ...line, id: last.id };
   else rows.push(line);
-  return { ...listings, [listingId]: rows };
+  return {
+    ...listings,
+    [listingId]: normaliserEtTrierLignesVentilation(rows),
+  };
 }

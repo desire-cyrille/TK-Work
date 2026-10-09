@@ -28,6 +28,7 @@ assert.equal(r.value.frais, "28");
 assert.equal(r.value.deduction, "27,90");
 assert.match(r.value.libelle, /Angelique Kai/);
 assert.match(r.value.libelle, /8–10/);
+assert.equal(r.value.dateSejour, "2026-10-08");
 
 const sale = `
 Angelique Kai

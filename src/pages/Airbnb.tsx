@@ -53,6 +53,7 @@ import {
   type AirbnbFactureProposee,
 } from "../lib/airbnbFactureParse";
 import { imageFileToDataUrl, ocrFactureImage } from "../lib/airbnbFactureOcr";
+import { normaliserEtTrierLignesVentilation } from "../lib/airbnbVentilationSort";
 import { TK_GESTION_RELOAD_LOCAL_DATA_EVENT } from "../lib/reloadLocalAppData";
 import styles from "./Airbnb.module.css";
 
@@ -540,7 +541,7 @@ export function Airbnb() {
       listings: {
         ...d.listings,
         [listingId]: d.listings[listingId].map((row) =>
-          row.id === lineId ? { ...row, ...patch } : row
+          row.id === lineId ? { ...row, ...patch } : row,
         ),
       },
     }));
@@ -634,7 +635,10 @@ export function Airbnb() {
       ...d,
       listings: {
         ...d.listings,
-        [listingId]: [...d.listings[listingId], newLine()],
+        [listingId]: normaliserEtTrierLignesVentilation([
+          ...d.listings[listingId],
+          newLine(),
+        ]),
       },
     }));
   }
@@ -670,6 +674,7 @@ export function Airbnb() {
   function saveVentilation() {
     if (saveBusy) return;
     const toSave = cloneMonthVentilation(draft);
+    setDraft(toSave);
     setStore((s) => {
       const i = s.ventilations.findIndex((v) => v.month === toSave.month);
       const vent = [...s.ventilations];
@@ -897,7 +902,8 @@ export function Airbnb() {
               <strong>Bénéfice net</strong> reflète cette déduction. Vous pouvez
               aussi <strong>coller une capture de facture</strong> (Ctrl+V) : le
               logement, le séjour et les montants sont proposés, à valider avant
-              d’ajouter la ligne.
+              d’ajouter la ligne. Les lignes d’un logement sont classées par date
+              de séjour (la plus récente en bas).
             </p>
 
             <div className={styles.facturePaste}>
