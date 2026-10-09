@@ -45,6 +45,16 @@ import {
   type AirbnbState,
   type AirbnbVentilationLine,
 } from "../types/airbnb";
+import { confirmCloudPush } from "../lib/cloudSync";
+import {
+  insererLigneVentilation,
+  ligneDepuisFacture,
+  parseAirbnbFactureTexte,
+  type AirbnbFactureProposee,
+} from "../lib/airbnbFactureParse";
+import { imageFileToDataUrl, ocrFactureImage } from "../lib/airbnbFactureOcr";
+import { normaliserEtTrierLignesVentilation } from "../lib/airbnbVentilationSort";
+import { TK_GESTION_RELOAD_LOCAL_DATA_EVENT } from "../lib/reloadLocalAppData";
 import styles from "./Airbnb.module.css";
 
 type TabId = "ventilation" | "charges" | "synthese";
@@ -369,6 +379,18 @@ export function Airbnb() {
       listSyntheseDataMonths(initialStoreRef.current ?? loadAirbnbState()),
     ),
   );
+  const [saveMsg, setSaveMsg] = useState<{
+    type: "ok" | "err";
+    text: string;
+  } | null>(null);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [factureBusy, setFactureBusy] = useState(false);
+  const [factureErr, setFactureErr] = useState<string | null>(null);
+  const [factureApercu, setFactureApercu] = useState<{
+    imageUrl: string;
+    proposition: AirbnbFactureProposee;
+  } | null>(null);
+  const factureFileRef = useRef<HTMLInputElement | null>(null);
 
   const storeRef = useRef(store);
   storeRef.current = store;
@@ -376,6 +398,23 @@ export function Airbnb() {
   useEffect(() => {
     saveAirbnbState(store);
   }, [store]);
+
+  useEffect(() => {
+    const onReload = () => {
+      const s = loadAirbnbState();
+      setStore(s);
+      setChargesDraft(cloneChargesGlobal(s.chargesGlobal));
+      const found = s.ventilations.find((v) => v.month === selectedMonth);
+      setDraft(
+        found
+          ? cloneMonthVentilation(found)
+          : defaultMonthVentilation(selectedMonth),
+      );
+    };
+    window.addEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+    return () =>
+      window.removeEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+  }, [selectedMonth]);
 
   useEffect(() => {
     setChargesDraft(cloneChargesGlobal(store.chargesGlobal));
@@ -502,18 +541,104 @@ export function Airbnb() {
       listings: {
         ...d.listings,
         [listingId]: d.listings[listingId].map((row) =>
-          row.id === lineId ? { ...row, ...patch } : row
+          row.id === lineId ? { ...row, ...patch } : row,
         ),
       },
     }));
   }
+
+  async function lireFactureFichier(file: File) {
+    setFactureErr(null);
+    setFactureBusy(true);
+    if (factureApercu?.imageUrl) URL.revokeObjectURL(factureApercu.imageUrl);
+    setFactureApercu(null);
+    try {
+      const imageUrl = await imageFileToDataUrl(file);
+      const texte = await ocrFactureImage(file);
+      const parsed = parseAirbnbFactureTexte(texte);
+      if (!parsed.ok) {
+        setFactureErr(parsed.error);
+        return;
+      }
+      setFactureApercu({ imageUrl, proposition: parsed.value });
+    } catch (e) {
+      setFactureErr(
+        e instanceof Error
+          ? e.message
+          : "Impossible de lire cette image.",
+      );
+    } finally {
+      setFactureBusy(false);
+    }
+  }
+
+  function appliquerPropositionFacture() {
+    if (!factureApercu) return;
+    const p = factureApercu.proposition;
+    const line = ligneDepuisFacture(p, () => crypto.randomUUID());
+    const month = /^\d{4}-\d{2}$/.test(p.month) ? p.month : selectedMonth;
+
+    setStore((s) => {
+      const current = cloneMonthVentilation(draft);
+      const vent = [...s.ventilations];
+      const iCur = vent.findIndex((v) => v.month === current.month);
+      if (iCur === -1) vent.push(current);
+      else vent[iCur] = current;
+
+      const i = vent.findIndex((v) => v.month === month);
+      const base =
+        i === -1
+          ? defaultMonthVentilation(month)
+          : cloneMonthVentilation(vent[i]!);
+      const nextMonth: AirbnbMonthVentilation = {
+        ...base,
+        listings: insererLigneVentilation(base.listings, p.listingId, line),
+      };
+      if (i === -1) vent.push(nextMonth);
+      else vent[i] = nextMonth;
+      const next = { ...s, ventilations: vent };
+      saveAirbnbState(next);
+      return next;
+    });
+
+    if (month !== selectedMonth) {
+      setSelectedMonth(month);
+    } else {
+      setDraft((d) => ({
+        ...d,
+        listings: insererLigneVentilation(d.listings, p.listingId, line),
+      }));
+    }
+    URL.revokeObjectURL(factureApercu.imageUrl);
+    setFactureApercu(null);
+    setFactureErr(null);
+  }
+
+  useEffect(() => {
+    if (tab !== "ventilation") return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const img = Array.from(items).find((it) => it.type.startsWith("image/"));
+      if (!img) return;
+      const file = img.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      void lireFactureFichier(file);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [tab, factureApercu]);
 
   function addLine(listingId: AirbnbListingId) {
     setDraft((d) => ({
       ...d,
       listings: {
         ...d.listings,
-        [listingId]: [...d.listings[listingId], newLine()],
+        [listingId]: normaliserEtTrierLignesVentilation([
+          ...d.listings[listingId],
+          newLine(),
+        ]),
       },
     }));
   }
@@ -528,20 +653,49 @@ export function Airbnb() {
     }));
   }
 
+  async function confirmerEnvoiServeur(okText: string) {
+    setSaveBusy(true);
+    setSaveMsg(null);
+    try {
+      const cloud = await confirmCloudPush();
+      if (cloud.savedOnServer) {
+        setSaveMsg({ type: "ok", text: okText });
+      } else {
+        setSaveMsg({
+          type: "err",
+          text: `Enregistré sur cet appareil, mais pas sur le serveur. ${cloud.error}`,
+        });
+      }
+    } finally {
+      setSaveBusy(false);
+    }
+  }
+
   function saveVentilation() {
+    if (saveBusy) return;
     const toSave = cloneMonthVentilation(draft);
+    setDraft(toSave);
     setStore((s) => {
       const i = s.ventilations.findIndex((v) => v.month === toSave.month);
       const vent = [...s.ventilations];
       if (i === -1) vent.push(toSave);
       else vent[i] = toSave;
-      return { ...s, ventilations: vent };
+      const next = { ...s, ventilations: vent };
+      saveAirbnbState(next);
+      return next;
     });
+    void confirmerEnvoiServeur("Ventilation enregistrée sur le serveur.");
   }
 
   function saveCharges() {
+    if (saveBusy) return;
     const toSave = cloneChargesGlobal(chargesDraft);
-    setStore((s) => ({ ...s, chargesGlobal: toSave }));
+    setStore((s) => {
+      const next = { ...s, chargesGlobal: toSave };
+      saveAirbnbState(next);
+      return next;
+    });
+    void confirmerEnvoiServeur("Charges enregistrées sur le serveur.");
   }
 
   const syntheseDetail =
@@ -561,16 +715,22 @@ export function Airbnb() {
   ]);
 
   function saveFichierSyntheseEdit() {
-    if (detailMonth == null) return;
+    if (detailMonth == null || saveBusy) return;
     const benefices = parseEuroInputDisplay(fichierEditBenef);
     const revenus = parseEuroInputDisplay(fichierEditRevenus);
-    setStore((s) => ({
-      ...s,
-      syntheseFichierOverrides: {
-        ...s.syntheseFichierOverrides,
-        [detailMonth]: { benefices, revenus },
-      },
-    }));
+    const month = detailMonth;
+    setStore((s) => {
+      const next = {
+        ...s,
+        syntheseFichierOverrides: {
+          ...s.syntheseFichierOverrides,
+          [month]: { benefices, revenus },
+        },
+      };
+      saveAirbnbState(next);
+      return next;
+    });
+    void confirmerEnvoiServeur("Montants du mois enregistrés sur le serveur.");
   }
 
   function resetFichierSyntheseToSeed() {
@@ -667,7 +827,8 @@ export function Airbnb() {
           charges ; vous pouvez <strong>corriger leurs montants</strong> depuis
           le détail (clic sur la ligne du mois). Les <strong>charges</strong> ne
           s’appliquent aux bénéfices en synthèse que pour les mois saisis dans
-          l’onglet Ventilation.
+          l’onglet Ventilation. « Enregistrer » envoie aussi la copie sur le{" "}
+          <strong>serveur partagé</strong>.
         </p>
 
         <div className={styles.tabs} role="tablist" aria-label="Sections Airbnb">
@@ -700,6 +861,15 @@ export function Airbnb() {
           </button>
         </div>
 
+        {saveMsg ? (
+          <p
+            className={saveMsg.type === "ok" ? styles.okMsg : styles.errMsg}
+            role="status"
+          >
+            {saveMsg.text}
+          </p>
+        ) : null}
+
         {tab === "ventilation" ? (
           <>
             <div className={styles.toolbar}>
@@ -717,9 +887,10 @@ export function Airbnb() {
                 <button
                   type="button"
                   className={styles.btnPrimary}
+                  disabled={saveBusy}
                   onClick={saveVentilation}
                 >
-                  Enregistrer la ventilation du mois
+                  {saveBusy ? "Enregistrement…" : "Enregistrer la ventilation du mois"}
                 </button>
               </div>
             </div>
@@ -728,8 +899,215 @@ export function Airbnb() {
               (facturé TTC, frais plateforme, déductions). Bénéfice brut = facturé
               + frais − déduction. Les charges de l’annonce (onglet Charges) sont
               réparties sur les lignes au prorata du bénéfice brut ; la colonne{" "}
-              <strong>Bénéfice net</strong> reflète cette déduction.
+              <strong>Bénéfice net</strong> reflète cette déduction. Vous pouvez
+              aussi <strong>coller une capture de facture</strong> (Ctrl+V) : le
+              logement, le séjour et les montants sont proposés, à valider avant
+              d’ajouter la ligne. Les lignes d’un logement sont classées par date
+              de séjour (la plus récente en bas).
             </p>
+
+            <div className={styles.facturePaste}>
+              <input
+                ref={factureFileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void lireFactureFichier(f);
+                }}
+              />
+              <button
+                type="button"
+                className={styles.facturePasteBtn}
+                disabled={factureBusy}
+                onClick={() => factureFileRef.current?.click()}
+              >
+                {factureBusy
+                  ? "Lecture de la facture…"
+                  : "Coller ou choisir une facture"}
+              </button>
+              <span className={styles.facturePasteHint}>
+                Capture type carte de réservation (logement, dates, revenus,
+                frais de ménage, frais de service).
+              </span>
+              {factureErr ? (
+                <p className={styles.errMsg} role="status">
+                  {factureErr}
+                </p>
+              ) : null}
+              {factureApercu ? (
+                <div className={styles.facturePreview}>
+                  <img
+                    src={factureApercu.imageUrl}
+                    alt="Facture collée"
+                    className={styles.facturePreviewImg}
+                  />
+                  <div className={styles.facturePreviewFields}>
+                    <p className={styles.facturePreviewTitle}>
+                      Ligne proposée — vérifiez puis ajoutez
+                    </p>
+                    <label className={styles.factureField}>
+                      Logement
+                      <select
+                        className={styles.select}
+                        value={factureApercu.proposition.listingId}
+                        onChange={(e) => {
+                          const id = e.target.value as AirbnbListingId;
+                          const label =
+                            AIRBNB_LISTINGS.find((l) => l.id === id)?.label ??
+                            id;
+                          setFactureApercu((cur) =>
+                            cur
+                              ? {
+                                  ...cur,
+                                  proposition: {
+                                    ...cur.proposition,
+                                    listingId: id,
+                                    listingLabel: label,
+                                  },
+                                }
+                              : cur,
+                          );
+                        }}
+                      >
+                        {AIRBNB_LISTINGS.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className={styles.factureField}>
+                      Mois
+                      <input
+                        type="month"
+                        className={styles.monthInput}
+                        value={factureApercu.proposition.month}
+                        onChange={(e) =>
+                          setFactureApercu((cur) =>
+                            cur
+                              ? {
+                                  ...cur,
+                                  proposition: {
+                                    ...cur.proposition,
+                                    month: e.target.value,
+                                  },
+                                }
+                              : cur,
+                          )
+                        }
+                      />
+                    </label>
+                    <label className={styles.factureField}>
+                      Séjour / libellé
+                      <input
+                        className={styles.input}
+                        value={factureApercu.proposition.libelle}
+                        onChange={(e) =>
+                          setFactureApercu((cur) =>
+                            cur
+                              ? {
+                                  ...cur,
+                                  proposition: {
+                                    ...cur.proposition,
+                                    libelle: e.target.value,
+                                  },
+                                }
+                              : cur,
+                          )
+                        }
+                      />
+                    </label>
+                    <div className={styles.factureMontants}>
+                      <label className={styles.factureField}>
+                        Facturé
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={factureApercu.proposition.facture}
+                          onChange={(e) =>
+                            setFactureApercu((cur) =>
+                              cur
+                                ? {
+                                    ...cur,
+                                    proposition: {
+                                      ...cur.proposition,
+                                      facture: e.target.value,
+                                    },
+                                  }
+                                : cur,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className={styles.factureField}>
+                        Frais
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={factureApercu.proposition.frais}
+                          onChange={(e) =>
+                            setFactureApercu((cur) =>
+                              cur
+                                ? {
+                                    ...cur,
+                                    proposition: {
+                                      ...cur.proposition,
+                                      frais: e.target.value,
+                                    },
+                                  }
+                                : cur,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className={styles.factureField}>
+                        Déduction
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={factureApercu.proposition.deduction}
+                          onChange={(e) =>
+                            setFactureApercu((cur) =>
+                              cur
+                                ? {
+                                    ...cur,
+                                    proposition: {
+                                      ...cur.proposition,
+                                      deduction: e.target.value,
+                                    },
+                                  }
+                                : cur,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className={styles.facturePreviewActions}>
+                      <button
+                        type="button"
+                        className={styles.btnPrimary}
+                        onClick={appliquerPropositionFacture}
+                      >
+                        Ajouter la ligne
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.btnGhost}
+                        onClick={() => {
+                          URL.revokeObjectURL(factureApercu.imageUrl);
+                          setFactureApercu(null);
+                        }}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
             {AIRBNB_LISTINGS.map(({ id, label }) => {
               const lines = draft.listings[id];
@@ -960,9 +1338,10 @@ export function Airbnb() {
                 <button
                   type="button"
                   className={styles.btnPrimary}
+                  disabled={saveBusy}
                   onClick={saveCharges}
                 >
-                  Enregistrer les charges
+                  {saveBusy ? "Enregistrement…" : "Enregistrer les charges"}
                 </button>
               </div>
             </div>
@@ -1322,7 +1701,7 @@ export function Airbnb() {
                 <div className={styles.fichierEditPanel}>
                   <p className={styles.fichierEditTitle}>
                     Corriger les montants (remplace les valeurs importées pour ce
-                    mois, enregistré dans ce navigateur)
+                    mois ; Enregistrer envoie aussi sur le serveur)
                   </p>
                   <div className={styles.fichierEditGrid}>
                     <label className={styles.fichierEditField}>
@@ -1352,9 +1731,10 @@ export function Airbnb() {
                     <button
                       type="button"
                       className={styles.btnPrimary}
+                      disabled={saveBusy}
                       onClick={saveFichierSyntheseEdit}
                     >
-                      Enregistrer les montants
+                      {saveBusy ? "Enregistrement…" : "Enregistrer les montants"}
                     </button>
                     {fichierHasOverride ? (
                       <button

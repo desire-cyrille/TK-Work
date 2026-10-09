@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { PageFrame } from "../components/PageFrame";
 import { useBiens } from "../context/BiensContext";
@@ -7,6 +7,7 @@ import { loadAirbnbState } from "../lib/airbnbStorage";
 import { computeRevenusParMoisDashboard } from "../lib/dashboardBenefices";
 import { computeDashboardPatrimoineStats } from "../lib/dashboardBiens";
 import { fusionnerMoisFinanceAvecContrat } from "../lib/moisFinance";
+import { TK_GESTION_RELOAD_LOCAL_DATA_EVENT } from "../lib/reloadLocalAppData";
 import styles from "./Home.module.css";
 
 const eur = (n: number) =>
@@ -20,6 +21,14 @@ export function Home() {
   const { pathname } = useLocation();
   const { logements, contratsLocation, bailleurs, chainesLocation } = useBiens();
   const { moisParContrat } = useFinance();
+  const [airbnbTick, setAirbnbTick] = useState(0);
+
+  useEffect(() => {
+    const onReload = () => setAirbnbTick((n) => n + 1);
+    window.addEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+    return () =>
+      window.removeEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+  }, []);
   const dashboardStats = useMemo(
     () =>
       computeDashboardPatrimoineStats({
@@ -38,7 +47,7 @@ export function Home() {
       (c) => fusionnerMoisFinanceAvecContrat(c, moisParContrat[c.id] ?? []),
       airbnb
     );
-  }, [pathname, contratsLocation, chainesLocation, moisParContrat]);
+  }, [pathname, contratsLocation, chainesLocation, moisParContrat, airbnbTick]);
 
   return (
     <PageFrame title="Tableau de bord">

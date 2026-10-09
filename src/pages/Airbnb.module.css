@@ -96,6 +96,32 @@
   filter: brightness(1.06);
 }
 
+.btnPrimary:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.okMsg,
+.errMsg {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.okMsg {
+  color: #166534;
+  background: rgba(74, 222, 128, 0.18);
+  border: 1px solid rgba(22, 101, 52, 0.28);
+}
+
+.errMsg {
+  color: #991b1b;
+  background: rgba(248, 113, 113, 0.14);
+  border: 1px solid rgba(153, 27, 27, 0.28);
+}
+
 .btnGhost {
   font: inherit;
   font-size: 0.84rem;
@@ -117,6 +143,105 @@
   color: var(--workspace-muted);
   margin: 0;
   max-width: 36rem;
+}
+
+.input,
+.select {
+  font: inherit;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border-on-light);
+  border-radius: 8px;
+  background: var(--surface-elevated);
+  color: var(--workspace-text);
+}
+
+.facturePaste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 1rem 0 1.4rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--border-on-light);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.facturePasteBtn {
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 75, 43, 0.35);
+  background: rgba(255, 75, 43, 0.08);
+  color: var(--workspace-text);
+  cursor: pointer;
+}
+
+.facturePasteBtn:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.facturePasteHint {
+  font-size: 0.8rem;
+  color: var(--workspace-muted);
+}
+
+.facturePreview {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.facturePreviewImg {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border-on-light);
+  background: #fff;
+}
+
+.facturePreviewFields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.facturePreviewTitle {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.factureField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--workspace-muted);
+}
+
+.factureMontants {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.facturePreviewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 720px) {
+  .facturePreview {
+    grid-template-columns: 1fr;
+  }
 }
 
 .listingCard {
