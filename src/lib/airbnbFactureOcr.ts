@@ -1,8 +1,23 @@
-/** Prépare une image puis lit le texte (Tesseract, chargé à la demande). */
+/** Prépare une image puis lit le texte (Tesseract via CDN, hors bundle Vite). */
+
+declare global {
+  interface Window {
+    Tesseract?: {
+      recognize: (
+        img: HTMLCanvasElement | HTMLImageElement | string,
+        lang: string,
+      ) => Promise<{ data: { text: string } }>;
+    };
+  }
+}
 
 function preprocessCanvas(source: HTMLCanvasElement | HTMLImageElement): HTMLCanvasElement {
-  const sw = "naturalWidth" in source ? source.naturalWidth || source.width : source.width;
-  const sh = "naturalHeight" in source ? source.naturalHeight || source.height : source.height;
+  const sw =
+    "naturalWidth" in source ? source.naturalWidth || source.width : source.width;
+  const sh =
+    "naturalHeight" in source
+      ? source.naturalHeight || source.height
+      : source.height;
   const targetW = Math.max(sw * 2, 1400);
   const scale = targetW / Math.max(sw, 1);
   const w = Math.max(1, Math.round(sw * scale));
@@ -36,6 +51,24 @@ function preprocessCanvas(source: HTMLCanvasElement | HTMLImageElement): HTMLCan
   return canvas;
 }
 
+async function loadTesseractCdn(): Promise<NonNullable<Window["Tesseract"]>> {
+  if (window.Tesseract) return window.Tesseract;
+  await new Promise<void>((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src =
+      "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () =>
+      reject(new Error("Chargement du lecteur d’image impossible."));
+    document.head.appendChild(s);
+  });
+  if (!window.Tesseract) {
+    throw new Error("Lecteur d’image indisponible.");
+  }
+  return window.Tesseract;
+}
+
 export async function imageFileToDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -57,12 +90,7 @@ export async function ocrFactureImage(file: Blob): Promise<string> {
     el.src = dataUrl;
   });
   const prepared = preprocessCanvas(img);
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("fra");
-  try {
-    const r = await worker.recognize(prepared);
-    return (r.data.text ?? "").trim();
-  } finally {
-    await worker.terminate();
-  }
+  const Tesseract = await loadTesseractCdn();
+  const r = await Tesseract.recognize(prepared, "fra");
+  return (r.data.text ?? "").trim();
 }
