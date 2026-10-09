@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type DragEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PageFrame } from "../components/PageFrame";
 import {
   buildMergedSynthese,
@@ -399,7 +392,13 @@ export function Airbnb() {
     proposition: AirbnbFactureProposee;
   } | null>(null);
   const factureFileRef = useRef<HTMLInputElement | null>(null);
+  const factureZoneRef = useRef<HTMLDivElement | null>(null);
   const factureDragDepthRef = useRef(0);
+  const lireFactureFichierRef = useRef<(file: File) => Promise<void>>(
+    async () => {},
+  );
+  const factureBusyRef = useRef(false);
+  factureBusyRef.current = factureBusy;
 
   function fichierImageDepuisTransfert(
     dt: DataTransfer | null,
@@ -413,42 +412,6 @@ export function Airbnb() {
       (it) => it.kind === "file" && it.type.startsWith("image/"),
     );
     return item?.getAsFile() ?? null;
-  }
-
-  function onFactureDragEnter(e: DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    factureDragDepthRef.current += 1;
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-    setFactureDragOver(true);
-  }
-
-  function onFactureDragOver(e: DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-    setFactureDragOver(true);
-  }
-
-  function onFactureDragLeave(e: DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    factureDragDepthRef.current = Math.max(0, factureDragDepthRef.current - 1);
-    if (factureDragDepthRef.current === 0) setFactureDragOver(false);
-  }
-
-  function onFactureDrop(e: DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    factureDragDepthRef.current = 0;
-    setFactureDragOver(false);
-    if (factureBusy) return;
-    const file = fichierImageDepuisTransfert(e.dataTransfer);
-    if (!file) {
-      setFactureErr("Déposez une image de facture (PNG, JPEG…).");
-      return;
-    }
-    void lireFactureFichier(file);
   }
 
   const storeRef = useRef(store);
@@ -630,6 +593,77 @@ export function Airbnb() {
       setFactureBusy(false);
     }
   }
+  lireFactureFichierRef.current = lireFactureFichier;
+
+  /** Écoute native : plus fiable que les events React pour dataTransfer.files (Safari). */
+  useEffect(() => {
+    if (tab !== "ventilation") return;
+    const el = factureZoneRef.current;
+    if (!el) return;
+
+    const onEnter = (e: globalThis.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      factureDragDepthRef.current += 1;
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      setFactureDragOver(true);
+    };
+    const onOver = (e: globalThis.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      setFactureDragOver(true);
+    };
+    const onLeave = (e: globalThis.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      factureDragDepthRef.current = Math.max(
+        0,
+        factureDragDepthRef.current - 1,
+      );
+      if (factureDragDepthRef.current === 0) setFactureDragOver(false);
+    };
+    const onDrop = (e: globalThis.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      factureDragDepthRef.current = 0;
+      setFactureDragOver(false);
+      if (factureBusyRef.current) return;
+      const file = fichierImageDepuisTransfert(e.dataTransfer);
+      if (!file) {
+        setFactureErr("Déposez une image de facture (PNG, JPEG…).");
+        return;
+      }
+      void lireFactureFichierRef.current(file);
+    };
+
+    el.addEventListener("dragenter", onEnter);
+    el.addEventListener("dragover", onOver);
+    el.addEventListener("dragleave", onLeave);
+    el.addEventListener("drop", onDrop);
+    return () => {
+      el.removeEventListener("dragenter", onEnter);
+      el.removeEventListener("dragover", onOver);
+      el.removeEventListener("dragleave", onLeave);
+      el.removeEventListener("drop", onDrop);
+    };
+  }, [tab]);
+
+  /** Évite que le navigateur ouvre l’image dans un nouvel onglet si on rate la zone. */
+  useEffect(() => {
+    if (tab !== "ventilation") return;
+    const blockNav = (e: globalThis.DragEvent) => {
+      if (e.dataTransfer?.types?.includes("Files")) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("dragover", blockNav);
+    window.addEventListener("drop", blockNav);
+    return () => {
+      window.removeEventListener("dragover", blockNav);
+      window.removeEventListener("drop", blockNav);
+    };
+  }, [tab]);
 
   function appliquerPropositionFacture() {
     if (!factureApercu) return;
@@ -966,13 +1000,10 @@ export function Airbnb() {
             </p>
 
             <div
+              ref={factureZoneRef}
               className={`${styles.facturePaste}${
                 factureDragOver ? ` ${styles.facturePasteDragOver}` : ""
               }`}
-              onDragEnter={onFactureDragEnter}
-              onDragOver={onFactureDragOver}
-              onDragLeave={onFactureDragLeave}
-              onDrop={onFactureDrop}
             >
               <input
                 ref={factureFileRef}
