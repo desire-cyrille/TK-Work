@@ -165,6 +165,12 @@
   border: 1px dashed var(--border-on-light);
   border-radius: 12px;
   background: var(--surface);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.facturePasteDragOver {
+  border-color: rgba(255, 75, 43, 0.65);
+  background: rgba(255, 75, 43, 0.1);
 }
 
 .facturePasteBtn {

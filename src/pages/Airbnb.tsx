@@ -385,12 +385,34 @@ export function Airbnb() {
   } | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [factureBusy, setFactureBusy] = useState(false);
+  const [factureDragOver, setFactureDragOver] = useState(false);
   const [factureErr, setFactureErr] = useState<string | null>(null);
   const [factureApercu, setFactureApercu] = useState<{
     imageUrl: string;
     proposition: AirbnbFactureProposee;
   } | null>(null);
   const factureFileRef = useRef<HTMLInputElement | null>(null);
+  const factureZoneRef = useRef<HTMLDivElement | null>(null);
+  const factureDragDepthRef = useRef(0);
+  const lireFactureFichierRef = useRef<(file: File) => Promise<void>>(
+    async () => {},
+  );
+  const factureBusyRef = useRef(false);
+  factureBusyRef.current = factureBusy;
+
+  function fichierImageDepuisTransfert(
+    dt: DataTransfer | null,
+  ): File | null {
+    if (!dt) return null;
+    const fromFiles = Array.from(dt.files ?? []).find((f) =>
+      f.type.startsWith("image/"),
+    );
+    if (fromFiles) return fromFiles;
+    const item = Array.from(dt.items ?? []).find(
+      (it) => it.kind === "file" && it.type.startsWith("image/"),
+    );
+    return item?.getAsFile() ?? null;
+  }
 
   const storeRef = useRef(store);
   storeRef.current = store;
@@ -571,6 +593,77 @@ export function Airbnb() {
       setFactureBusy(false);
     }
   }
+  lireFactureFichierRef.current = lireFactureFichier;
+
+  /** Écoute native : plus fiable que les events React pour dataTransfer.files (Safari). */
+  useEffect(() => {
+    if (tab !== "ventilation") return;
+    const el = factureZoneRef.current;
+    if (!el) return;
+
+    const onEnter = (e: globalThis.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      factureDragDepthRef.current += 1;
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      setFactureDragOver(true);
+    };
+    const onOver = (e: globalThis.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      setFactureDragOver(true);
+    };
+    const onLeave = (e: globalThis.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      factureDragDepthRef.current = Math.max(
+        0,
+        factureDragDepthRef.current - 1,
+      );
+      if (factureDragDepthRef.current === 0) setFactureDragOver(false);
+    };
+    const onDrop = (e: globalThis.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      factureDragDepthRef.current = 0;
+      setFactureDragOver(false);
+      if (factureBusyRef.current) return;
+      const file = fichierImageDepuisTransfert(e.dataTransfer);
+      if (!file) {
+        setFactureErr("Déposez une image de facture (PNG, JPEG…).");
+        return;
+      }
+      void lireFactureFichierRef.current(file);
+    };
+
+    el.addEventListener("dragenter", onEnter);
+    el.addEventListener("dragover", onOver);
+    el.addEventListener("dragleave", onLeave);
+    el.addEventListener("drop", onDrop);
+    return () => {
+      el.removeEventListener("dragenter", onEnter);
+      el.removeEventListener("dragover", onOver);
+      el.removeEventListener("dragleave", onLeave);
+      el.removeEventListener("drop", onDrop);
+    };
+  }, [tab]);
+
+  /** Évite que le navigateur ouvre l’image dans un nouvel onglet si on rate la zone. */
+  useEffect(() => {
+    if (tab !== "ventilation") return;
+    const blockNav = (e: globalThis.DragEvent) => {
+      if (e.dataTransfer?.types?.includes("Files")) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("dragover", blockNav);
+    window.addEventListener("drop", blockNav);
+    return () => {
+      window.removeEventListener("dragover", blockNav);
+      window.removeEventListener("drop", blockNav);
+    };
+  }, [tab]);
 
   function appliquerPropositionFacture() {
     if (!factureApercu) return;
@@ -906,7 +999,12 @@ export function Airbnb() {
               de séjour (la plus récente en bas).
             </p>
 
-            <div className={styles.facturePaste}>
+            <div
+              ref={factureZoneRef}
+              className={`${styles.facturePaste}${
+                factureDragOver ? ` ${styles.facturePasteDragOver}` : ""
+              }`}
+            >
               <input
                 ref={factureFileRef}
                 type="file"
@@ -926,11 +1024,12 @@ export function Airbnb() {
               >
                 {factureBusy
                   ? "Lecture de la facture…"
-                  : "Coller ou choisir une facture"}
+                  : "Coller, glisser-déposer ou choisir une facture"}
               </button>
               <span className={styles.facturePasteHint}>
-                Capture type carte de réservation (logement, dates, revenus,
-                frais de ménage, frais de service).
+                Glissez une capture ici, ou Ctrl+V / choisir un fichier.
+                Format carte de réservation (logement, dates, revenus, frais
+                de ménage, frais de service).
               </span>
               {factureErr ? (
                 <p className={styles.errMsg} role="status">
