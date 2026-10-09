@@ -45,6 +45,8 @@ import {
   type AirbnbState,
   type AirbnbVentilationLine,
 } from "../types/airbnb";
+import { confirmCloudPush } from "../lib/cloudSync";
+import { TK_GESTION_RELOAD_LOCAL_DATA_EVENT } from "../lib/reloadLocalAppData";
 import styles from "./Airbnb.module.css";
 
 type TabId = "ventilation" | "charges" | "synthese";
@@ -369,6 +371,11 @@ export function Airbnb() {
       listSyntheseDataMonths(initialStoreRef.current ?? loadAirbnbState()),
     ),
   );
+  const [saveMsg, setSaveMsg] = useState<{
+    type: "ok" | "err";
+    text: string;
+  } | null>(null);
+  const [saveBusy, setSaveBusy] = useState(false);
 
   const storeRef = useRef(store);
   storeRef.current = store;
@@ -376,6 +383,23 @@ export function Airbnb() {
   useEffect(() => {
     saveAirbnbState(store);
   }, [store]);
+
+  useEffect(() => {
+    const onReload = () => {
+      const s = loadAirbnbState();
+      setStore(s);
+      setChargesDraft(cloneChargesGlobal(s.chargesGlobal));
+      const found = s.ventilations.find((v) => v.month === selectedMonth);
+      setDraft(
+        found
+          ? cloneMonthVentilation(found)
+          : defaultMonthVentilation(selectedMonth),
+      );
+    };
+    window.addEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+    return () =>
+      window.removeEventListener(TK_GESTION_RELOAD_LOCAL_DATA_EVENT, onReload);
+  }, [selectedMonth]);
 
   useEffect(() => {
     setChargesDraft(cloneChargesGlobal(store.chargesGlobal));
@@ -528,20 +552,48 @@ export function Airbnb() {
     }));
   }
 
+  async function confirmerEnvoiServeur(okText: string) {
+    setSaveBusy(true);
+    setSaveMsg(null);
+    try {
+      const cloud = await confirmCloudPush();
+      if (cloud.savedOnServer) {
+        setSaveMsg({ type: "ok", text: okText });
+      } else {
+        setSaveMsg({
+          type: "err",
+          text: `Enregistré sur cet appareil, mais pas sur le serveur. ${cloud.error}`,
+        });
+      }
+    } finally {
+      setSaveBusy(false);
+    }
+  }
+
   function saveVentilation() {
+    if (saveBusy) return;
     const toSave = cloneMonthVentilation(draft);
     setStore((s) => {
       const i = s.ventilations.findIndex((v) => v.month === toSave.month);
       const vent = [...s.ventilations];
       if (i === -1) vent.push(toSave);
       else vent[i] = toSave;
-      return { ...s, ventilations: vent };
+      const next = { ...s, ventilations: vent };
+      saveAirbnbState(next);
+      return next;
     });
+    void confirmerEnvoiServeur("Ventilation enregistrée sur le serveur.");
   }
 
   function saveCharges() {
+    if (saveBusy) return;
     const toSave = cloneChargesGlobal(chargesDraft);
-    setStore((s) => ({ ...s, chargesGlobal: toSave }));
+    setStore((s) => {
+      const next = { ...s, chargesGlobal: toSave };
+      saveAirbnbState(next);
+      return next;
+    });
+    void confirmerEnvoiServeur("Charges enregistrées sur le serveur.");
   }
 
   const syntheseDetail =
@@ -561,16 +613,22 @@ export function Airbnb() {
   ]);
 
   function saveFichierSyntheseEdit() {
-    if (detailMonth == null) return;
+    if (detailMonth == null || saveBusy) return;
     const benefices = parseEuroInputDisplay(fichierEditBenef);
     const revenus = parseEuroInputDisplay(fichierEditRevenus);
-    setStore((s) => ({
-      ...s,
-      syntheseFichierOverrides: {
-        ...s.syntheseFichierOverrides,
-        [detailMonth]: { benefices, revenus },
-      },
-    }));
+    const month = detailMonth;
+    setStore((s) => {
+      const next = {
+        ...s,
+        syntheseFichierOverrides: {
+          ...s.syntheseFichierOverrides,
+          [month]: { benefices, revenus },
+        },
+      };
+      saveAirbnbState(next);
+      return next;
+    });
+    void confirmerEnvoiServeur("Montants du mois enregistrés sur le serveur.");
   }
 
   function resetFichierSyntheseToSeed() {
@@ -667,7 +725,8 @@ export function Airbnb() {
           charges ; vous pouvez <strong>corriger leurs montants</strong> depuis
           le détail (clic sur la ligne du mois). Les <strong>charges</strong> ne
           s’appliquent aux bénéfices en synthèse que pour les mois saisis dans
-          l’onglet Ventilation.
+          l’onglet Ventilation. « Enregistrer » envoie aussi la copie sur le{" "}
+          <strong>serveur partagé</strong>.
         </p>
 
         <div className={styles.tabs} role="tablist" aria-label="Sections Airbnb">
@@ -700,6 +759,15 @@ export function Airbnb() {
           </button>
         </div>
 
+        {saveMsg ? (
+          <p
+            className={saveMsg.type === "ok" ? styles.okMsg : styles.errMsg}
+            role="status"
+          >
+            {saveMsg.text}
+          </p>
+        ) : null}
+
         {tab === "ventilation" ? (
           <>
             <div className={styles.toolbar}>
@@ -717,9 +785,10 @@ export function Airbnb() {
                 <button
                   type="button"
                   className={styles.btnPrimary}
+                  disabled={saveBusy}
                   onClick={saveVentilation}
                 >
-                  Enregistrer la ventilation du mois
+                  {saveBusy ? "Enregistrement…" : "Enregistrer la ventilation du mois"}
                 </button>
               </div>
             </div>
@@ -960,9 +1029,10 @@ export function Airbnb() {
                 <button
                   type="button"
                   className={styles.btnPrimary}
+                  disabled={saveBusy}
                   onClick={saveCharges}
                 >
-                  Enregistrer les charges
+                  {saveBusy ? "Enregistrement…" : "Enregistrer les charges"}
                 </button>
               </div>
             </div>
@@ -1322,7 +1392,7 @@ export function Airbnb() {
                 <div className={styles.fichierEditPanel}>
                   <p className={styles.fichierEditTitle}>
                     Corriger les montants (remplace les valeurs importées pour ce
-                    mois, enregistré dans ce navigateur)
+                    mois ; Enregistrer envoie aussi sur le serveur)
                   </p>
                   <div className={styles.fichierEditGrid}>
                     <label className={styles.fichierEditField}>
@@ -1352,9 +1422,10 @@ export function Airbnb() {
                     <button
                       type="button"
                       className={styles.btnPrimary}
+                      disabled={saveBusy}
                       onClick={saveFichierSyntheseEdit}
                     >
-                      Enregistrer les montants
+                      {saveBusy ? "Enregistrement…" : "Enregistrer les montants"}
                     </button>
                     {fichierHasOverride ? (
                       <button
