@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { PDFDocument } from "pdf-lib";
 import { DEFAULT_EMETTEUR_DOCUMENTS_PDF } from "../context/themeSettingsStorage";
 import {
   categorieLocataireSurLogement,
@@ -1098,6 +1099,19 @@ export type DocumentMoisPdfOptions = {
   emetteurDocuments?: string;
   logoDocumentsPdf?: string;
 };
+
+/** Assemble plusieurs PDF jsPDF (une quittance par mois) en un seul fichier. */
+export async function fusionnerDocumentsPdf(
+  docs: jsPDF[],
+): Promise<Uint8Array> {
+  const merged = await PDFDocument.create();
+  for (const doc of docs) {
+    const src = await PDFDocument.load(doc.output("arraybuffer"));
+    const pages = await merged.copyPages(src, src.getPageIndices());
+    for (const page of pages) merged.addPage(page);
+  }
+  return merged.save();
+}
 
 export function buildDocumentMoisPdf(opts: DocumentMoisPdfOptions): {
   doc: jsPDF;
