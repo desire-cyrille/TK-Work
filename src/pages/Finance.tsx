@@ -22,7 +22,14 @@ import {
   type StatutMoisUi,
 } from "../lib/moisFinance";
 import {
+  moisQuittancesPayees,
+  nomFichierQuittancesPayees,
+  type PorteeQuittancesPayees,
+} from "../lib/quittancesPayees";
+import {
   buildDocumentMoisPdf,
+  fusionnerDocumentsPdf,
+  type DocumentMoisPdfOptions,
   type TypeDocumentMois,
 } from "../lib/pdfLocatif";
 import styles from "./Finance.module.css";
@@ -158,6 +165,13 @@ export function Finance() {
     Record<string, string>
   >({});
   const [apercuPdf, setApercuPdf] = useState<PdfApercu | null>(null);
+  const [quittancesPortee, setQuittancesPortee] = useState<
+    "toutes" | "periode"
+  >("toutes");
+  const [quittancesDe, setQuittancesDe] = useState("");
+  const [quittancesA, setQuittancesA] = useState("");
+  const [quittancesMsg, setQuittancesMsg] = useState<string | null>(null);
+  const [quittancesBusy, setQuittancesBusy] = useState(false);
   const apercuPdfRef = useRef<PdfApercu | null>(null);
   apercuPdfRef.current = apercuPdf;
 
@@ -267,6 +281,15 @@ export function Finance() {
     [moisCalc],
   );
 
+  const porteeQuittances: PorteeQuittancesPayees =
+    quittancesPortee === "toutes"
+      ? { mode: "toutes" }
+      : { mode: "periode", de: quittancesDe, a: quittancesA };
+  const quittancesPayeesSelection = moisQuittancesPayees(
+    moisCalc,
+    porteeQuittances,
+  );
+
   useEffect(() => {
     if (
       moisOuvertId &&
@@ -275,6 +298,16 @@ export function Finance() {
       setMoisOuvertId(null);
     }
   }, [moisOuvertId, moisCalc]);
+
+  const quittancesContratRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (quittancesContratRef.current === selectionContratId) return;
+    quittancesContratRef.current = selectionContratId;
+    setQuittancesPortee("toutes");
+    setQuittancesMsg(null);
+    setQuittancesDe(moisCles[0] ?? "");
+    setQuittancesA(moisCles[moisCles.length - 1] ?? "");
+  }, [selectionContratId, moisCles]);
 
   const locataireContrat = contratActif
     ? locataires.find((l) => l.id === contratActif.locataireId)
@@ -366,22 +399,20 @@ export function Finance() {
     contratFinanceSigRef.current = finSigContrat;
   }, [contratActif, finSigContrat]);
 
-  function ouvrirApercuPdfMois(
+  function optionsDocumentMois(
     type: TypeDocumentMois,
     row: MoisComputed,
-    data: import("../context/financeStorage").MoisFinanceContrat
-  ) {
-    if (!contratActif || !locataireContrat) return;
+    data: import("../context/financeStorage").MoisFinanceContrat,
+  ): DocumentMoisPdfOptions | null {
+    if (!contratActif || !locataireContrat) return null;
     const logementPdf = getLogement(contratActif.logementId);
     const bailleurPdf = logementPdf
       ? getBailleur(logementPdf.bailleurId)
       : undefined;
     const sousBailleurPdf = contratActif.locataireSousBailleurId.trim()
-      ? locataires.find(
-          (l) => l.id === contratActif.locataireSousBailleurId
-        )
+      ? locataires.find((l) => l.id === contratActif.locataireSousBailleurId)
       : undefined;
-    const opts = {
+    return {
       type,
       contrat: contratActif,
       logement: logementPdf,
@@ -410,6 +441,15 @@ export function Finance() {
       emetteurDocuments: settings.emetteurDocumentsPdf,
       logoDocumentsPdf: settings.logoDocumentsPdf,
     };
+  }
+
+  function ouvrirApercuPdfMois(
+    type: TypeDocumentMois,
+    row: MoisComputed,
+    data: import("../context/financeStorage").MoisFinanceContrat
+  ) {
+    const opts = optionsDocumentMois(type, row, data);
+    if (!opts) return;
     const { doc, fileName } = buildDocumentMoisPdf(opts);
     const blobUrl = URL.createObjectURL(doc.output("blob"));
     setApercuPdf((prev) => {
@@ -422,6 +462,58 @@ export function Finance() {
     });
   }
 
+  async function ouvrirPdfQuittancesPayees() {
+    if (!contratActif || !locataireContrat) {
+      setQuittancesMsg(
+        "Cette location n’a pas de locataire : la quittance ne peut pas être éditée.",
+      );
+      return;
+    }
+    const selection = quittancesPayeesSelection;
+    if (selection.length === 0) {
+      setQuittancesMsg(
+        quittancesPortee === "periode"
+          ? "Aucune quittance payée sur cette période."
+          : "Aucune quittance payée pour cette location.",
+      );
+      return;
+    }
+    setQuittancesBusy(true);
+    setQuittancesMsg(null);
+    try {
+      const docs = selection.map((row) => {
+        const opts = optionsDocumentMois(
+          "quittance",
+          row,
+          getMoisData(row.moisCle),
+        );
+        if (!opts) throw new Error("options");
+        return buildDocumentMoisPdf(opts).doc;
+      });
+      const bytes = await fusionnerDocumentsPdf(docs);
+      const blobUrl = URL.createObjectURL(
+        new Blob([bytes], { type: "application/pdf" }),
+      );
+      const fileName = nomFichierQuittancesPayees(
+        getLogement(contratActif.logementId)?.titre,
+        porteeQuittances,
+      );
+      const n = selection.length;
+      setApercuPdf((prev) => {
+        if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+        return {
+          blobUrl,
+          fileName,
+          title: `Quittances payées — ${n} mois`,
+        };
+      });
+    } catch {
+      setQuittancesMsg("Impossible de préparer le PDF des quittances.");
+    } finally {
+      setQuittancesBusy(false);
+    }
+  }
+
   return (
     <>
     <PageFrame title="Finance" actions={null}>
@@ -429,8 +521,10 @@ export function Finance() {
         <p className={styles.intro}>
           Vue synthèse des chaînes propriétaire → ta société → sous-locataire :
           encaissements, reports de loyer, frais et exports PDF (quittance, avis
-          d’échéance, avis de solde) avec aperçu avant téléchargement. Les données
-          sont stockées localement dans ce navigateur.
+          d’échéance, avis de solde) avec aperçu avant téléchargement. Pour une
+          location, les quittances déjà payées se regroupent en un PDF, sur toute
+          la durée ou sur une période. Les données sont stockées localement dans
+          ce navigateur.
         </p>
 
         <section className={styles.beneficeCard} aria-label="Bénéfice société">
@@ -624,6 +718,92 @@ export function Finance() {
                     ) : null}
                   </p>
                 </div>
+
+                <section
+                  className={styles.quittancesExport}
+                  aria-label="Télécharger les quittances payées"
+                >
+                  <h4 className={styles.quittancesExportTitle}>
+                    Quittances déjà payées
+                  </h4>
+                  <p className={styles.quittancesExportHint}>
+                    Un seul PDF, une quittance par mois soldé. Choisis toute la
+                    location ou une période, puis télécharge depuis l’aperçu.
+                  </p>
+                  <div
+                    className={styles.quittancesExportModes}
+                    role="group"
+                    aria-label="Étendue des quittances"
+                  >
+                    <button
+                      type="button"
+                      className={
+                        quittancesPortee === "toutes"
+                          ? styles.quittancesModeActive
+                          : undefined
+                      }
+                      aria-pressed={quittancesPortee === "toutes"}
+                      onClick={() => setQuittancesPortee("toutes")}
+                    >
+                      Toute la location
+                    </button>
+                    <button
+                      type="button"
+                      className={
+                        quittancesPortee === "periode"
+                          ? styles.quittancesModeActive
+                          : undefined
+                      }
+                      aria-pressed={quittancesPortee === "periode"}
+                      onClick={() => setQuittancesPortee("periode")}
+                    >
+                      Période
+                    </button>
+                  </div>
+                  {quittancesPortee === "periode" ? (
+                    <div className={styles.quittancesExportDates}>
+                      <label>
+                        Du mois
+                        <input
+                          type="month"
+                          value={quittancesDe}
+                          onChange={(e) => setQuittancesDe(e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Au mois
+                        <input
+                          type="month"
+                          value={quittancesA}
+                          onChange={(e) => setQuittancesA(e.target.value)}
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={styles.btnSm}
+                    disabled={
+                      quittancesBusy || quittancesPayeesSelection.length === 0
+                    }
+                    onClick={() => void ouvrirPdfQuittancesPayees()}
+                  >
+                    {quittancesBusy
+                      ? "Préparation du PDF…"
+                      : quittancesPayeesSelection.length === 0
+                        ? "Aucune quittance payée"
+                        : `Télécharger ${quittancesPayeesSelection.length} quittance${
+                            quittancesPayeesSelection.length > 1 ? "s" : ""
+                          } payée${
+                            quittancesPayeesSelection.length > 1 ? "s" : ""
+                          } (PDF)`}
+                  </button>
+                  {quittancesMsg ? (
+                    <p className={styles.quittancesExportMsg} role="status">
+                      {quittancesMsg}
+                    </p>
+                  ) : null}
+                </section>
 
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
