@@ -78,8 +78,7 @@ export function parseEuroToken(raw: string): number | null {
 
 function eurosDansTexte(s: string): number[] {
   const out: number[] = [];
-  const re =
-    /-?[0-9]{1,6}(?:[.,][0-9]{2})?\s*(?:€|EUR)?|[0-9]{1,6}(?:[.,][0-9]{2})?\s*(?:€|EUR)/gi;
+  const re = /-?[0-9]{1,6}(?:[.,][0-9]{2})?\s*(?:€|EUR)/gi;
   for (const m of s.match(re) ?? []) {
     const n = parseEuroToken(m);
     if (n != null) out.push(n);
@@ -152,24 +151,80 @@ function extraireInvite(text: string): string | null {
   return null;
 }
 
-function montantApresLibelle(text: string, libelle: RegExp): number | null {
-  const lines = text.split(/\r?\n/);
-  for (const line of lines) {
-    if (!libelle.test(line)) continue;
-    const euros = eurosDansTexte(line);
-    if (euros.length > 0) return euros[euros.length - 1] ?? null;
+function lignesTexte(text: string): string[] {
+  return text
+    .replace(/\u00a0/g, " ")
+    .replace(/[−–]/g, "-")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+/** Bloc sous « Revenus », avant « Total ». Le total net n’est pas un montant de ventilation. */
+function lignesBlocRevenus(text: string): string[] {
+  const lines = lignesTexte(text);
+  const start = lines.findIndex((l) => /^revenus\b/i.test(l));
+  const from = start >= 0 ? lines.slice(start + 1) : lines;
+  const end = from.findIndex((l) => /^total\b/i.test(l));
+  return end >= 0 ? from.slice(0, end) : from;
+}
+
+function ligneNuitees(line: string): boolean {
+  return /x\s*\d+\s*nuit/i.test(line) || /\d+\s*nuit/i.test(fold(line));
+}
+
+function nouveauChampMontant(line: string): boolean {
+  return (
+    /^(logement|frais\s+de\s+m[eé]nage|frais\s+de\s+service|total|revenus|confirmation)\b/i.test(
+      line,
+    ) || ligneNuitees(line)
+  );
+}
+
+function ligneMontantSeul(line: string): boolean {
+  if (!eurosDansTexte(line).length) return false;
+  const reste = fold(line).replace(/\beur\b/g, "").replace(/[0-9]/g, "").trim();
+  return reste.length === 0;
+}
+
+/** Montant d’un libellé, sur la même ligne ou sur les lignes suivantes (libellé coupé). */
+function montantLibelle(lines: string[], libelle: RegExp): number | null {
+  for (let i = 0; i < lines.length; i++) {
+    if (!libelle.test(lines[i] ?? "")) continue;
+    const surLigne = eurosDansTexte(lines[i] ?? "");
+    if (surLigne.length) return surLigne[surLigne.length - 1] ?? null;
+    for (let j = i + 1; j < lines.length; j++) {
+      const suiv = lines[j] ?? "";
+      if (nouveauChampMontant(suiv)) break;
+      const euros = eurosDansTexte(suiv);
+      if (euros.length) return euros[euros.length - 1] ?? null;
+    }
   }
-  const joined = text.replace(/\r?\n/g, " ");
-  const m = joined.match(libelle);
-  if (!m || m.index == null) return null;
-  const slice = joined.slice(m.index, m.index + 80);
-  const euros = eurosDansTexte(slice);
-  return euros.length ? (euros[euros.length - 1] ?? null) : null;
+  return null;
+}
+
+/**
+ * Total de la ligne « x nuits » (colonne de droite), pas le prix d’une seule nuit
+ * et pas le total net de la carte.
+ */
+function montantNuitees(lines: string[]): number | null {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (!ligneNuitees(line)) continue;
+    const euros = eurosDansTexte(line);
+    const suiv = lines[i + 1] ?? "";
+    if (suiv && ligneMontantSeul(suiv)) euros.push(...eurosDansTexte(suiv));
+    if (!euros.length) continue;
+    return euros.reduce((a, b) => (Math.abs(a) >= Math.abs(b) ? a : b));
+  }
+  return null;
 }
 
 /**
  * Interprète le texte d’une capture type « carte de réservation » Airbnb.
- * Facturé = total nuits (ligne Revenus), frais = ménage, déduction = frais de service.
+ * Facturé = ligne Logement, ou total de la ligne « x nuits ».
+ * Frais = frais de ménage. Déduction = frais de service.
+ * Le total net de la carte n’est pas repris.
  */
 export function parseAirbnbFactureTexte(
   text: string,
@@ -184,18 +239,12 @@ export function parseAirbnbFactureTexte(
   }
   const { month, sejour, dateSejour } = extraireMoisEtSejour(text);
   const invite = extraireInvite(text);
+  const bloc = lignesBlocRevenus(text);
 
-  let facture = montantApresLibelle(text, /revenus/i);
-  const lignes = text.split(/\r?\n/);
-  for (const line of lignes) {
-    if (/x\s*\d+\s*nuit/i.test(line) || /\d+\s*nuit/i.test(fold(line))) {
-      const euros = eurosDansTexte(line);
-      if (euros.length >= 1) facture = euros[euros.length - 1] ?? facture;
-    }
-  }
-
-  const fraisMenage = montantApresLibelle(text, /frais\s+de\s+m[eé]nage/i);
-  const fraisService = montantApresLibelle(text, /frais\s+de\s+service/i);
+  const facture =
+    montantLibelle(bloc, /^logement\b/i) ?? montantNuitees(bloc);
+  const fraisMenage = montantLibelle(bloc, /frais\s+de\s+m[eé]nage/i);
+  const fraisService = montantLibelle(bloc, /frais\s+de\s+service/i);
 
   if (facture == null) {
     return {
