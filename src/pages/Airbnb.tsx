@@ -983,7 +983,7 @@ export function Airbnb() {
           annonce en ventilation — modifiables à tout moment dans l’onglet dédié.{" "}
           <strong>Synthèse</strong> : total facturé, bénéfices, et CA (facturé +
           frais) selon les filtres. <strong>Sous-traitance</strong> : paramètres
-          de calcul (% du CA ou forfait par logement) et montant à verser, sans
+          de calcul (% du CA ou forfait par location) et montant à verser, sans
           modifier les ventilations. Les mois issus du{" "}
           <strong>fichier source</strong> sont affichés sans déduction des
           charges ; vous pouvez <strong>corriger leurs montants</strong> depuis
@@ -1624,7 +1624,7 @@ export function Airbnb() {
                     setSousTraitanceDraft((d) => ({ ...d, mode: "forfait" }))
                   }
                 >
-                  Forfait par mois et par logement
+                  Forfait par location
                 </button>
               </div>
               {sousTraitanceDraft.mode === "percent" ? (
@@ -1653,7 +1653,9 @@ export function Airbnb() {
               ) : (
                 <div className={styles.stForfaitList}>
                   <p className={styles.hint}>
-                    Montant fixe par mois, pour chaque logement.
+                    Prix d’une location (une ligne de ventilation), pour chaque
+                    logement. Le versement = forfait × nombre de locations du
+                    mois.
                   </p>
                   {AIRBNB_LISTINGS.map(({ id, label }) => (
                     <label key={id} className={styles.stForfaitRow}>
@@ -1739,7 +1741,7 @@ export function Airbnb() {
                   {formatMonthFr(stMonth)}
                   {sousTraitanceDraft.mode === "percent"
                     ? ` · ${sousTraitanceDraft.percent} % du CA enregistré (${eur(stPayout.caTotal)})`
-                    : " · forfaits mensuels des logements affichés"}
+                    : ` · forfait × ${stPayout.locationTotal} location${stPayout.locationTotal > 1 ? "s" : ""}`}
                 </p>
               </div>
               <div className={styles.tableWrap}>
@@ -1747,6 +1749,7 @@ export function Airbnb() {
                   <thead>
                     <tr>
                       <th>Logement</th>
+                      <th className={styles.num}>Locations</th>
                       <th className={styles.num}>CA enregistré</th>
                       <th className={styles.num}>À verser</th>
                     </tr>
@@ -1763,6 +1766,7 @@ export function Airbnb() {
                             </span>
                           ) : null}
                         </td>
+                        <td className={styles.num}>{row.locations}</td>
                         <td className={styles.num}>{eur(row.ca)}</td>
                         <td className={styles.num}>
                           <strong>{eur(row.due)}</strong>
