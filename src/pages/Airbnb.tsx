@@ -1628,28 +1628,61 @@ export function Airbnb() {
                 </button>
               </div>
               {sousTraitanceDraft.mode === "percent" ? (
-                <label className={styles.stPercentField}>
-                  <span>Pourcentage du CA (facturé + frais)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.5}
-                    inputMode="decimal"
-                    value={sousTraitanceDraft.percent}
-                    onChange={(e) => {
-                      const n = Number(
-                        String(e.target.value).replace(",", "."),
-                      );
-                      setSousTraitanceDraft((d) => ({
-                        ...d,
-                        percent: Number.isFinite(n)
-                          ? Math.min(100, Math.max(0, n))
-                          : 0,
-                      }));
-                    }}
-                  />
-                </label>
+                <>
+                  <label className={styles.stPercentField}>
+                    <span>Pourcentage du CA (facturé + frais)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      inputMode="decimal"
+                      value={sousTraitanceDraft.percent}
+                      onChange={(e) => {
+                        const n = Number(
+                          String(e.target.value).replace(",", "."),
+                        );
+                        setSousTraitanceDraft((d) => ({
+                          ...d,
+                          percent: Number.isFinite(n)
+                            ? Math.min(100, Math.max(0, n))
+                            : 0,
+                        }));
+                      }}
+                    />
+                  </label>
+                  <div className={`${styles.stForfaitList} ${styles.stFraisList}`}>
+                    <p className={styles.hint}>
+                      <strong>Frais</strong> : montant supplémentaire, une fois
+                      par mois et par logement, s’il y a au moins une location.
+                      S’ajoute au paiement en pourcentage.
+                    </p>
+                    <div className={styles.stForfaitHead}>
+                      <span>Logement</span>
+                      <span>Frais</span>
+                    </div>
+                    {AIRBNB_LISTINGS.map(({ id, label }) => (
+                      <div key={id} className={styles.stForfaitRow}>
+                        <span>{label}</span>
+                        <input
+                          aria-label={`Frais — ${label}`}
+                          inputMode="decimal"
+                          value={sousTraitanceDraft.fraisMensuels[id]}
+                          onChange={(e) =>
+                            setSousTraitanceDraft((d) => ({
+                              ...d,
+                              fraisMensuels: {
+                                ...d.fraisMensuels,
+                                [id]: e.target.value,
+                              },
+                            }))
+                          }
+                          placeholder="0"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : (
                 <div className={styles.stForfaitList}>
                   <p className={styles.hint}>
@@ -1762,7 +1795,7 @@ export function Airbnb() {
                 <p className={styles.stPayoutHint}>
                   {formatMonthFr(stMonth)}
                   {sousTraitanceDraft.mode === "percent"
-                    ? ` · ${sousTraitanceDraft.percent} % du CA enregistré (${eur(stPayout.caTotal)})`
+                    ? ` · ${sousTraitanceDraft.percent} % du CA (${eur(stPayout.percentTotal)}) + frais ${eur(stPayout.fraisTotal)}`
                     : ` · unique ${eur(stPayout.uniqueTotal)} + variable ${eur(stPayout.variableTotal)} · ${stPayout.locationTotal} location${stPayout.locationTotal > 1 ? "s" : ""}`}
                 </p>
               </div>
@@ -1778,7 +1811,11 @@ export function Airbnb() {
                           <th className={styles.num}>Variable</th>
                         </>
                       ) : (
-                        <th className={styles.num}>CA enregistré</th>
+                        <>
+                          <th className={styles.num}>CA</th>
+                          <th className={styles.num}>% du CA</th>
+                          <th className={styles.num}>Frais</th>
+                        </>
                       )}
                       <th className={styles.num}>À verser</th>
                     </tr>
@@ -1804,7 +1841,11 @@ export function Airbnb() {
                             </td>
                           </>
                         ) : (
-                          <td className={styles.num}>{eur(row.ca)}</td>
+                          <>
+                            <td className={styles.num}>{eur(row.ca)}</td>
+                            <td className={styles.num}>{eur(row.percentDue)}</td>
+                            <td className={styles.num}>{eur(row.fraisDue)}</td>
+                          </>
                         )}
                         <td className={styles.num}>
                           <strong>{eur(row.due)}</strong>
