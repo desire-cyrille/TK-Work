@@ -603,6 +603,11 @@
   text-align: right;
 }
 
+.stFraisList .stForfaitHead,
+.stFraisList .stForfaitRow {
+  grid-template-columns: minmax(8rem, 1fr) 7.5rem;
+}
+
 .stForfaitRow input {
   font: inherit;
   width: 100%;

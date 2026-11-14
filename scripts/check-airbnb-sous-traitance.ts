@@ -125,6 +125,7 @@ assert.equal(loaded.sousTraitance.percent, 0);
 assert.equal(loaded.sousTraitance.prestataire, "");
 assert.equal(loaded.sousTraitance.fraisUniques.familiale, "");
 assert.equal(loaded.sousTraitance.forfaits.familiale, "");
+assert.equal(loaded.sousTraitance.fraisMensuels.familiale, "");
 
 saveAirbnbState(loaded);
 const rawAfter = JSON.parse(mem.get(STORAGE_KEY) ?? "{}") as Record<
@@ -170,12 +171,41 @@ const withPercent: AirbnbState = {
 const pct = computeSousTraitancePayout(withPercent, "2026-10", []);
 assert.equal(pct.caTotal, 2446 + 450 + 1464);
 assert.equal(pct.dueTotal, (2446 + 450 + 1464) * 0.25);
+assert.equal(pct.fraisTotal, 0);
 
 const oneHome = computeSousTraitancePayout(withPercent, "2026-10", [
   "familiale",
 ]);
 assert.equal(oneHome.caTotal, 2446 + 450);
 assert.equal(oneHome.dueTotal, (2446 + 450) * 0.25);
+
+const withPercentFrais: AirbnbState = {
+  ...loaded,
+  sousTraitance: {
+    ...defaultSousTraitance(),
+    prestataire: "Ménage",
+    mode: "percent",
+    percent: 25,
+    fraisMensuels: {
+      ...defaultSousTraitance().fraisMensuels,
+      familiale: "12",
+      cosyChill: "8",
+      petitBureau: "15",
+      ptitDeuxieme: "10",
+    },
+  },
+};
+const pctFrais = computeSousTraitancePayout(withPercentFrais, "2026-10", []);
+assert.equal(pctFrais.percentTotal, (2446 + 450 + 1464) * 0.25);
+assert.equal(pctFrais.fraisTotal, 12 + 8);
+assert.equal(pctFrais.dueTotal, (2446 + 450 + 1464) * 0.25 + 12 + 8);
+const petitPct = pctFrais.rows.find((r) => r.listingId === "petitBureau");
+assert.equal(petitPct?.locations, 0);
+assert.equal(petitPct?.fraisDue, 0);
+const famPct = pctFrais.rows.find((r) => r.listingId === "familiale");
+assert.equal(famPct?.percentDue, (2446 + 450) * 0.25);
+assert.equal(famPct?.fraisDue, 12);
+assert.equal(famPct?.due, (2446 + 450) * 0.25 + 12);
 
 const withForfait: AirbnbState = {
   ...loaded,
@@ -239,6 +269,24 @@ assert.equal(famUnique?.uniqueDue, 40);
 assert.equal(famUnique?.variableDue, 60);
 assert.equal(famUnique?.due, 100);
 
+const forfaitIgnoresMensuels: AirbnbState = {
+  ...withUnique,
+  sousTraitance: {
+    ...withUnique.sousTraitance,
+    fraisMensuels: {
+      ...defaultSousTraitance().fraisMensuels,
+      familiale: "999",
+    },
+  },
+};
+const forfaitIgnore = computeSousTraitancePayout(
+  forfaitIgnoresMensuels,
+  "2026-10",
+  ["familiale"],
+);
+assert.equal(forfaitIgnore.dueTotal, 100);
+assert.equal(forfaitIgnore.fraisTotal, 0);
+
 mem.set(
   STORAGE_KEY,
   JSON.stringify({
@@ -257,6 +305,7 @@ mem.set(
 const fromOldSousTraitance = loadAirbnbState();
 assert.equal(fromOldSousTraitance.sousTraitance.forfaits.familiale, "30");
 assert.equal(fromOldSousTraitance.sousTraitance.fraisUniques.familiale, "");
+assert.equal(fromOldSousTraitance.sousTraitance.fraisMensuels.familiale, "");
 assert.equal(
   fromOldSousTraitance.ventilations[0]?.listings.familiale[0]?.id,
   "keep-me",

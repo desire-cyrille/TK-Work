@@ -24,6 +24,8 @@ export type SousTraitancePayoutRow = {
   ca: number;
   uniqueDue: number;
   variableDue: number;
+  percentDue: number;
+  fraisDue: number;
   due: number;
 };
 
@@ -33,6 +35,8 @@ export type SousTraitancePayout = {
   locationTotal: number;
   uniqueTotal: number;
   variableTotal: number;
+  percentTotal: number;
+  fraisTotal: number;
   dueTotal: number;
 };
 
@@ -57,10 +61,17 @@ export function computeSousTraitancePayout(
     const locations = listingLocationCountFromVentilation(state, month, id);
     let uniqueDue = 0;
     let variableDue = 0;
+    let percentDue = 0;
+    let fraisDue = 0;
     let due = 0;
     if (active) {
       if (params.mode === "percent") {
-        due = ca * (params.percent / 100);
+        percentDue = ca * (params.percent / 100);
+        const fraisUnit = parseEuroInputDisplay(
+          params.fraisMensuels[id] ?? "",
+        );
+        fraisDue = locations > 0 ? fraisUnit : 0;
+        due = percentDue + fraisDue;
       } else {
         const variableUnit = parseEuroInputDisplay(params.forfaits[id] ?? "");
         const uniqueUnit = parseEuroInputDisplay(
@@ -79,6 +90,8 @@ export function computeSousTraitancePayout(
       ca,
       uniqueDue,
       variableDue,
+      percentDue,
+      fraisDue,
       due,
     };
   });
@@ -88,6 +101,8 @@ export function computeSousTraitancePayout(
     locationTotal: rows.reduce((s, r) => s + r.locations, 0),
     uniqueTotal: rows.reduce((s, r) => s + r.uniqueDue, 0),
     variableTotal: rows.reduce((s, r) => s + r.variableDue, 0),
+    percentTotal: rows.reduce((s, r) => s + r.percentDue, 0),
+    fraisTotal: rows.reduce((s, r) => s + r.fraisDue, 0),
     dueTotal: rows.reduce((s, r) => s + r.due, 0),
   };
 }

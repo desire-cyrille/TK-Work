@@ -107,6 +107,11 @@ export type AirbnbSousTraitance = {
   forfaits: Record<AirbnbListingId, string>;
   /** Frais unique : € une fois par mois et par logement (si au moins une location). */
   fraisUniques: Record<AirbnbListingId, string>;
+  /**
+   * Frais mensuels du mode pourcentage : € une fois par mois et par logement
+   * (si au moins une location). Absent du JSON existant → vide.
+   */
+  fraisMensuels: Record<AirbnbListingId, string>;
 };
 
 export type AirbnbState = {

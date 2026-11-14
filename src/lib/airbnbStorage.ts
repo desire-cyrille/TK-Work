@@ -114,6 +114,7 @@ export function defaultSousTraitance(): AirbnbSousTraitance {
     percent: 0,
     forfaits: emptyForfaitsRecord(),
     fraisUniques: emptyForfaitsRecord(),
+    fraisMensuels: emptyForfaitsRecord(),
   };
 }
 
@@ -134,6 +135,9 @@ export function cloneSousTraitance(
     forfaits: cloneEuroListingRecord(s.forfaits),
     fraisUniques: cloneEuroListingRecord(
       (s as { fraisUniques?: unknown }).fraisUniques,
+    ),
+    fraisMensuels: cloneEuroListingRecord(
+      (s as { fraisMensuels?: unknown }).fraisMensuels,
     ),
   };
 }
