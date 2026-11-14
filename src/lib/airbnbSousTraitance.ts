@@ -22,6 +22,8 @@ export type SousTraitancePayoutRow = {
   active: boolean;
   locations: number;
   ca: number;
+  uniqueDue: number;
+  variableDue: number;
   due: number;
 };
 
@@ -29,6 +31,8 @@ export type SousTraitancePayout = {
   rows: SousTraitancePayoutRow[];
   caTotal: number;
   locationTotal: number;
+  uniqueTotal: number;
+  variableTotal: number;
   dueTotal: number;
 };
 
@@ -51,21 +55,39 @@ export function computeSousTraitancePayout(
     const active = airbnbListingIsActiveInMonth(id, month);
     const ca = listingCaFromVentilation(state, month, id);
     const locations = listingLocationCountFromVentilation(state, month, id);
+    let uniqueDue = 0;
+    let variableDue = 0;
     let due = 0;
     if (active) {
       if (params.mode === "percent") {
         due = ca * (params.percent / 100);
       } else {
-        const unit = parseEuroInputDisplay(params.forfaits[id] ?? "");
-        due = unit * locations;
+        const variableUnit = parseEuroInputDisplay(params.forfaits[id] ?? "");
+        const uniqueUnit = parseEuroInputDisplay(
+          params.fraisUniques[id] ?? "",
+        );
+        uniqueDue = locations > 0 ? uniqueUnit : 0;
+        variableDue = variableUnit * locations;
+        due = uniqueDue + variableDue;
       }
     }
-    return { listingId: id, label, active, locations, ca, due };
+    return {
+      listingId: id,
+      label,
+      active,
+      locations,
+      ca,
+      uniqueDue,
+      variableDue,
+      due,
+    };
   });
   return {
     rows,
     caTotal: rows.reduce((s, r) => s + r.ca, 0),
     locationTotal: rows.reduce((s, r) => s + r.locations, 0),
+    uniqueTotal: rows.reduce((s, r) => s + r.uniqueDue, 0),
+    variableTotal: rows.reduce((s, r) => s + r.variableDue, 0),
     dueTotal: rows.reduce((s, r) => s + r.due, 0),
   };
 }
