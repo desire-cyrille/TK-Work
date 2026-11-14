@@ -123,6 +123,8 @@ assert.deepEqual(loaded.syntheseFichierOverrides["2024-01"], {
 assert.equal(loaded.sousTraitance.mode, "percent");
 assert.equal(loaded.sousTraitance.percent, 0);
 assert.equal(loaded.sousTraitance.prestataire, "");
+assert.equal(loaded.sousTraitance.fraisUniques.familiale, "");
+assert.equal(loaded.sousTraitance.forfaits.familiale, "");
 
 saveAirbnbState(loaded);
 const rawAfter = JSON.parse(mem.get(STORAGE_KEY) ?? "{}") as Record<
@@ -192,12 +194,73 @@ const withForfait: AirbnbState = {
 const forfaitAll = computeSousTraitancePayout(withForfait, "2026-10", []);
 assert.equal(forfaitAll.locationTotal, 3);
 assert.equal(forfaitAll.dueTotal, 180 * 2 + 120 * 1);
+assert.equal(forfaitAll.uniqueTotal, 0);
+assert.equal(forfaitAll.variableTotal, 180 * 2 + 120 * 1);
 const famRow = forfaitAll.rows.find((r) => r.listingId === "familiale");
 assert.equal(famRow?.locations, 2);
 assert.equal(famRow?.due, 360);
+assert.equal(famRow?.uniqueDue, 0);
+assert.equal(famRow?.variableDue, 360);
 const emptyListing = forfaitAll.rows.find((r) => r.listingId === "petitBureau");
 assert.equal(emptyListing?.locations, 0);
 assert.equal(emptyListing?.due, 0);
+
+const withUnique: AirbnbState = {
+  ...loaded,
+  sousTraitance: {
+    ...defaultSousTraitance(),
+    mode: "forfait",
+    forfaits: {
+      ...defaultSousTraitance().forfaits,
+      familiale: "30",
+      cosyChill: "30",
+      petitBureau: "0",
+      ptitDeuxieme: "0",
+    },
+    fraisUniques: {
+      ...defaultSousTraitance().fraisUniques,
+      familiale: "40",
+      cosyChill: "25",
+      petitBureau: "15",
+      ptitDeuxieme: "10",
+    },
+  },
+};
+const uniquePayout = computeSousTraitancePayout(withUnique, "2026-10", []);
+assert.equal(uniquePayout.uniqueTotal, 40 + 25);
+assert.equal(uniquePayout.variableTotal, 30 * 2 + 30 * 1);
+assert.equal(uniquePayout.dueTotal, 40 + 25 + 60 + 30);
+const petit = uniquePayout.rows.find((r) => r.listingId === "petitBureau");
+assert.equal(petit?.locations, 0);
+assert.equal(petit?.uniqueDue, 0);
+assert.equal(petit?.due, 0);
+const famUnique = uniquePayout.rows.find((r) => r.listingId === "familiale");
+assert.equal(famUnique?.uniqueDue, 40);
+assert.equal(famUnique?.variableDue, 60);
+assert.equal(famUnique?.due, 100);
+
+mem.set(
+  STORAGE_KEY,
+  JSON.stringify({
+    version: 1,
+    ventilations: loaded.ventilations,
+    chargesGlobal: loaded.chargesGlobal,
+    syntheseFichierOverrides: loaded.syntheseFichierOverrides,
+    sousTraitance: {
+      prestataire: "Ménage",
+      mode: "forfait",
+      percent: 0,
+      forfaits: { familiale: "30", cosyChill: "30" },
+    },
+  }),
+);
+const fromOldSousTraitance = loadAirbnbState();
+assert.equal(fromOldSousTraitance.sousTraitance.forfaits.familiale, "30");
+assert.equal(fromOldSousTraitance.sousTraitance.fraisUniques.familiale, "");
+assert.equal(
+  fromOldSousTraitance.ventilations[0]?.listings.familiale[0]?.id,
+  "keep-me",
+);
 
 const empty: AirbnbState = {
   version: 1,

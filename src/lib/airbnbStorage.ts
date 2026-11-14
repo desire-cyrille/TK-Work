@@ -94,12 +94,26 @@ function emptyForfaitsRecord(): Record<AirbnbListingId, string> {
   return o;
 }
 
+function cloneEuroListingRecord(
+  raw: unknown,
+): Record<AirbnbListingId, string> {
+  const out = emptyForfaitsRecord();
+  if (!raw || typeof raw !== "object") return out;
+  const src = raw as Record<string, unknown>;
+  for (const { id } of AIRBNB_LISTINGS) {
+    const v = src[id];
+    out[id] = typeof v === "string" ? v : v == null ? "" : String(v);
+  }
+  return out;
+}
+
 export function defaultSousTraitance(): AirbnbSousTraitance {
   return {
     prestataire: "",
     mode: "percent",
     percent: 0,
     forfaits: emptyForfaitsRecord(),
+    fraisUniques: emptyForfaitsRecord(),
   };
 }
 
@@ -108,15 +122,6 @@ export function cloneSousTraitance(
 ): AirbnbSousTraitance {
   const base = defaultSousTraitance();
   if (!s || typeof s !== "object") return base;
-  const forfaits = emptyForfaitsRecord();
-  const rawForfaits =
-    s.forfaits && typeof s.forfaits === "object"
-      ? (s.forfaits as Record<string, unknown>)
-      : {};
-  for (const { id } of AIRBNB_LISTINGS) {
-    const v = rawForfaits[id];
-    forfaits[id] = typeof v === "string" ? v : v == null ? "" : String(v);
-  }
   const percentRaw = s.percent;
   const percent =
     typeof percentRaw === "number" && Number.isFinite(percentRaw)
@@ -126,7 +131,10 @@ export function cloneSousTraitance(
     prestataire: typeof s.prestataire === "string" ? s.prestataire : "",
     mode: s.mode === "forfait" ? "forfait" : "percent",
     percent,
-    forfaits,
+    forfaits: cloneEuroListingRecord(s.forfaits),
+    fraisUniques: cloneEuroListingRecord(
+      (s as { fraisUniques?: unknown }).fraisUniques,
+    ),
   };
 }
 

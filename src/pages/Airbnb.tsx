@@ -1653,14 +1653,36 @@ export function Airbnb() {
               ) : (
                 <div className={styles.stForfaitList}>
                   <p className={styles.hint}>
-                    Prix d’une location (une ligne de ventilation), pour chaque
-                    logement. Le versement = forfait × nombre de locations du
-                    mois.
+                    <strong>Frais unique</strong> : une fois par mois et par
+                    logement, s’il y a au moins une location.{" "}
+                    <strong>Frais variable</strong> : prix par location ×
+                    nombre de lignes de ventilation.
                   </p>
+                  <div className={styles.stForfaitHead}>
+                    <span>Logement</span>
+                    <span>Frais unique</span>
+                    <span>Frais variable</span>
+                  </div>
                   {AIRBNB_LISTINGS.map(({ id, label }) => (
-                    <label key={id} className={styles.stForfaitRow}>
+                    <div key={id} className={styles.stForfaitRow}>
                       <span>{label}</span>
                       <input
+                        aria-label={`Frais unique — ${label}`}
+                        inputMode="decimal"
+                        value={sousTraitanceDraft.fraisUniques[id]}
+                        onChange={(e) =>
+                          setSousTraitanceDraft((d) => ({
+                            ...d,
+                            fraisUniques: {
+                              ...d.fraisUniques,
+                              [id]: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="0"
+                      />
+                      <input
+                        aria-label={`Frais variable — ${label}`}
                         inputMode="decimal"
                         value={sousTraitanceDraft.forfaits[id]}
                         onChange={(e) =>
@@ -1674,7 +1696,7 @@ export function Airbnb() {
                         }
                         placeholder="0"
                       />
-                    </label>
+                    </div>
                   ))}
                 </div>
               )}
@@ -1741,7 +1763,7 @@ export function Airbnb() {
                   {formatMonthFr(stMonth)}
                   {sousTraitanceDraft.mode === "percent"
                     ? ` · ${sousTraitanceDraft.percent} % du CA enregistré (${eur(stPayout.caTotal)})`
-                    : ` · forfait × ${stPayout.locationTotal} location${stPayout.locationTotal > 1 ? "s" : ""}`}
+                    : ` · unique ${eur(stPayout.uniqueTotal)} + variable ${eur(stPayout.variableTotal)} · ${stPayout.locationTotal} location${stPayout.locationTotal > 1 ? "s" : ""}`}
                 </p>
               </div>
               <div className={styles.tableWrap}>
@@ -1750,7 +1772,14 @@ export function Airbnb() {
                     <tr>
                       <th>Logement</th>
                       <th className={styles.num}>Locations</th>
-                      <th className={styles.num}>CA enregistré</th>
+                      {sousTraitanceDraft.mode === "forfait" ? (
+                        <>
+                          <th className={styles.num}>Unique</th>
+                          <th className={styles.num}>Variable</th>
+                        </>
+                      ) : (
+                        <th className={styles.num}>CA enregistré</th>
+                      )}
                       <th className={styles.num}>À verser</th>
                     </tr>
                   </thead>
@@ -1767,7 +1796,16 @@ export function Airbnb() {
                           ) : null}
                         </td>
                         <td className={styles.num}>{row.locations}</td>
-                        <td className={styles.num}>{eur(row.ca)}</td>
+                        {sousTraitanceDraft.mode === "forfait" ? (
+                          <>
+                            <td className={styles.num}>{eur(row.uniqueDue)}</td>
+                            <td className={styles.num}>
+                              {eur(row.variableDue)}
+                            </td>
+                          </>
+                        ) : (
+                          <td className={styles.num}>{eur(row.ca)}</td>
+                        )}
                         <td className={styles.num}>
                           <strong>{eur(row.due)}</strong>
                         </td>
