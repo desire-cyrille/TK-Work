@@ -130,6 +130,14 @@ export function cloneSousTraitance(
   };
 }
 
+function ligneVentilationADuContenu(row: AirbnbVentilationLine): boolean {
+  if (row.libelle.trim()) return true;
+  if (parseRaw(row.facture) !== 0) return true;
+  if (parseRaw(row.frais) !== 0) return true;
+  if (parseRaw(row.deduction) !== 0) return true;
+  return false;
+}
+
 /** CA enregistré d’un logement pour un mois : facturé + frais des ventilations saisies. */
 export function listingCaFromVentilation(
   state: AirbnbState,
@@ -143,6 +151,26 @@ export function listingCaFromVentilation(
   let t = 0;
   for (const row of lines) t += lineTotalFacture(row);
   return t;
+}
+
+/**
+ * Nombre de locations d’un logement pour un mois = lignes de ventilation
+ * renseignées (les lignes vides de saisie ne comptent pas).
+ */
+export function listingLocationCountFromVentilation(
+  state: AirbnbState,
+  month: string,
+  listingId: AirbnbListingId,
+): number {
+  const vent = state.ventilations.find((v) => v.month === month);
+  if (!vent) return 0;
+  if (!airbnbListingIsActiveInMonth(listingId, month)) return 0;
+  const lines = vent.listings[listingId] ?? [];
+  let n = 0;
+  for (const row of lines) {
+    if (ligneVentilationADuContenu(row)) n += 1;
+  }
+  return n;
 }
 
 function defaultMonthCharges(month: string): AirbnbMonthCharges {
@@ -370,10 +398,7 @@ export function monthVentilationHasData(v: AirbnbMonthVentilation): boolean {
   for (const { id } of AIRBNB_LISTINGS) {
     if (!airbnbListingIsActiveInMonth(id, v.month)) continue;
     for (const row of v.listings[id]) {
-      if (row.libelle.trim()) return true;
-      if (parseRaw(row.facture) !== 0) return true;
-      if (parseRaw(row.frais) !== 0) return true;
-      if (parseRaw(row.deduction) !== 0) return true;
+      if (ligneVentilationADuContenu(row)) return true;
     }
   }
   return false;

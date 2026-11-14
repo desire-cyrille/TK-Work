@@ -103,7 +103,7 @@ export type AirbnbSousTraitance = {
   mode: AirbnbSousTraitanceMode;
   /** Pourcentage du CA (facturé + frais), 0–100. */
   percent: number;
-  /** Forfait € / mois / logement (saisie texte, comme les charges). */
+  /** Forfait € par location (une ligne de ventilation), saisie texte comme les charges. */
   forfaits: Record<AirbnbListingId, string>;
 };
 

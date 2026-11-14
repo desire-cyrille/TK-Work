@@ -7,6 +7,7 @@ import {
   defaultChargesGlobal,
   defaultSousTraitance,
   listingCaFromVentilation,
+  listingLocationCountFromVentilation,
   loadAirbnbState,
   saveAirbnbState,
 } from "../src/lib/airbnbStorage";
@@ -54,6 +55,20 @@ const legacyPayload = {
             frais: "306",
             deduction: "10",
           },
+          {
+            id: "keep-me-2",
+            libelle: "Second séjour",
+            facture: "400",
+            frais: "50",
+            deduction: "",
+          },
+          {
+            id: "empty-placeholder",
+            libelle: "",
+            facture: "",
+            frais: "",
+            deduction: "",
+          },
         ],
         petitBureau: [],
         cosyChill: [
@@ -94,7 +109,7 @@ assert.equal(loaded.version, 1);
 assert.equal(loaded.ventilations.length, 1);
 assert.equal(loaded.ventilations[0]?.month, "2026-10");
 const fam = loaded.ventilations[0]?.listings.familiale ?? [];
-assert.equal(fam.length, 1);
+assert.equal(fam.length, 3);
 assert.equal(fam[0]?.id, "keep-me");
 assert.equal(fam[0]?.libelle, "Séjour octobre");
 assert.equal(fam[0]?.facture, "2140");
@@ -125,9 +140,21 @@ assert.equal(reloaded.ventilations[0]?.listings.familiale[0]?.id, "keep-me");
 assert.equal(reloaded.chargesGlobal.listings.familiale.loyer, "500");
 assert.equal(reloaded.syntheseFichierOverrides["2024-01"]?.revenus, 99);
 
-assert.equal(listingCaFromVentilation(loaded, "2026-10", "familiale"), 2446);
+assert.equal(listingCaFromVentilation(loaded, "2026-10", "familiale"), 2446 + 450);
 assert.equal(listingCaFromVentilation(loaded, "2026-10", "petitBureau"), 0);
 assert.equal(listingCaFromVentilation(loaded, "2026-09", "familiale"), 0);
+assert.equal(
+  listingLocationCountFromVentilation(loaded, "2026-10", "familiale"),
+  2,
+);
+assert.equal(
+  listingLocationCountFromVentilation(loaded, "2026-10", "petitBureau"),
+  0,
+);
+assert.equal(
+  listingLocationCountFromVentilation(loaded, "2026-10", "cosyChill"),
+  1,
+);
 
 const withPercent: AirbnbState = {
   ...loaded,
@@ -139,14 +166,14 @@ const withPercent: AirbnbState = {
   },
 };
 const pct = computeSousTraitancePayout(withPercent, "2026-10", []);
-assert.equal(pct.caTotal, 2446 + 1464);
-assert.equal(pct.dueTotal, (2446 + 1464) * 0.25);
+assert.equal(pct.caTotal, 2446 + 450 + 1464);
+assert.equal(pct.dueTotal, (2446 + 450 + 1464) * 0.25);
 
 const oneHome = computeSousTraitancePayout(withPercent, "2026-10", [
   "familiale",
 ]);
-assert.equal(oneHome.caTotal, 2446);
-assert.equal(oneHome.dueTotal, 611.5);
+assert.equal(oneHome.caTotal, 2446 + 450);
+assert.equal(oneHome.dueTotal, (2446 + 450) * 0.25);
 
 const withForfait: AirbnbState = {
   ...loaded,
@@ -163,7 +190,14 @@ const withForfait: AirbnbState = {
   },
 };
 const forfaitAll = computeSousTraitancePayout(withForfait, "2026-10", []);
-assert.equal(forfaitAll.dueTotal, 180 + 120 + 80 + 90);
+assert.equal(forfaitAll.locationTotal, 3);
+assert.equal(forfaitAll.dueTotal, 180 * 2 + 120 * 1);
+const famRow = forfaitAll.rows.find((r) => r.listingId === "familiale");
+assert.equal(famRow?.locations, 2);
+assert.equal(famRow?.due, 360);
+const emptyListing = forfaitAll.rows.find((r) => r.listingId === "petitBureau");
+assert.equal(emptyListing?.locations, 0);
+assert.equal(emptyListing?.due, 0);
 
 const empty: AirbnbState = {
   version: 1,
