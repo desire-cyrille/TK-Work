@@ -12,7 +12,10 @@ import {
   normalizeSyntheseViewQuery,
   yearsInclusive,
 } from "../src/lib/airbnbSyntheseView";
-import { defaultChargesGlobal } from "../src/lib/airbnbStorage";
+import {
+  defaultChargesGlobal,
+  defaultSousTraitance,
+} from "../src/lib/airbnbStorage";
 import type { AirbnbState } from "../src/types/airbnb";
 
 const empty: AirbnbState = {
@@ -20,6 +23,7 @@ const empty: AirbnbState = {
   ventilations: [],
   chargesGlobal: defaultChargesGlobal(),
   syntheseFichierOverrides: {},
+  sousTraitance: defaultSousTraitance(),
 };
 
 assert.deepEqual(clampYearMonth("2025-03", "2024-01"), ["2024-01", "2025-03"]);
@@ -60,6 +64,7 @@ const filtered = computeSyntheseViewTotals(empty, {
   listingIds: ["familiale"],
 });
 assert.equal(filtered.benefices, 0);
+assert.equal(filtered.ca, filtered.revenus);
 assert.equal(filtered.fichierExcluDuFiltreLogement, true);
 
 const all = computeSyntheseViewTotals(empty, {
@@ -69,6 +74,7 @@ const all = computeSyntheseViewTotals(empty, {
   listingIds: [],
 });
 assert.ok(all.benefices !== 0);
+assert.equal(all.ca, all.revenus);
 assert.equal(all.fichierExcluDuFiltreLogement, false);
 
 const q = normalizeSyntheseViewQuery({

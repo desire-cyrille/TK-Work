@@ -4,8 +4,10 @@ import {
   buildMergedSynthese,
   cloneChargesGlobal,
   cloneMonthVentilation,
+  cloneSousTraitance,
   computeVentilationMonthTotals,
   defaultMonthVentilation,
+  defaultSousTraitance,
   emptyListingCharges,
   formatMonthFr,
   getAirbnbMonthDetail,
@@ -19,6 +21,7 @@ import {
   saveAirbnbState,
   type SyntheseGroupedBucket,
 } from "../lib/airbnbStorage";
+import { computeSousTraitancePayout } from "../lib/airbnbSousTraitance";
 import {
   buildSyntheseGroupedBars,
   buildSyntheseTotalBars,
@@ -43,6 +46,7 @@ import {
   type AirbnbListingId,
   type AirbnbMonthVentilation,
   type AirbnbState,
+  type AirbnbSousTraitance,
   type AirbnbVentilationLine,
 } from "../types/airbnb";
 import { confirmCloudPush } from "../lib/cloudSync";
@@ -57,7 +61,7 @@ import { normaliserEtTrierLignesVentilation } from "../lib/airbnbVentilationSort
 import { TK_GESTION_RELOAD_LOCAL_DATA_EVENT } from "../lib/reloadLocalAppData";
 import styles from "./Airbnb.module.css";
 
-type TabId = "ventilation" | "charges" | "synthese";
+type TabId = "ventilation" | "charges" | "synthese" | "sousTraitance";
 
 function initialMonth(): string {
   const d = new Date();
@@ -369,6 +373,14 @@ export function Airbnb() {
   const [chargesDraft, setChargesDraft] = useState<AirbnbChargesGlobal>(() =>
     cloneChargesGlobal(initialStoreRef.current!.chargesGlobal)
   );
+  const [sousTraitanceDraft, setSousTraitanceDraft] =
+    useState<AirbnbSousTraitance>(() =>
+      cloneSousTraitance(
+        initialStoreRef.current?.sousTraitance ?? defaultSousTraitance(),
+      ),
+    );
+  const [stMonth, setStMonth] = useState(initialMonth);
+  const [stListingIds, setStListingIds] = useState<AirbnbListingId[]>([]);
   const [detailMonth, setDetailMonth] = useState<string | null>(null);
   const [fichierEditBenef, setFichierEditBenef] = useState("");
   const [fichierEditRevenus, setFichierEditRevenus] = useState("");
@@ -426,6 +438,7 @@ export function Airbnb() {
       const s = loadAirbnbState();
       setStore(s);
       setChargesDraft(cloneChargesGlobal(s.chargesGlobal));
+      setSousTraitanceDraft(cloneSousTraitance(s.sousTraitance));
       const found = s.ventilations.find((v) => v.month === selectedMonth);
       setDraft(
         found
@@ -441,6 +454,10 @@ export function Airbnb() {
   useEffect(() => {
     setChargesDraft(cloneChargesGlobal(store.chargesGlobal));
   }, [store.chargesGlobal]);
+
+  useEffect(() => {
+    setSousTraitanceDraft(cloneSousTraitance(store.sousTraitance));
+  }, [store.sousTraitance]);
 
   useEffect(() => {
     const found = storeRef.current.ventilations.find(
@@ -791,6 +808,20 @@ export function Airbnb() {
     void confirmerEnvoiServeur("Charges enregistrées sur le serveur.");
   }
 
+  function saveSousTraitance() {
+    if (saveBusy) return;
+    const toSave = cloneSousTraitance(sousTraitanceDraft);
+    setSousTraitanceDraft(toSave);
+    setStore((s) => {
+      const next = { ...s, sousTraitance: toSave };
+      saveAirbnbState(next);
+      return next;
+    });
+    void confirmerEnvoiServeur(
+      "Paramètres de sous-traitance enregistrés sur le serveur.",
+    );
+  }
+
   const syntheseDetail =
     detailMonth != null ? getAirbnbMonthDetail(store, detailMonth) : null;
 
@@ -906,6 +937,41 @@ export function Airbnb() {
         )]
       : [...AIRBNB_LISTINGS.map((l) => l.id), "_fichier"];
 
+  const stListingFilterActive = !(
+    stListingIds.length === 0 ||
+    stListingIds.length === AIRBNB_LISTINGS.length
+  );
+
+  const stMonthOptions = useMemo(() => {
+    const months = new Set<string>([stMonth, initialMonth()]);
+    for (const v of store.ventilations) {
+      if (v.month) months.add(v.month);
+    }
+    return [...months].sort().reverse();
+  }, [store.ventilations, stMonth]);
+
+  const stPayout = useMemo(
+    () =>
+      computeSousTraitancePayout(
+        { ...store, sousTraitance: sousTraitanceDraft },
+        stMonth,
+        stListingFilterActive ? stListingIds : [],
+      ),
+    [store, sousTraitanceDraft, stMonth, stListingFilterActive, stListingIds],
+  );
+
+  function toggleStListing(id: AirbnbListingId) {
+    setStListingIds((cur) => {
+      if (cur.length === 0) return [id];
+      const has = cur.includes(id);
+      const next = has ? cur.filter((x) => x !== id) : [...cur, id];
+      if (next.length === 0 || next.length === AIRBNB_LISTINGS.length) {
+        return [];
+      }
+      return next;
+    });
+  }
+
   return (
     <PageFrame title="Airbnb">
       <div className={styles.page}>
@@ -915,8 +981,11 @@ export function Airbnb() {
           annonce. <strong>Charges</strong> : montants fixes pour tous les mois
           (loyer, énergie, assurances, etc.), déduits du bénéfice de chaque
           annonce en ventilation — modifiables à tout moment dans l’onglet dédié.{" "}
-          <strong>Synthèse</strong> : total facturé et bénéfices. Les mois issus
-          du <strong>fichier source</strong> sont affichés sans déduction des
+          <strong>Synthèse</strong> : total facturé, bénéfices, et CA (facturé +
+          frais) selon les filtres. <strong>Sous-traitance</strong> : paramètres
+          de calcul (% du CA ou forfait par logement) et montant à verser, sans
+          modifier les ventilations. Les mois issus du{" "}
+          <strong>fichier source</strong> sont affichés sans déduction des
           charges ; vous pouvez <strong>corriger leurs montants</strong> depuis
           le détail (clic sur la ligne du mois). Les <strong>charges</strong> ne
           s’appliquent aux bénéfices en synthèse que pour les mois saisis dans
@@ -951,6 +1020,15 @@ export function Airbnb() {
             onClick={() => setTab("synthese")}
           >
             Synthèse
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "sousTraitance"}
+            className={`${styles.tab} ${tab === "sousTraitance" ? styles.tabActive : ""}`}
+            onClick={() => setTab("sousTraitance")}
+          >
+            Sous-traitance
           </button>
         </div>
 
@@ -1479,6 +1557,223 @@ export function Airbnb() {
               </div>
             ))}
           </>
+        ) : tab === "sousTraitance" ? (
+          <>
+            <div className={styles.toolbar}>
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={styles.btnPrimary}
+                  disabled={saveBusy}
+                  onClick={saveSousTraitance}
+                >
+                  {saveBusy
+                    ? "Enregistrement…"
+                    : "Enregistrer les paramètres"}
+                </button>
+              </div>
+            </div>
+            <p className={styles.hint}>
+              Les paramètres se saisissent ici (comme les charges). Ils ne
+              modifient pas les ventilations ni la synthèse : le montant à
+              verser se calcule à partir des factures et frais déjà
+              enregistrés.
+            </p>
+
+            <div className={styles.listingCard}>
+              <h3 className={styles.listingTitle}>
+                Paramètres du prestataire
+                <span className={styles.listingBadge}>Saisie</span>
+              </h3>
+              <label className={styles.chargeField}>
+                <span>Nom du prestataire</span>
+                <input
+                  className={styles.input}
+                  value={sousTraitanceDraft.prestataire}
+                  onChange={(e) =>
+                    setSousTraitanceDraft((d) => ({
+                      ...d,
+                      prestataire: e.target.value,
+                    }))
+                  }
+                  placeholder="Prestataire de ménage"
+                />
+              </label>
+              <div
+                className={styles.chartFilterRow}
+                role="group"
+                aria-label="Mode de calcul"
+                style={{ marginTop: "0.85rem" }}
+              >
+                <span className={styles.chartControlLabel}>Calcul</span>
+                <button
+                  type="button"
+                  className={`${styles.chartFilterBtn} ${sousTraitanceDraft.mode === "percent" ? styles.chartFilterBtnActive : ""}`}
+                  aria-pressed={sousTraitanceDraft.mode === "percent"}
+                  onClick={() =>
+                    setSousTraitanceDraft((d) => ({ ...d, mode: "percent" }))
+                  }
+                >
+                  Pourcentage du CA
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.chartFilterBtn} ${sousTraitanceDraft.mode === "forfait" ? styles.chartFilterBtnActive : ""}`}
+                  aria-pressed={sousTraitanceDraft.mode === "forfait"}
+                  onClick={() =>
+                    setSousTraitanceDraft((d) => ({ ...d, mode: "forfait" }))
+                  }
+                >
+                  Forfait par mois et par logement
+                </button>
+              </div>
+              {sousTraitanceDraft.mode === "percent" ? (
+                <label className={styles.stPercentField}>
+                  <span>Pourcentage du CA (facturé + frais)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    inputMode="decimal"
+                    value={sousTraitanceDraft.percent}
+                    onChange={(e) => {
+                      const n = Number(
+                        String(e.target.value).replace(",", "."),
+                      );
+                      setSousTraitanceDraft((d) => ({
+                        ...d,
+                        percent: Number.isFinite(n)
+                          ? Math.min(100, Math.max(0, n))
+                          : 0,
+                      }));
+                    }}
+                  />
+                </label>
+              ) : (
+                <div className={styles.stForfaitList}>
+                  <p className={styles.hint}>
+                    Montant fixe par mois, pour chaque logement.
+                  </p>
+                  {AIRBNB_LISTINGS.map(({ id, label }) => (
+                    <label key={id} className={styles.stForfaitRow}>
+                      <span>{label}</span>
+                      <input
+                        inputMode="decimal"
+                        value={sousTraitanceDraft.forfaits[id]}
+                        onChange={(e) =>
+                          setSousTraitanceDraft((d) => ({
+                            ...d,
+                            forfaits: {
+                              ...d.forfaits,
+                              [id]: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="0"
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.listingCard}>
+              <h3 className={styles.listingTitle}>Montant à verser</h3>
+              <p className={styles.recapHint}>
+                Un mois, un logement, plusieurs, ou tous — d’après les
+                ventilations enregistrées.
+              </p>
+              <div className={styles.chartControls}>
+                <label className={styles.chartSelectField}>
+                  Mois
+                  <select
+                    className={styles.chartSelect}
+                    value={stMonth}
+                    onChange={(e) => setStMonth(e.target.value)}
+                  >
+                    {stMonthOptions.map((m) => (
+                      <option key={m} value={m}>
+                        {formatMonthFr(m)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div
+                  className={styles.chartFilterRow}
+                  role="group"
+                  aria-label="Filtrer par logement"
+                >
+                  <span className={styles.chartControlLabel}>Logement</span>
+                  <button
+                    type="button"
+                    className={`${styles.chartFilterBtn} ${!stListingFilterActive ? styles.chartFilterBtnActive : ""}`}
+                    aria-pressed={!stListingFilterActive}
+                    onClick={() => setStListingIds([])}
+                  >
+                    Tous
+                  </button>
+                  {AIRBNB_LISTINGS.map(({ id, label }) => {
+                    const active =
+                      stListingFilterActive && stListingIds.includes(id);
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        className={`${styles.chartFilterBtn} ${active ? styles.chartFilterBtnActive : ""}`}
+                        aria-pressed={active}
+                        onClick={() => toggleStListing(id)}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className={styles.stPayoutBanner}>
+                <p className={styles.stPayoutName}>
+                  {sousTraitanceDraft.prestataire.trim() || "Prestataire"}
+                </p>
+                <p className={styles.stPayoutValue}>{eur(stPayout.dueTotal)}</p>
+                <p className={styles.stPayoutHint}>
+                  {formatMonthFr(stMonth)}
+                  {sousTraitanceDraft.mode === "percent"
+                    ? ` · ${sousTraitanceDraft.percent} % du CA enregistré (${eur(stPayout.caTotal)})`
+                    : " · forfaits mensuels des logements affichés"}
+                </p>
+              </div>
+              <div className={styles.tableWrap}>
+                <table className={styles.recapTable}>
+                  <thead>
+                    <tr>
+                      <th>Logement</th>
+                      <th className={styles.num}>CA enregistré</th>
+                      <th className={styles.num}>À verser</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stPayout.rows.map((row) => (
+                      <tr key={row.listingId}>
+                        <td>
+                          {row.label}
+                          {!row.active ? (
+                            <span className={styles.stInactive}>
+                              {" "}
+                              (inactif ce mois)
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className={styles.num}>{eur(row.ca)}</td>
+                        <td className={styles.num}>
+                          <strong>{eur(row.due)}</strong>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         ) : (
           <>
             <div className={styles.kpiRow}>
@@ -1495,6 +1790,13 @@ export function Airbnb() {
               <div className={styles.kpi}>
                 <p className={styles.kpiLabel}>Total facturé (période affichée)</p>
                 <p className={styles.kpiValue}>{eur(chartKpi.revenus)}</p>
+              </div>
+              <div className={`${styles.kpi} ${styles.kpiCa}`}>
+                <p className={styles.kpiLabel}>CA — facturé + frais</p>
+                <p className={styles.kpiValue}>{eur(chartKpi.ca)}</p>
+                <p className={styles.kpiHint}>
+                  Suit les filtres période et logements ci-dessous.
+                </p>
               </div>
             </div>
 
@@ -1653,6 +1955,10 @@ export function Airbnb() {
                     );
                   })}
                 </div>
+                <p className={styles.chartCaFilter}>
+                  CA (facturé + frais) sur la période filtrée :{" "}
+                  <strong>{eur(chartKpi.ca)}</strong>
+                </p>
               </div>
 
               <p className={styles.chartSubtitle}>
