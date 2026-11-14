@@ -8,6 +8,7 @@ import type {
   AirbnbMonthVentilation,
   AirbnbSyntheseRow,
   AirbnbState,
+  AirbnbSousTraitance,
   AirbnbVentilationLine,
 } from "../types/airbnb";
 import { AIRBNB_LISTINGS, airbnbListingIsActiveInMonth } from "../types/airbnb";
@@ -83,6 +84,65 @@ export function emptyListingCharges(): AirbnbListingCharges {
     fournitureMenagere: "",
     assurance: "",
   };
+}
+
+function emptyForfaitsRecord(): Record<AirbnbListingId, string> {
+  const o = {} as Record<AirbnbListingId, string>;
+  for (const { id } of AIRBNB_LISTINGS) {
+    o[id] = "";
+  }
+  return o;
+}
+
+export function defaultSousTraitance(): AirbnbSousTraitance {
+  return {
+    prestataire: "",
+    mode: "percent",
+    percent: 0,
+    forfaits: emptyForfaitsRecord(),
+  };
+}
+
+export function cloneSousTraitance(
+  s: AirbnbSousTraitance | undefined | null,
+): AirbnbSousTraitance {
+  const base = defaultSousTraitance();
+  if (!s || typeof s !== "object") return base;
+  const forfaits = emptyForfaitsRecord();
+  const rawForfaits =
+    s.forfaits && typeof s.forfaits === "object"
+      ? (s.forfaits as Record<string, unknown>)
+      : {};
+  for (const { id } of AIRBNB_LISTINGS) {
+    const v = rawForfaits[id];
+    forfaits[id] = typeof v === "string" ? v : v == null ? "" : String(v);
+  }
+  const percentRaw = s.percent;
+  const percent =
+    typeof percentRaw === "number" && Number.isFinite(percentRaw)
+      ? Math.min(100, Math.max(0, percentRaw))
+      : 0;
+  return {
+    prestataire: typeof s.prestataire === "string" ? s.prestataire : "",
+    mode: s.mode === "forfait" ? "forfait" : "percent",
+    percent,
+    forfaits,
+  };
+}
+
+/** CA enregistré d’un logement pour un mois : facturé + frais des ventilations saisies. */
+export function listingCaFromVentilation(
+  state: AirbnbState,
+  month: string,
+  listingId: AirbnbListingId,
+): number {
+  const vent = state.ventilations.find((v) => v.month === month);
+  if (!vent || !monthVentilationHasData(vent)) return 0;
+  if (!airbnbListingIsActiveInMonth(listingId, month)) return 0;
+  const lines = vent.listings[listingId] ?? [];
+  let t = 0;
+  for (const row of lines) t += lineTotalFacture(row);
+  return t;
 }
 
 function defaultMonthCharges(month: string): AirbnbMonthCharges {
@@ -366,6 +426,7 @@ const emptyState = (): AirbnbState => ({
   ventilations: [],
   chargesGlobal: defaultChargesGlobal(),
   syntheseFichierOverrides: {},
+  sousTraitance: defaultSousTraitance(),
 });
 
 export function loadAirbnbState(): AirbnbState {
@@ -390,6 +451,9 @@ export function loadAirbnbState(): AirbnbState {
       syntheseFichierOverrides: normalizeSyntheseFichierOverrides(
         (p as Partial<AirbnbState>).syntheseFichierOverrides
       ),
+      sousTraitance: cloneSousTraitance(
+        (p as Partial<AirbnbState>).sousTraitance,
+      ),
     };
   } catch {
     return emptyState();
@@ -402,6 +466,7 @@ export function saveAirbnbState(state: AirbnbState): void {
     ventilations: state.ventilations,
     chargesGlobal: state.chargesGlobal,
     syntheseFichierOverrides: state.syntheseFichierOverrides ?? {},
+    sousTraitance: cloneSousTraitance(state.sousTraitance),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }

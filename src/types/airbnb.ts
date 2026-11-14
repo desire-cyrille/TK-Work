@@ -95,9 +95,23 @@ export type AirbnbSyntheseFichierOverrides = Record<
   { benefices: number; revenus: number }
 >;
 
+/** Paramètres de calcul sous-traitance (onglet dédié). Absent du JSON existant → défauts. */
+export type AirbnbSousTraitanceMode = "percent" | "forfait";
+
+export type AirbnbSousTraitance = {
+  prestataire: string;
+  mode: AirbnbSousTraitanceMode;
+  /** Pourcentage du CA (facturé + frais), 0–100. */
+  percent: number;
+  /** Forfait € / mois / logement (saisie texte, comme les charges). */
+  forfaits: Record<AirbnbListingId, string>;
+};
+
 export type AirbnbState = {
   version: 1;
   ventilations: AirbnbMonthVentilation[];
   chargesGlobal: AirbnbChargesGlobal;
   syntheseFichierOverrides: AirbnbSyntheseFichierOverrides;
+  /** Nouveau champ optionnel à l’enregistrement : les JSON v1 sans cette clé restent valides. */
+  sousTraitance: AirbnbSousTraitance;
 };

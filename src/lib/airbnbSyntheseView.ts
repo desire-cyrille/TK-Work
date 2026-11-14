@@ -247,6 +247,11 @@ function filteredMonthTotals(
 export type SyntheseViewTotals = {
   benefices: number;
   revenus: number;
+  /**
+   * CA filtré = mêmes montants que `revenus` (saisie : facturé + frais ;
+   * fichier Excel : colonne revenus). Exposé pour l’indicateur CA.
+   */
+  ca: number;
   /** Filtre logement : les mois « fichier Excel » n’ont pas de ventilation par annonce. */
   fichierExcluDuFiltreLogement: boolean;
 };
@@ -272,7 +277,7 @@ export function computeSyntheseViewTotals(
     benefices += t.benefice;
     revenus += t.revenus;
   }
-  return { benefices, revenus, fichierExcluDuFiltreLogement };
+  return { benefices, revenus, ca: revenus, fichierExcluDuFiltreLogement };
 }
 
 function segmentsForSlice(
